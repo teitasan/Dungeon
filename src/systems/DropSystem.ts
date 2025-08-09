@@ -1,0 +1,104 @@
+/**
+ * Drop and spawn system for items
+ * - Enemy drop on death based on weighted drop tables
+ * - Floor item spawning using dungeon template item tables
+ */
+
+import { DungeonManager } from '../dungeon/DungeonManager';
+import { ItemSystem } from './ItemSystem';
+import { ItemEntity } from '../entities/Item';
+import { MonsterEntity } from '../entities/Monster';
+import { DungeonTemplate } from '../types/dungeon';
+
+export class DropSystem {
+  private dungeonManager: DungeonManager;
+  private itemSystem: ItemSystem;
+  private rng: () => number;
+
+  constructor(dungeonManager: DungeonManager, itemSystem: ItemSystem, rng?: () => number) {
+    this.dungeonManager = dungeonManager;
+    this.itemSystem = itemSystem;
+    this.rng = rng || Math.random;
+  }
+
+  /**
+   * Handle drops for a defeated monster
+   * Returns array of created ItemEntities (also placed on the ground)
+   */
+  dropFromMonster(monster: MonsterEntity): ItemEntity[] {
+    if (monster.dropTable.length === 0) return [];
+
+    const dropped: ItemEntity[] = [];
+
+    // Weighted selection: pick one entry per defeat by default
+    const entry = this.pickWeighted(monster.dropTable);
+    if (!entry) return [];
+
+    const quantity = this.randomInt(entry.quantity.min, entry.quantity.max);
+    for (let i = 0; i < quantity; i++) {
+      const item = this.itemSystem.createItem(entry.itemId, { ...monster.position });
+      if (item) {
+        const placed = this.dungeonManager.addEntity(item, monster.position);
+        if (placed) {
+          dropped.push(item);
+        }
+      }
+    }
+
+    return dropped;
+  }
+
+  /**
+   * Spawn floor items after dungeon generation using the template's item table
+   * Places a small number of items in random walkable positions
+   */
+  spawnFloorItems(template: DungeonTemplate, floor: number, minItems: number = 3, maxItems: number = 6): ItemEntity[] {
+    const dungeon = this.dungeonManager.getCurrentDungeon();
+    if (!dungeon || template.itemTable.length === 0) return [];
+
+    const numItems = this.randomInt(minItems, maxItems);
+    const spawned: ItemEntity[] = [];
+
+    for (let i = 0; i < numItems; i++) {
+      const candidates = template.itemTable.filter(e => floor >= e.minFloor && floor <= e.maxFloor);
+      if (candidates.length === 0) break;
+
+      const entry = this.pickWeighted(candidates);
+      if (!entry) continue;
+
+      // Find random walkable position
+      let attempts = 0;
+      let placed = false;
+      while (attempts < 50 && !placed) {
+        const x = this.randomInt(0, dungeon.width - 1);
+        const y = this.randomInt(0, dungeon.height - 1);
+        const pos = { x, y };
+        if (this.dungeonManager.isWalkable(pos)) {
+          const item = this.itemSystem.createItem(entry.itemId, pos);
+          if (item && this.dungeonManager.addEntity(item, pos)) {
+            spawned.push(item);
+            placed = true;
+          }
+        }
+        attempts++;
+      }
+    }
+
+    return spawned;
+  }
+
+  private pickWeighted<T extends { weight: number }>(entries: T[]): T | null {
+    const total = entries.reduce((sum, e) => sum + Math.max(0, e.weight), 0);
+    if (total <= 0) return null;
+    let r = this.rng() * total;
+    for (const e of entries) {
+      r -= Math.max(0, e.weight);
+      if (r <= 0) return e;
+    }
+    return entries[entries.length - 1] || null;
+  }
+
+  private randomInt(min: number, max: number): number {
+    return Math.floor(this.rng() * (max - min + 1)) + min;
+  }
+}
