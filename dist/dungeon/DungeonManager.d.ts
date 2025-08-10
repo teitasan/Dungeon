@@ -9,6 +9,7 @@ export declare class DungeonManager {
     private currentDungeon;
     private dungeonTemplates;
     private generator;
+    private currentTemplateId;
     constructor();
     /**
      * Generate a new dungeon from template
@@ -82,6 +83,10 @@ export declare class DungeonManager {
      * Get all template IDs
      */
     getTemplateIds(): string[];
+    /** Get the template id used for the current dungeon (if any) */
+    getCurrentTemplateId(): string | null;
+    /** Get progression direction for current dungeon ('down' default) */
+    getCurrentProgressionDirection(): 'down' | 'up';
     /**
      * Initialize default dungeon templates
      */

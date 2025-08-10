@@ -1,7 +1,7 @@
 /**
  * Item entity implementation
  */
-import { BaseGameEntity } from './GameEntity';
+import { BaseGameEntity } from './GameEntity.js';
 export class ItemEntity extends BaseGameEntity {
     name;
     itemType;

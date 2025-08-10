@@ -3,7 +3,7 @@
  */
 import { Position, Component, EntityFlags } from '../types/core';
 import { Monster, CharacterStats, CharacterAttributes, StatusEffect, DropTableEntry, SpawnCondition } from '../types/entities';
-import { BaseGameEntity } from './GameEntity';
+import { BaseGameEntity } from './GameEntity.js';
 export declare class MonsterEntity extends BaseGameEntity implements Monster {
     name: string;
     monsterType: string;

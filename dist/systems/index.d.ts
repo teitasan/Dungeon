@@ -17,6 +17,7 @@ export { DropSystem } from './DropSystem';
 export { ItemIdentificationSystem } from './ItemIdentificationSystem';
 export { DeathSystem } from './DeathSystem';
 export { UISystem } from './UISystem';
+export { GraphicsSystem } from './GraphicsSystem';
 export * from '../types/movement';
 export * from '../types/combat';
 //# sourceMappingURL=index.d.ts.map

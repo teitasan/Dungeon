@@ -12,12 +12,13 @@ import {
   DungeonTemplate,
   CellType 
 } from '../types/dungeon';
-import { DungeonGenerator } from './DungeonGenerator';
+import { DungeonGenerator } from './DungeonGenerator.js';
 
 export class DungeonManager {
   private currentDungeon: Dungeon | null = null;
   private dungeonTemplates: Map<string, DungeonTemplate> = new Map();
   private generator: DungeonGenerator;
+  private currentTemplateId: string | null = null;
 
   constructor() {
     this.generator = new DungeonGenerator();
@@ -32,6 +33,8 @@ export class DungeonManager {
     if (!template) {
       throw new Error(`Dungeon template not found: ${templateId}`);
     }
+
+    this.currentTemplateId = templateId;
 
     if (seed !== undefined) {
       this.generator.setSeed(seed);
@@ -260,6 +263,18 @@ export class DungeonManager {
    */
   getTemplateIds(): string[] {
     return Array.from(this.dungeonTemplates.keys());
+  }
+
+  /** Get the template id used for the current dungeon (if any) */
+  getCurrentTemplateId(): string | null {
+    return this.currentTemplateId;
+  }
+
+  /** Get progression direction for current dungeon ('down' default) */
+  getCurrentProgressionDirection(): 'down' | 'up' {
+    if (!this.currentTemplateId) return 'down';
+    const tpl = this.dungeonTemplates.get(this.currentTemplateId);
+    return tpl?.generationParams?.progressionDirection || 'down';
   }
 
   /**

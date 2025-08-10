@@ -1,7 +1,7 @@
 /**
  * Monster entity implementation
  */
-import { BaseGameEntity, createDefaultCharacterStats, createDefaultCharacterAttributes } from './GameEntity';
+import { BaseGameEntity, createDefaultCharacterStats, createDefaultCharacterAttributes } from './GameEntity.js';
 export class MonsterEntity extends BaseGameEntity {
     name;
     monsterType;

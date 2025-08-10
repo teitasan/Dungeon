@@ -3,7 +3,7 @@
  */
 import { Position, Component, EntityFlags } from '../types/core';
 import { Player, CharacterStats, CharacterAttributes, StatusEffect, Item } from '../types/entities';
-import { BaseGameEntity } from './GameEntity';
+import { BaseGameEntity } from './GameEntity.js';
 export declare class PlayerEntity extends BaseGameEntity implements Player {
     name: string;
     stats: CharacterStats;

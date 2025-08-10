@@ -68,6 +68,12 @@ export interface DungeonGenerationParams {
     specialRoomChance: number;
     trapDensity: number;
     seed?: number;
+    /**
+     * 進行方向（デフォルト: 'down'）
+     * 'down': 各フロアに下り階段のみ生成
+     * 'up':   各フロアに上り階段のみ生成
+     */
+    progressionDirection?: 'down' | 'up';
 }
 export interface DungeonTemplate {
     id: string;

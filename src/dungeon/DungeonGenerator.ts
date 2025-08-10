@@ -52,8 +52,8 @@ export class DungeonGenerator {
     // Connect rooms with corridors
     this.connectRooms(dungeon, params);
 
-    // Place stairs
-    this.placeStairs(dungeon);
+    // Place stairs (respect progression direction)
+    this.placeStairs(dungeon, params);
 
     // Set player spawn point
     this.setPlayerSpawn(dungeon);
@@ -302,29 +302,33 @@ export class DungeonGenerator {
   /**
    * Place stairs in the dungeon
    */
-  private placeStairs(dungeon: Dungeon): void {
+  private placeStairs(dungeon: Dungeon, params: DungeonGenerationParams): void {
     if (dungeon.rooms.length === 0) return;
 
-    // Place stairs down in the last room
-    const lastRoom = dungeon.rooms[dungeon.rooms.length - 1];
-    const stairsDown = {
-      x: lastRoom.x + Math.floor(lastRoom.width / 2),
-      y: lastRoom.y + Math.floor(lastRoom.height / 2)
-    };
-    
-    dungeon.stairsDown = stairsDown;
-    dungeon.cells[stairsDown.y][stairsDown.x].type = 'stairs-down';
+    const direction = params.progressionDirection || 'down';
 
-    // Place stairs up in the first room (if not on floor 1)
-    if (dungeon.floor > 1) {
+    if (direction === 'down') {
+      // Only stairs-down per floor
+      const lastRoom = dungeon.rooms[dungeon.rooms.length - 1];
+      const stairsDown = {
+        x: lastRoom.x + Math.floor(lastRoom.width / 2),
+        y: lastRoom.y + Math.floor(lastRoom.height / 2)
+      };
+      dungeon.stairsDown = stairsDown;
+      dungeon.cells[stairsDown.y][stairsDown.x].type = 'stairs-down';
+      // Ensure no stairs-up
+      dungeon.stairsUp = undefined;
+    } else {
+      // direction === 'up' → Only stairs-up per floor
       const firstRoom = dungeon.rooms[0];
       const stairsUp = {
         x: firstRoom.x + Math.floor(firstRoom.width / 2),
         y: firstRoom.y + Math.floor(firstRoom.height / 2)
       };
-      
       dungeon.stairsUp = stairsUp;
       dungeon.cells[stairsUp.y][stairsUp.x].type = 'stairs-up';
+      // Ensure no stairs-down
+      dungeon.stairsDown = undefined;
     }
   }
 

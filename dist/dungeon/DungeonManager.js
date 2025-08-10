@@ -2,11 +2,12 @@
  * Dungeon management system
  * Handles dungeon creation, loading, and state management
  */
-import { DungeonGenerator } from './DungeonGenerator';
+import { DungeonGenerator } from './DungeonGenerator.js';
 export class DungeonManager {
     currentDungeon = null;
     dungeonTemplates = new Map();
     generator;
+    currentTemplateId = null;
     constructor() {
         this.generator = new DungeonGenerator();
         this.initializeDefaultTemplates();
@@ -19,6 +20,7 @@ export class DungeonManager {
         if (!template) {
             throw new Error(`Dungeon template not found: ${templateId}`);
         }
+        this.currentTemplateId = templateId;
         if (seed !== undefined) {
             this.generator.setSeed(seed);
         }
@@ -209,6 +211,17 @@ export class DungeonManager {
      */
     getTemplateIds() {
         return Array.from(this.dungeonTemplates.keys());
+    }
+    /** Get the template id used for the current dungeon (if any) */
+    getCurrentTemplateId() {
+        return this.currentTemplateId;
+    }
+    /** Get progression direction for current dungeon ('down' default) */
+    getCurrentProgressionDirection() {
+        if (!this.currentTemplateId)
+            return 'down';
+        const tpl = this.dungeonTemplates.get(this.currentTemplateId);
+        return tpl?.generationParams?.progressionDirection || 'down';
     }
     /**
      * Initialize default dungeon templates

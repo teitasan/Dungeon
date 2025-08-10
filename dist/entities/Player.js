@@ -1,7 +1,7 @@
 /**
  * Player entity implementation
  */
-import { BaseGameEntity, createDefaultCharacterStats, createDefaultCharacterAttributes } from './GameEntity';
+import { BaseGameEntity, createDefaultCharacterStats, createDefaultCharacterAttributes } from './GameEntity.js';
 export class PlayerEntity extends BaseGameEntity {
     name;
     stats;

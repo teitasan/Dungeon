@@ -4,7 +4,7 @@
 
 import { Position, Component, EntityFlags, EntityStats } from '../types/core';
 import { Item, ItemType, ItemEffect, EquipmentStats } from '../types/entities';
-import { BaseGameEntity } from './GameEntity';
+import { BaseGameEntity } from './GameEntity.js';
 
 export class ItemEntity extends BaseGameEntity implements Item {
   public name: string;
