@@ -63,12 +63,23 @@ export class CanvasRenderer {
 
     // 可視マップを計算（部屋ベース）
     const visible = this.computeVisibility(dungeon, player);
-    // explored 更新
+
+    // explored 更新（ミニマップ用）
     if (this.explored) {
-      for (let y = 0; y < dungeon.height; y++) {
-        for (let x = 0; x < dungeon.width; x++) {
-          if (visible[y][x]) this.explored[y][x] = true;
+      const px = player.position.x;
+      const py = player.position.y;
+      const room = this.findRoomAt(dungeon, px, py);
+      
+      if (room) {
+        // 部屋内なら部屋全体をマッピング
+        for (let y = room.y; y < room.y + room.height; y++) {
+          for (let x = room.x; x < room.x + room.width; x++) {
+            this.explored[y][x] = true;
+          }
         }
+      } else {
+        // 通路内なら現在位置のみマッピング
+        this.explored[py][px] = true;
       }
     }
 
@@ -89,7 +100,6 @@ export class CanvasRenderer {
         const cell = dungeon.cells[y][x];
 
         const isVisible = visible[y][x];
-        const isExplored = this.explored ? this.explored[y][x] : false;
 
         // ベース色
         let color = '#15151b'; // wall
@@ -108,12 +118,9 @@ export class CanvasRenderer {
             break;
         }
 
-        // 不可視/未踏破の減光
-        if (!isExplored) {
-          color = '#000000';
-        } else if (!isVisible) {
-          // half-darken
-          color = this.mix(color, '#000000', 0.5);
+        // 見えていない範囲は少し暗くする
+        if (!isVisible) {
+          color = this.mix(color, '#000000', 0.3);
         }
 
         ctx.fillStyle = color;
@@ -236,27 +243,20 @@ export class CanvasRenderer {
         }
       }
     } else {
-      // 廊下内：プレイヤー位置と直線視界
+      // 廊下内：プレイヤー位置と周囲8マス
       visible[py][px] = true;
-      const dirs = [
-        { dx: 1, dy: 0 },
-        { dx: -1, dy: 0 },
-        { dx: 0, dy: 1 },
-        { dx: 0, dy: -1 },
-      ];
-      for (const d of dirs) {
-        let cx = px;
-        let cy = py;
-        // 直線に伸ばす
-        while (true) {
-          cx += d.dx;
-          cy += d.dy;
-          if (cx < 0 || cx >= w || cy < 0 || cy >= h) break;
-          const cell = dungeon.cells[cy][cx];
-          if (!cell.walkable) break; // 壁で遮断
+
+      // 周囲8マスを可視にする
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue; // プレイヤー位置はスキップ
+
+          const cx = px + dx;
+          const cy = py + dy;
+
+          if (cx < 0 || cx >= w || cy < 0 || cy >= h) continue;
+
           visible[cy][cx] = true;
-          // 部屋に入ったら入口タイルのみで停止
-          if (this.findRoomAt(dungeon, cx, cy)) break;
         }
       }
     }
@@ -287,31 +287,34 @@ export class CanvasRenderer {
     const offsetX = Math.floor((W - dungeon.width * mmTile) / 2);
     const offsetY = Math.floor((H - dungeon.height * mmTile) / 2);
 
-    // 描画
+    // 描画（探索済みの場所のみ）
     for (let y = 0; y < dungeon.height; y++) {
       for (let x = 0; x < dungeon.width; x++) {
         const cell = dungeon.cells[y][x];
-        const isExplored = this.explored ? this.explored[y][x] : false;
         const isVisible = visible[y][x];
-        let color = '#111318'; // wall base
+        const isExplored = this.explored ? this.explored[y][x] : false;
+
+        // 探索済みの場所のみ表示
+        if (!isExplored) continue;
+
+        let color = '#2a2a35'; // wall base (brighter for minimap)
         switch (cell.type) {
           case 'floor':
-            color = '#2a2a31';
+            color = '#4a4a55';
             break;
           case 'stairs-down':
-            color = '#b58900';
+            color = '#d4a017';
             break;
           case 'stairs-up':
-            color = '#268bd2';
+            color = '#3aa3e3';
             break;
           default:
-            color = '#111318';
+            color = '#2a2a35';
             break;
         }
-        if (!isExplored) {
-          color = '#000000';
-        } else if (!isVisible) {
-          color = this.mix(color, '#000000', 0.6);
+        // 見えていない範囲は少し暗くする
+        if (!isVisible) {
+          color = this.mix(color, '#000000', 0.4);
         }
         mm.fillStyle = color;
         mm.fillRect(offsetX + x * mmTile, offsetY + y * mmTile, mmTile, mmTile);
