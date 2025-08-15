@@ -77,6 +77,26 @@ export class CanvasRenderer {
             this.explored[y][x] = true;
           }
         }
+        // 隣接する通路も1タイルマッピング
+        for (let y = room.y; y < room.y + room.height; y++) {
+          for (let x = room.x; x < room.x + room.width; x++) {
+            const onBorder = (x === room.x || x === room.x + room.width - 1 || y === room.y || y === room.y + room.height - 1);
+            if (!onBorder) continue;
+            const neighbors = [
+              { x: x + 1, y },
+              { x: x - 1, y },
+              { x, y: y + 1 },
+              { x, y: y - 1 },
+            ];
+            for (const n of neighbors) {
+              if (n.x < 0 || n.x >= dungeon.width || n.y < 0 || n.y >= dungeon.height) continue;
+              if (this.findRoomAt(dungeon, n.x, n.y)) continue;
+              if (dungeon.cells[n.y][n.x].walkable) {
+                this.explored[n.y][n.x] = true;
+              }
+            }
+          }
+        }
       } else {
         // 通路内なら現在位置のみマッピング
         this.explored[py][px] = true;
