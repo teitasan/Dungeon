@@ -1,1 +1,12 @@
 node_modules
+
+# Build output
+dist/
+
+# Development logs
+dev.log
+*.log
+
+# Temporary files
+temp_backup/
+*.tmp
