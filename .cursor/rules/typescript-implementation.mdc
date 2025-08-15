@@ -1,0 +1,21 @@
+---
+globs: *.ts,*.tsx
+description: 仕様優先・最小変更・設定駆動・ハードコード禁止（TypeScript実装指針）
+---
+## TypeScript実装指針（.ts/.tsx に適用）
+
+- **仕様優先**: 変更前に `.kiro/specs` の設計・要件・タスクを確認し、内容に厳密に従う。
+- **最小変更**: ユーザー要求を満たすための差分を最小化。無関係な書式変更や大規模リファクタは禁止。
+- **設定駆動**: 数値・ルール・挙動はコードへ直書きしない。`Dungeon/Dungeon/config/`（例: `game.json`）と [ConfigLoader](mdc:Dungeon/src/core/ConfigLoader.ts) を利用する。
+- **アーキテクチャ順守**: コンフィグ層→コンポーネント層→システム層の責務分離を維持。
+- **型の明確化**: 公開API・関数シグネチャは明示型注釈。危険な any/強制キャストを避ける。
+- **制御フロー**: ガード節で早期 return、深いネストは回避。エッジケースを先に処理。
+- **テスト整合**: 既存テストを壊さない。必要最小限のテスト追加は `Dungeon/src/**/__tests__/` に配置。
+- **非機能要件**: 既存スタイルを尊重。無関連コードの再整形は禁止。長行は適宜改行。
+
+- 参考ファイル:
+  - 設計: [Dungeon/.kiro/specs/mystery-dungeon-game/design.md](mdc:Dungeon/.kiro/specs/mystery-dungeon-game/design.md)
+  - 要件: [Dungeon/.kiro/specs/mystery-dungeon-game/requirements.md](mdc:Dungeon/.kiro/specs/mystery-dungeon-game/requirements.md)
+  - タスク: [Dungeon/.kiro/specs/mystery-dungeon-game/tasks.md](mdc:Dungeon/.kiro/specs/mystery-dungeon-game/tasks.md)
+  - 主要型/基盤: [Dungeon/src/types](mdc:Dungeon/src/types), [Dungeon/src/core](mdc:Dungeon/src/core)
+

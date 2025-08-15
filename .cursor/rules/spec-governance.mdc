@@ -1,0 +1,29 @@
+---
+alwaysApply: true
+---
+## 仕様遵守・変更ガバナンス（常時適用）
+
+- **参照元の単一真実**: 本プロジェクトの公式仕様は次のドキュメントです。変更前に必ず精読し、常にこれらに従ってください。
+  - [Dungeon/.kiro/specs/mystery-dungeon-game/design.md](mdc:Dungeon/.kiro/specs/mystery-dungeon-game/design.md)
+  - [Dungeon/.kiro/specs/mystery-dungeon-game/requirements.md](mdc:Dungeon/.kiro/specs/mystery-dungeon-game/requirements.md)
+  - [Dungeon/.kiro/specs/mystery-dungeon-game/tasks.md](mdc:Dungeon/.kiro/specs/mystery-dungeon-game/tasks.md)
+
+- **作業フロー**:
+  1) ユーザーからコード編集依頼を受けたら、上記 `.kiro/specs` の内容を先に確認する。
+  2) 仕様に沿う形で最小限の変更のみを行う（リファクタや無関係な整形は避ける）。
+  3) 仕様で禁止されているハードコード（数値・ルール・挙動）を行わない。必ず設定経由にする。
+
+- **仕様不一致時の対応**:
+  - 仕様に従うとユーザー要求を満たせない場合、または仕様が曖昧／不足している場合は、
+    - 直ちに作業を中断し、ユーザーへ状況を報告する。
+    - ユーザーの明示的な指示がない限り、仕様ドキュメントやコードを勝手に変更しない。
+
+- **設定駆動の原則**:
+  - ゲームの数値・ルール・挙動はコードへ直接埋め込まず、`Dungeon/Dungeon/config/` の設定（例: `game.json`）や既存のローダー経由で注入する。
+  - 既存の型・コンポーネント・システム設計（コンフィグ層→コンポーネント層→システム層）を尊重する。
+
+- **関連エントリ（参考）**:
+  - コア設定ローダー: [Dungeon/src/core/ConfigLoader.ts](mdc:Dungeon/src/core/ConfigLoader.ts)
+  - コンポーネント基盤: [Dungeon/src/core/Component.ts](mdc:Dungeon/src/core/Component.ts)
+  - ゲーム起動（Web）: [Dungeon/src/web/main.ts](mdc:Dungeon/src/web/main.ts)
+
