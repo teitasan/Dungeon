@@ -6,6 +6,7 @@ import type { Position } from '../types/core.js';
 import { CanvasRenderer } from './CanvasRenderer.js';
 import { CombatSystem } from '../systems/CombatSystem.js';
 import { openChoiceModal, isModalOpen, cancelCurrentModal } from './ui/Modal.js';
+import { TilesetManager } from './TilesetManager.js';
 
 function $(selector: string): HTMLElement {
   const el = document.querySelector(selector);
@@ -45,7 +46,7 @@ function bindKeys(handler: (e: KeyboardEvent) => void): void {
   });
 }
 
-function start(): void {
+async function start(): Promise<void> {
   createUI();
 
   const dungeonManager = new DungeonManager();
@@ -72,20 +73,43 @@ function start(): void {
   dungeonManager.addEntity(player, spawn);
 
   const canvas = $('#game') as HTMLCanvasElement;
-  const renderer = new CanvasRenderer(canvas, 22);
+  const renderer = new CanvasRenderer(canvas, 32);
+  
+  // タイルセットマネージャーの初期化
+  let tilesetManager: TilesetManager | null = null;
+  try {
+    // Web環境用の設定読み込み
+    console.log('Loading tileset configuration...');
+    const response = await fetch('/config/game.json');
+    console.log('Config response status:', response.status);
+    if (response.ok) {
+      const config = await response.json();
+      console.log('Config loaded:', config);
+      if (config.dungeon?.tileset) {
+        console.log('Tileset config found:', config.dungeon.tileset);
+        tilesetManager = new TilesetManager(config.dungeon.tileset);
+        tilesetManager.load().then(() => {
+          console.log('Tileset loaded successfully');
+        }).catch((error) => {
+          console.warn('Failed to load tileset:', error);
+        });
+        renderer.setTilesetManager(tilesetManager);
+      } else {
+        console.log('No tileset config found in dungeon section');
+      }
+    } else {
+      console.warn('Failed to load config file:', response.status, response.statusText);
+    }
+  } catch (error) {
+    console.warn('Failed to load config for tileset:', error);
+  }
+  
   // プレイヤー中心のビューポート（固定タイル数）
   const VIEW_TILES_X = 20;
   const VIEW_TILES_Y = 10;
   renderer.setViewportTiles(VIEW_TILES_X, VIEW_TILES_Y);
-  // 横幅いっぱいに広げるため、コンテナ幅からタイルサイズを決定
-  const updateTileSizeFromContainer = () => {
-    const parent = canvas.parentElement as HTMLElement;
-    const containerWidth = parent ? parent.clientWidth : window.innerWidth;
-    const tile = Math.max(8, Math.floor(containerWidth / VIEW_TILES_X));
-    renderer.setTileSize(tile);
-  };
-  updateTileSizeFromContainer();
-  window.addEventListener('resize', updateTileSizeFromContainer);
+  // タイルサイズを32に固定
+  renderer.setTileSize(32);
   // ミニマップ接続
   const minimap = document.getElementById('minimap') as HTMLCanvasElement;
   if (minimap) {
@@ -255,7 +279,7 @@ function start(): void {
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', start);
+  document.addEventListener('DOMContentLoaded', () => start());
 } else {
   start();
 }

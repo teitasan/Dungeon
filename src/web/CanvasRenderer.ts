@@ -1,6 +1,7 @@
 import type { Dungeon, Room } from '../types/dungeon';
 import type { PlayerEntity } from '../entities/Player';
 import { DungeonManager } from '../dungeon/DungeonManager.js';
+import { TilesetManager } from './TilesetManager.js';
 
 export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D;
@@ -11,6 +12,7 @@ export class CanvasRenderer {
   private minimapCanvas: HTMLCanvasElement | null = null;
   private explored: boolean[][] | null = null;
   private currentDungeonId: string | null = null;
+  private tilesetManager: TilesetManager | null = null;
 
   constructor(private canvas: HTMLCanvasElement, tileSize: number = 20) {
     const ctx = canvas.getContext('2d');
@@ -48,6 +50,13 @@ export class CanvasRenderer {
     this.minimapCtx = mm;
     this.minimapCanvas = minimapCanvas;
     this.minimapCtx.imageSmoothingEnabled = false;
+  }
+
+  /**
+   * タイルセットマネージャーを設定
+   */
+  setTilesetManager(tilesetManager: TilesetManager): void {
+    this.tilesetManager = tilesetManager;
   }
 
   render(dungeon: Dungeon, dungeonManager: DungeonManager, player: PlayerEntity): void {
@@ -121,30 +130,62 @@ export class CanvasRenderer {
 
         const isVisible = visible[y][x];
 
-        // ベース色
-        let color = '#15151b'; // wall
-        switch (cell.type) {
-          case 'floor':
-            color = '#2a2a31';
-            break;
-          case 'stairs-down':
-            color = '#b58900';
-            break;
-          case 'stairs-up':
-            color = '#268bd2';
-            break;
-          default:
-            color = '#15151b';
-            break;
-        }
+        // マップチップ画像がある場合はそれを使用、なければ色塗り
+        if (this.tilesetManager && this.tilesetManager.isLoaded()) {
+          // 床を常に描画
+          this.tilesetManager.drawTile(
+            ctx,
+            'floor',
+            vx * tileSize,
+            vy * tileSize,
+            tileSize
+          );
+          
+          // 壁や階段の場合は床の上に重ね描画
+          if (cell.type === 'wall' || cell.type === 'stairs-down' || cell.type === 'stairs-up') {
+            const overlayType = cell.type === 'wall' ? 'wall' : cell.type;
+            this.tilesetManager.drawTile(
+              ctx,
+              overlayType,
+              vx * tileSize,
+              vy * tileSize,
+              tileSize
+            );
+          }
+          
+          // 見えていない範囲は少し暗くする
+          if (!isVisible) {
+            ctx.globalAlpha = 0.3;
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(vx * tileSize, vy * tileSize, tileSize, tileSize);
+            ctx.globalAlpha = 1.0;
+          }
+        } else {
+          // フォールバック: 色塗り
+          let color = '#15151b'; // wall
+          switch (cell.type) {
+            case 'floor':
+              color = '#2a2a31';
+              break;
+            case 'stairs-down':
+              color = '#b58900';
+              break;
+            case 'stairs-up':
+              color = '#268bd2';
+              break;
+            default:
+              color = '#15151b';
+              break;
+          }
 
-        // 見えていない範囲は少し暗くする
-        if (!isVisible) {
-          color = this.mix(color, '#000000', 0.3);
-        }
+          // 見えていない範囲は少し暗くする
+          if (!isVisible) {
+            color = this.mix(color, '#000000', 0.3);
+          }
 
-        ctx.fillStyle = color;
-        ctx.fillRect(vx * tileSize, vy * tileSize, tileSize, tileSize);
+          ctx.fillStyle = color;
+          ctx.fillRect(vx * tileSize, vy * tileSize, tileSize, tileSize);
+        }
       }
     }
 
@@ -241,25 +282,18 @@ export class CanvasRenderer {
           visible[y][x] = true;
         }
       }
-      // 廊下側に1タイルだけ可視
-      for (let y = room.y; y < room.y + room.height; y++) {
-        for (let x = room.x; x < room.x + room.width; x++) {
-          // 境界のみチェック
-          const onBorder = (x === room.x || x === room.x + room.width - 1 || y === room.y || y === room.y + room.height - 1);
-          if (!onBorder) continue;
-          const neighbors = [
-            { x: x + 1, y },
-            { x: x - 1, y },
-            { x, y: y + 1 },
-            { x, y: y - 1 },
-          ];
-          for (const n of neighbors) {
-            if (n.x < 0 || n.x >= w || n.y < 0 || n.y >= h) continue;
-            if (this.findRoomAt(dungeon, n.x, n.y)) continue; // となりも部屋ならスキップ
-            if (dungeon.cells[n.y][n.x].walkable) {
-              visible[n.y][n.x] = true; // 廊下1タイル
-            }
-          }
+      // 部屋の周囲1マスまで可視にする（通路・壁問わず）
+      for (let y = room.y - 1; y < room.y + room.height + 1; y++) {
+        for (let x = room.x - 1; x < room.x + room.width + 1; x++) {
+          // 部屋の範囲外のみチェック
+          const isOutsideRoom = (x < room.x || x >= room.x + room.width || y < room.y || y >= room.y + room.height);
+          if (!isOutsideRoom) continue;
+          
+          // 境界チェック
+          if (x < 0 || x >= w || y < 0 || y >= h) continue;
+          
+          // 通路・壁問わず可視にする
+          visible[y][x] = true;
         }
       }
     } else {
