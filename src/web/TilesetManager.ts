@@ -12,13 +12,20 @@ export interface TilesetConfig {
   overlay?: Record<string, TileDefinition>;
 }
 
+export interface DungeonTilesetConfig {
+  defaultTileset: TilesetConfig;
+  dungeonSpecificTilesets?: Record<string, TilesetConfig>;
+}
+
 export class TilesetManager {
   private image: HTMLImageElement | null = null;
   private config: TilesetConfig;
   private loaded = false;
+  private dungeonId: string | null = null;
 
-  constructor(config: TilesetConfig) {
+  constructor(config: TilesetConfig, dungeonId?: string) {
     this.config = config;
+    this.dungeonId = dungeonId || null;
   }
 
   async load(): Promise<void> {
@@ -110,6 +117,22 @@ export class TilesetManager {
 
   getConfig(): TilesetConfig {
     return this.config;
+  }
+
+  /**
+   * ダンジョン別のタイルセット設定を取得
+   */
+  static getDungeonTilesetConfig(
+    dungeonConfig: DungeonTilesetConfig,
+    dungeonId: string
+  ): TilesetConfig {
+    // ダンジョン固有の設定がある場合はそれを使用
+    if (dungeonConfig.dungeonSpecificTilesets?.[dungeonId]) {
+      return dungeonConfig.dungeonSpecificTilesets[dungeonId];
+    }
+    
+    // ない場合はデフォルト設定を使用
+    return dungeonConfig.defaultTileset;
   }
 
   /**

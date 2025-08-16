@@ -104,18 +104,32 @@
     "attributeDamageEnabled": true
   },
   "dungeon": {
-    "tileset": {
-      "imagePath": "/config/images/base.png",
+    "defaultTileset": {
+      "imagePath": "/images/base.png",
       "tileSize": 32,
       "tiles": {
-        "floor": { "x": 0, "y": 0, "width": 1, "height": 1 },
-        "wall": { "x": 1, "y": 0, "width": 1, "height": 1 },
-        "stairs-down": { "x": 2, "y": 0, "width": 1, "height": 1 },
-        "stairs-up": { "x": 3, "y": 0, "width": 1, "height": 1 },
-        "grass": { "x": 0, "y": 1, "width": 1, "height": 1 },
-        "stone": { "x": 1, "y": 1, "width": 1, "height": 1 },
-        "water": { "x": 2, "y": 1, "width": 1, "height": 1 },
-        "tree": { "x": 3, "y": 1, "width": 1, "height": 1 }
+        "floor": { "x": 1, "y": 4, "width": 1, "height": 1 },
+        "wall": { "x": 1, "y": 10, "width": 1, "height": 1 },
+        "stairs-down": { "x": 6, "y": 51, "width": 1, "height": 1 },
+        "stairs-up": { "x": 6, "y": 52, "width": 1, "height": 1 }
+      },
+      "overlay": {
+        "wall": { "x": 1, "y": 10, "width": 1, "height": 1 }
+      }
+    },
+    "dungeonSpecificTilesets": {
+      "beginner-cave": {
+        "imagePath": "/images/base.png",
+        "tileSize": 32,
+        "tiles": {
+          "floor": { "x": 1, "y": 4, "width": 1, "height": 1 },
+          "wall": { "x": 1, "y": 10, "width": 1, "height": 1 },
+          "stairs-down": { "x": 6, "y": 51, "width": 1, "height": 1 },
+          "stairs-up": { "x": 6, "y": 52, "width": 1, "height": 1 }
+        },
+        "overlay": {
+          "wall": { "x": 1, "y": 10, "width": 1, "height": 1 }
+        }
       }
     }
   },

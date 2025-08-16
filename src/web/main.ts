@@ -85,17 +85,34 @@ async function start(): Promise<void> {
     if (response.ok) {
       const config = await response.json();
       console.log('Config loaded:', config);
-      if (config.dungeon?.tileset) {
-        console.log('Tileset config found:', config.dungeon.tileset);
-        tilesetManager = new TilesetManager(config.dungeon.tileset);
-        tilesetManager.load().then(() => {
+      if (config.dungeon?.defaultTileset) {
+        console.log('Dungeon tileset config found');
+        
+        // 現在のダンジョンIDを取得
+        const currentDungeon = dungeonManager.getCurrentDungeon();
+        const dungeonId = currentDungeon?.id || 'beginner-cave';
+        
+        // ダンジョン別の設定を取得
+        const tilesetConfig = TilesetManager.getDungeonTilesetConfig(
+          config.dungeon,
+          dungeonId
+        );
+        
+        console.log(`Using tileset for dungeon: ${dungeonId}`);
+        tilesetManager = new TilesetManager(tilesetConfig, dungeonId);
+        
+        // 画像の読み込み完了を待ってからレンダラーに設定
+        try {
+          await tilesetManager.load();
           console.log('Tileset loaded successfully');
-        }).catch((error) => {
+          renderer.setTilesetManager(tilesetManager);
+        } catch (error) {
           console.warn('Failed to load tileset:', error);
-        });
-        renderer.setTilesetManager(tilesetManager);
+          // エラーが発生してもレンダラーに設定（フォールバック表示）
+          renderer.setTilesetManager(tilesetManager);
+        }
       } else {
-        console.log('No tileset config found in dungeon section');
+        console.log('No dungeon tileset config found');
       }
     } else {
       console.warn('Failed to load config file:', response.status, response.statusText);

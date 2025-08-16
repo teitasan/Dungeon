@@ -104,7 +104,21 @@
     "attributeDamageEnabled": true
   },
   "dungeon": {
-          "tileset": {
+    "defaultTileset": {
+      "imagePath": "/images/base.png",
+      "tileSize": 32,
+      "tiles": {
+        "floor": { "x": 1, "y": 4, "width": 1, "height": 1 },
+        "wall": { "x": 1, "y": 10, "width": 1, "height": 1 },
+        "stairs-down": { "x": 6, "y": 51, "width": 1, "height": 1 },
+        "stairs-up": { "x": 6, "y": 52, "width": 1, "height": 1 }
+      },
+      "overlay": {
+        "wall": { "x": 1, "y": 10, "width": 1, "height": 1 }
+      }
+    },
+    "dungeonSpecificTilesets": {
+      "beginner-cave": {
         "imagePath": "/images/base.png",
         "tileSize": 32,
         "tiles": {
@@ -117,6 +131,7 @@
           "wall": { "x": 1, "y": 10, "width": 1, "height": 1 }
         }
       }
+    }
   },
   "items": {},
   "monsters": {},
