@@ -261,9 +261,201 @@ export class DungeonGenerator {
         unconnectedRooms.splice(index, 1);
       }
     }
+
+    // Add corridors from empty grid cells to nearby rooms
+    this.addCorridorsFromEmptyGrids(dungeon, params);
   }
 
+  /**
+   * Add corridors from empty grid cells to nearby rooms
+   */
+  private addCorridorsFromEmptyGrids(dungeon: Dungeon, params: DungeonGenerationParams): void {
+    // Create 3x3 grid for reference
+    const gridSize = 3;
+    const cellWidth = Math.floor(dungeon.width / gridSize);
+    const cellHeight = Math.floor(dungeon.height / gridSize);
+    
+    // Find empty grid cells
+    const emptyGridCells: { row: number; col: number; x: number; y: number }[] = [];
+    
+    for (let row = 0; row < gridSize; row++) {
+      for (let col = 0; col < gridSize; col++) {
+        const gridX = col * cellWidth;
+        const gridY = row * cellHeight;
+        
+        // Check if this grid cell is truly empty (no rooms AND no existing corridors)
+        let isEmpty = true;
+        
+        // Check for rooms
+        for (const room of dungeon.rooms) {
+          if (room.x >= gridX && room.x < gridX + cellWidth &&
+              room.y >= gridY && room.y < gridY + cellHeight) {
+            isEmpty = false;
+            break;
+          }
+        }
+        
+        // Check for existing corridors
+        if (isEmpty) {
+          for (let y = gridY; y < gridY + cellHeight && isEmpty; y++) {
+            for (let x = gridX; x < gridX + cellWidth; x++) {
+              if (dungeon.cells[y][x].type === 'floor') {
+                // Found existing corridor, mark as not empty
+                isEmpty = false;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (isEmpty) {
+          emptyGridCells.push({ row, col, x: gridX, y: gridY });
+        }
+      }
+    }
+    
+    // Group adjacent empty grid cells
+    const gridGroups = this.groupAdjacentEmptyGrids(emptyGridCells, gridSize);
+    
+    // Create corridors for each group
+    for (const group of gridGroups) {
+      // Calculate center position for the entire group
+      const groupCenter = this.calculateGroupCenter(group, cellWidth, cellHeight);
+      
+      // Add 1-tile corridor at group center as base
+      this.carveCorridor(dungeon, groupCenter, params.corridorWidth);
+      
+      // Find 2 closest rooms to this group center
+      const roomDistances = dungeon.rooms.map(room => {
+        const roomCenter = {
+          x: room.x + Math.floor(room.width / 2),
+          y: room.y + Math.floor(room.height / 2)
+        };
+        const distance = Math.abs(groupCenter.x - roomCenter.x) + Math.abs(groupCenter.y - roomCenter.y);
+        return { room, distance };
+      });
+      
+      // Sort by distance and take 2 closest
+      roomDistances.sort((a, b) => a.distance - b.distance);
+      const closestRooms = roomDistances.slice(0, 2);
+      
+      // Connect group center to each of the 2 closest rooms
+      for (const { room } of closestRooms) {
+        const roomCenter = {
+          x: room.x + Math.floor(room.width / 2),
+          y: room.y + Math.floor(room.height / 2)
+        };
+        
+        // Create corridor from group center to room center
+        this.createCorridorPath(dungeon, groupCenter, roomCenter, params);
+      }
+    }
+  }
 
+  /**
+   * Group adjacent empty grid cells
+   */
+  private groupAdjacentEmptyGrids(emptyCells: { row: number; col: number; x: number; y: number }[], gridSize: number): { row: number; col: number; x: number; y: number }[][] {
+    const groups: { row: number; col: number; x: number; y: number }[][] = [];
+    const visited = new Set<string>();
+    
+    for (const cell of emptyCells) {
+      if (visited.has(`${cell.row},${cell.col}`)) continue;
+      
+      const group: { row: number; col: number; x: number; y: number }[] = [];
+      this.dfsGroupAdjacent(cell, emptyCells, visited, group, gridSize);
+      groups.push(group);
+    }
+    
+    return groups;
+  }
+
+  /**
+   * DFS to find adjacent empty grid cells
+   */
+  private dfsGroupAdjacent(cell: { row: number; col: number; x: number; y: number }, 
+                          allCells: { row: number; col: number; x: number; y: number }[], 
+                          visited: Set<string>, 
+                          group: { row: number; col: number; x: number; y: number }[], 
+                          gridSize: number): void {
+    const key = `${cell.row},${cell.col}`;
+    if (visited.has(key)) return;
+    
+    visited.add(key);
+    group.push(cell);
+    
+    // Check 4 adjacent directions
+    const directions = [
+      { row: cell.row - 1, col: cell.col }, // up
+      { row: cell.row + 1, col: cell.col }, // down
+      { row: cell.row, col: cell.col - 1 }, // left
+      { row: cell.row, col: cell.col + 1 }  // right
+    ];
+    
+    for (const dir of directions) {
+      if (dir.row >= 0 && dir.row < gridSize && dir.col >= 0 && dir.col < gridSize) {
+        const adjacentCell = allCells.find(c => c.row === dir.row && c.col === dir.col);
+        if (adjacentCell) {
+          this.dfsGroupAdjacent(adjacentCell, allCells, visited, group, gridSize);
+        }
+      }
+    }
+  }
+
+  /**
+   * Calculate center position for a group of empty grid cells
+   */
+  private calculateGroupCenter(group: { row: number; col: number; x: number; y: number }[], cellWidth: number, cellHeight: number): Position {
+    // Calculate the center of the group's bounding box
+    const minRow = Math.min(...group.map(c => c.row));
+    const maxRow = Math.max(...group.map(c => c.row));
+    const minCol = Math.min(...group.map(c => c.col));
+    const maxCol = Math.max(...group.map(c => c.col));
+    
+    const centerRow = minRow + (maxRow - minRow) / 2;
+    const centerCol = minCol + (maxCol - minCol) / 2;
+    
+    return {
+      x: centerCol * cellWidth + Math.floor(cellWidth / 2),
+      y: centerRow * cellHeight + Math.floor(cellHeight / 2)
+    };
+  }
+
+  /**
+   * Create a simple corridor path between two positions
+   */
+  private createCorridorPath(dungeon: Dungeon, start: Position, end: Position, params: DungeonGenerationParams): void {
+    let current = { ...start };
+    
+    // Simple L-shaped path
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    
+    // Move horizontally first, then vertically
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Horizontal first
+      while (current.x !== end.x) {
+        current.x += current.x < end.x ? 1 : -1;
+        this.carveCorridor(dungeon, current, params.corridorWidth);
+      }
+      // Then vertical
+      while (current.y !== end.y) {
+        current.y += current.y < end.y ? 1 : -1;
+        this.carveCorridor(dungeon, current, params.corridorWidth);
+      }
+    } else {
+      // Vertical first
+      while (current.y !== end.y) {
+        current.y += current.y < end.y ? 1 : -1;
+        this.carveCorridor(dungeon, current, params.corridorWidth);
+      }
+      // Then horizontal
+      while (current.x !== end.x) {
+        current.x += current.x < end.x ? 1 : -1;
+        this.carveCorridor(dungeon, current, params.corridorWidth);
+      }
+    }
+  }
 
   /**
    * Calculate distance between two rooms (center to center)
@@ -282,39 +474,107 @@ export class DungeonGenerator {
   }
 
   /**
-   * Create a corridor between two rooms using room edge connection points
+   * Create a corridor between two rooms with varied path patterns
    */
   private createCorridor(dungeon: Dungeon, from: Room, to: Room, params: DungeonGenerationParams): Position[] {
     // Find optimal connection points on room edges
     const fromExit = this.findRoomExitPoint(from, to);
     const toEntrance = this.findRoomEntrancePoint(to, from);
 
+    // Use specified corridor generation rule
+    return this.createRuleBasedCorridor(dungeon, fromExit, toEntrance, params);
+  }
+
+  /**
+   * Create corridor following the specified rule
+   */
+  private createRuleBasedCorridor(dungeon: Dungeon, start: Position, end: Position, params: DungeonGenerationParams): Position[] {
     const path: Position[] = [];
-    let current = { ...fromExit };
+    
+    // 1. Calculate midpoint between rooms based on Manhattan distance
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const manhattanDistance = Math.abs(dx) + Math.abs(dy);
+    
+    // Set midpoint based on Manhattan distance, not fixed x,y
+    const midpoint = {
+      x: start.x + Math.floor(dx / 2),
+      y: start.y + Math.floor(dy / 2)
+    };
 
-    // Create L-shaped corridor from exit to entrance
-    // Move horizontally first
-    while (current.x !== toEntrance.x) {
-      if (current.x < toEntrance.x) {
-        current.x++;
-      } else {
-        current.x--;
+    // 2. Extend corridor from start room toward midpoint
+    let currentStart = { ...start };
+    const startPath: Position[] = [];
+    
+    // Choose which direction to extend first based on distance
+    const extendXFirst = Math.abs(dx) > Math.abs(dy);
+    
+    if (extendXFirst) {
+      // Extend horizontally first from start room
+      while (currentStart.x !== midpoint.x) {
+        currentStart.x += currentStart.x < midpoint.x ? 1 : -1;
+        startPath.push({ ...currentStart });
+        this.carveCorridor(dungeon, currentStart, params.corridorWidth);
       }
-      path.push({ ...current });
-      this.carveCorridor(dungeon, current, params.corridorWidth);
+      
+      // Then extend vertically to reach midpoint
+      while (currentStart.y !== midpoint.y) {
+        currentStart.y += currentStart.y < midpoint.y ? 1 : -1;
+        startPath.push({ ...currentStart });
+        this.carveCorridor(dungeon, currentStart, params.corridorWidth);
+      }
+    } else {
+      // Extend vertically first from start room
+      while (currentStart.y !== midpoint.y) {
+        currentStart.y += currentStart.y < midpoint.y ? 1 : -1;
+        startPath.push({ ...currentStart });
+        this.carveCorridor(dungeon, currentStart, params.corridorWidth);
+      }
+      
+      // Then extend horizontally to reach midpoint
+      while (currentStart.x !== midpoint.x) {
+        currentStart.x += currentStart.x < midpoint.x ? 1 : -1;
+        startPath.push({ ...currentStart });
+        this.carveCorridor(dungeon, currentStart, params.corridorWidth);
+      }
     }
 
-    // Move vertically
-    while (current.y !== toEntrance.y) {
-      if (current.y < toEntrance.y) {
-        current.y++;
-      } else {
-        current.y--;
+    // 3. Extend corridor from end room toward midpoint
+    let currentEnd = { ...end };
+    const endPath: Position[] = [];
+    
+    if (extendXFirst) {
+      // Extend horizontally first from end room
+      while (currentEnd.x !== midpoint.x) {
+        currentEnd.x += currentEnd.x < midpoint.x ? 1 : -1;
+        endPath.push({ ...currentEnd });
+        this.carveCorridor(dungeon, currentEnd, params.corridorWidth);
       }
-      path.push({ ...current });
-      this.carveCorridor(dungeon, current, params.corridorWidth);
+      
+      // Then extend vertically to reach midpoint
+      while (currentEnd.y !== midpoint.y) {
+        currentEnd.y += currentEnd.y < midpoint.y ? 1 : -1;
+        endPath.push({ ...currentEnd });
+        this.carveCorridor(dungeon, currentEnd, params.corridorWidth);
+      }
+    } else {
+      // Extend vertically first from end room
+      while (currentEnd.y !== midpoint.y) {
+        currentEnd.y += currentEnd.y < midpoint.y ? 1 : -1;
+        endPath.push({ ...currentEnd });
+        this.carveCorridor(dungeon, currentEnd, params.corridorWidth);
+      }
+      
+      // Then extend horizontally to reach midpoint
+      while (currentEnd.x !== midpoint.x) {
+        currentEnd.x += currentEnd.x < midpoint.x ? 1 : -1;
+        endPath.push({ ...currentEnd });
+        this.carveCorridor(dungeon, currentEnd, params.corridorWidth);
+      }
     }
 
+    // Combine both paths
+    path.push(...startPath, ...endPath);
     return path;
   }
 
