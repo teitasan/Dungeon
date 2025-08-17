@@ -1,19 +1,23 @@
 /**
  * Dungeon generation system
- * Implements basic random dungeon generation with rooms and corridors
+ * Implements grid-based dungeon generation with 9-division layout
  */
 
 import { Position } from '../types/core';
-import { 
-  Dungeon, 
-  DungeonCell, 
-  Room, 
-  Connection, 
-  DungeonGenerationParams, 
-  CellType, 
-  Direction, 
-  DirectionVectors 
+import {
+  Dungeon,
+  DungeonCell,
+  Room,
+  DungeonGenerationParams
 } from '../types/dungeon';
+
+interface GridCell {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  occupied: boolean;
+}
 
 export class DungeonGenerator {
   private rng: () => number;
@@ -25,7 +29,7 @@ export class DungeonGenerator {
   }
 
   /**
-   * Generate a complete dungeon
+   * Generate a complete dungeon using 9-division grid system
    */
   generateDungeon(
     dungeonId: string,
@@ -46,13 +50,13 @@ export class DungeonGenerator {
       generationSeed: this.seed
     };
 
-    // Generate rooms
-    this.generateRooms(dungeon, params);
+    // Generate rooms using new grid-based algorithm
+    this.generateGridBasedRooms(dungeon, params);
 
     // Connect rooms with corridors
     this.connectRooms(dungeon, params);
 
-    // Place stairs (respect progression direction)
+    // Place stairs
     this.placeStairs(dungeon, params);
 
     // Set player spawn point
@@ -66,7 +70,7 @@ export class DungeonGenerator {
    */
   private initializeCells(width: number, height: number): DungeonCell[][] {
     const cells: DungeonCell[][] = [];
-    
+
     for (let y = 0; y < height; y++) {
       cells[y] = [];
       for (let x = 0; x < width; x++) {
@@ -83,71 +87,114 @@ export class DungeonGenerator {
   }
 
   /**
-   * Generate rooms in the dungeon
+   * Generate rooms using 9-division grid system
    */
-  private generateRooms(dungeon: Dungeon, params: DungeonGenerationParams): void {
-    const maxAttempts = params.maxRooms * 3;
-    let attempts = 0;
-    let roomCount = 0;
+  private generateGridBasedRooms(dungeon: Dungeon, params: DungeonGenerationParams): void {
+    // Create 9-division grid (3x3)
+    const grid = this.create9DivisionGrid(dungeon.width, dungeon.height);
 
-    while (roomCount < params.maxRooms && attempts < maxAttempts) {
-      attempts++;
+    // Randomly decide how many rooms to create (4-9)
+    const roomCount = this.randomInt(4, 9);
 
-      // Generate random room dimensions
-      const width = this.randomInt(params.minRoomSize, params.maxRoomSize);
-      const height = this.randomInt(params.minRoomSize, params.maxRoomSize);
-      
-      // Generate random position (with border padding)
-      const x = this.randomInt(1, dungeon.width - width - 1);
-      const y = this.randomInt(1, dungeon.height - height - 1);
+    // Shuffle grid cells for random selection
+    const shuffledGrid = this.shuffleArray([...grid]);
 
-      // Check if room overlaps with existing rooms
-      if (this.isRoomValid(dungeon, x, y, width, height)) {
-        const room: Room = {
-          id: `room-${roomCount}`,
-          x,
-          y,
-          width,
-          height,
-          type: 'normal',
-          connected: false,
-          connections: []
-        };
+    // Generate rooms in selected grid cells
+    for (let i = 0; i < roomCount && i < shuffledGrid.length; i++) {
+      const gridCell = shuffledGrid[i];
+      const room = this.createRoomInGridCell(gridCell, i, params);
 
-        // Carve out the room
+      if (room) {
         this.carveRoom(dungeon, room);
         dungeon.rooms.push(room);
-        roomCount++;
+        gridCell.occupied = true;
       }
-    }
-
-    // Ensure we have at least the minimum number of rooms
-    if (roomCount < params.minRooms) {
-      console.warn(`Only generated ${roomCount} rooms, minimum was ${params.minRooms}`);
     }
   }
 
   /**
-   * Check if a room position is valid (doesn't overlap)
+   * Create 9-division grid (3x3)
    */
-  private isRoomValid(dungeon: Dungeon, x: number, y: number, width: number, height: number): boolean {
-    // Check bounds
-    if (x < 1 || y < 1 || x + width >= dungeon.width - 1 || y + height >= dungeon.height - 1) {
-      return false;
-    }
+  private create9DivisionGrid(dungeonWidth: number, dungeonHeight: number): GridCell[] {
+    const grid: GridCell[] = [];
 
-    // Check for overlap with existing rooms (with 1-cell padding)
-    for (let checkY = y - 1; checkY <= y + height; checkY++) {
-      for (let checkX = x - 1; checkX <= x + width; checkX++) {
-        if (checkX >= 0 && checkX < dungeon.width && checkY >= 0 && checkY < dungeon.height) {
-          if (dungeon.cells[checkY][checkX].type === 'floor') {
-            return false;
-          }
-        }
+    // 3x3 grid layout
+    const cols = 3;
+    const rows = 3;
+
+    const cellWidth = Math.floor(dungeonWidth / cols);
+    const cellHeight = Math.floor(dungeonHeight / rows);
+
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        grid.push({
+          x: col * cellWidth,
+          y: row * cellHeight,
+          width: cellWidth,
+          height: cellHeight,
+          occupied: false
+        });
       }
     }
 
-    return true;
+    return grid;
+  }
+
+  /**
+   * Create a room within a grid cell with minimum size constraints
+   */
+  private createRoomInGridCell(gridCell: GridCell, roomIndex: number, params: DungeonGenerationParams): Room | null {
+    // Minimum room size (ensure rooms are not too small)
+    const minSize = Math.max(params.minRoomSize, 5);
+    const maxSize = params.maxRoomSize;
+
+    // Calculate available space in grid cell (with padding)
+    const padding = 2;
+    const availableWidth = gridCell.width - padding * 2;
+    const availableHeight = gridCell.height - padding * 2;
+
+    // Check if we can fit minimum room size
+    if (availableWidth < minSize || availableHeight < minSize) {
+      return null;
+    }
+
+    // Generate room dimensions within constraints
+    const roomWidth = this.randomInt(
+      minSize,
+      Math.min(maxSize, availableWidth)
+    );
+    const roomHeight = this.randomInt(
+      minSize,
+      Math.min(maxSize, availableHeight)
+    );
+
+    // Position room randomly within grid cell
+    const maxX = gridCell.x + gridCell.width - roomWidth - padding;
+    const maxY = gridCell.y + gridCell.height - roomHeight - padding;
+    const roomX = this.randomInt(gridCell.x + padding, maxX);
+    const roomY = this.randomInt(gridCell.y + padding, maxY);
+
+    return {
+      id: `room-${roomIndex}`,
+      x: roomX,
+      y: roomY,
+      width: roomWidth,
+      height: roomHeight,
+      type: 'normal',
+      connected: false,
+      connections: []
+    };
+  }
+
+  /**
+   * Shuffle array using Fisher-Yates algorithm
+   */
+  private shuffleArray<T>(array: T[]): T[] {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(this.rng() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
   }
 
   /**
@@ -185,7 +232,7 @@ export class DungeonGenerator {
       for (const connectedRoom of connectedRooms) {
         for (const unconnectedRoom of unconnectedRooms) {
           const distance = this.getRoomDistance(connectedRoom, unconnectedRoom);
-          
+
           if (!bestConnection || distance < bestConnection.distance) {
             bestConnection = { from: connectedRoom, to: unconnectedRoom, distance };
           }
@@ -195,13 +242,13 @@ export class DungeonGenerator {
       if (bestConnection) {
         // Create corridor between rooms
         const corridor = this.createCorridor(dungeon, bestConnection.from, bestConnection.to, params);
-        
+
         // Add connection to both rooms
         bestConnection.from.connections.push({
           roomId: bestConnection.to.id,
           corridorPath: corridor
         });
-        
+
         bestConnection.to.connections.push({
           roomId: bestConnection.from.id,
           corridorPath: corridor
@@ -215,6 +262,8 @@ export class DungeonGenerator {
       }
     }
   }
+
+
 
   /**
    * Calculate distance between two rooms (center to center)
@@ -233,25 +282,20 @@ export class DungeonGenerator {
   }
 
   /**
-   * Create a corridor between two rooms
+   * Create a corridor between two rooms using room edge connection points
    */
   private createCorridor(dungeon: Dungeon, from: Room, to: Room, params: DungeonGenerationParams): Position[] {
-    const fromCenter = {
-      x: from.x + Math.floor(from.width / 2),
-      y: from.y + Math.floor(from.height / 2)
-    };
-    const toCenter = {
-      x: to.x + Math.floor(to.width / 2),
-      y: to.y + Math.floor(to.height / 2)
-    };
+    // Find optimal connection points on room edges
+    const fromExit = this.findRoomExitPoint(from, to);
+    const toEntrance = this.findRoomEntrancePoint(to, from);
 
     const path: Position[] = [];
-    let current = { ...fromCenter };
+    let current = { ...fromExit };
 
-    // L-shaped corridor: horizontal first, then vertical
-    // Move horizontally
-    while (current.x !== toCenter.x) {
-      if (current.x < toCenter.x) {
+    // Create L-shaped corridor from exit to entrance
+    // Move horizontally first
+    while (current.x !== toEntrance.x) {
+      if (current.x < toEntrance.x) {
         current.x++;
       } else {
         current.x--;
@@ -261,8 +305,8 @@ export class DungeonGenerator {
     }
 
     // Move vertically
-    while (current.y !== toCenter.y) {
-      if (current.y < toCenter.y) {
+    while (current.y !== toEntrance.y) {
+      if (current.y < toEntrance.y) {
         current.y++;
       } else {
         current.y--;
@@ -275,16 +319,116 @@ export class DungeonGenerator {
   }
 
   /**
+   * Find the best exit point on the edge of a room facing another room
+   */
+  private findRoomExitPoint(room: Room, targetRoom: Room): Position {
+    const roomCenter = {
+      x: room.x + Math.floor(room.width / 2),
+      y: room.y + Math.floor(room.height / 2)
+    };
+    const targetCenter = {
+      x: targetRoom.x + Math.floor(targetRoom.width / 2),
+      y: targetRoom.y + Math.floor(targetRoom.height / 2)
+    };
+
+    // Determine which edge to use based on direction to target
+    const dx = targetCenter.x - roomCenter.x;
+    const dy = targetCenter.y - roomCenter.y;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Horizontal connection - use left or right edge
+      if (dx > 0) {
+        // Target is to the right, use right edge
+        return {
+          x: room.x + room.width - 1,
+          y: roomCenter.y
+        };
+      } else {
+        // Target is to the left, use left edge
+        return {
+          x: room.x,
+          y: roomCenter.y
+        };
+      }
+    } else {
+      // Vertical connection - use top or bottom edge
+      if (dy > 0) {
+        // Target is below, use bottom edge
+        return {
+          x: roomCenter.x,
+          y: room.y + room.height - 1
+        };
+      } else {
+        // Target is above, use top edge
+        return {
+          x: roomCenter.x,
+          y: room.y
+        };
+      }
+    }
+  }
+
+  /**
+   * Find the best entrance point on the edge of a room from another room
+   */
+  private findRoomEntrancePoint(room: Room, sourceRoom: Room): Position {
+    const roomCenter = {
+      x: room.x + Math.floor(room.width / 2),
+      y: room.y + Math.floor(room.height / 2)
+    };
+    const sourceCenter = {
+      x: sourceRoom.x + Math.floor(sourceRoom.width / 2),
+      y: sourceRoom.y + Math.floor(sourceRoom.height / 2)
+    };
+
+    // Determine which edge to use based on direction from source
+    const dx = roomCenter.x - sourceCenter.x;
+    const dy = roomCenter.y - sourceCenter.y;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Horizontal connection - use left or right edge
+      if (dx > 0) {
+        // Source is to the left, use left edge
+        return {
+          x: room.x,
+          y: roomCenter.y
+        };
+      } else {
+        // Source is to the right, use right edge
+        return {
+          x: room.x + room.width - 1,
+          y: roomCenter.y
+        };
+      }
+    } else {
+      // Vertical connection - use top or bottom edge
+      if (dy > 0) {
+        // Source is above, use top edge
+        return {
+          x: roomCenter.x,
+          y: room.y
+        };
+      } else {
+        // Source is below, use bottom edge
+        return {
+          x: roomCenter.x,
+          y: room.y + room.height - 1
+        };
+      }
+    }
+  }
+
+  /**
    * Carve corridor at position
    */
   private carveCorridor(dungeon: Dungeon, position: Position, width: number): void {
     const halfWidth = Math.floor(width / 2);
-    
+
     for (let dy = -halfWidth; dy <= halfWidth; dy++) {
       for (let dx = -halfWidth; dx <= halfWidth; dx++) {
         const x = position.x + dx;
         const y = position.y + dy;
-        
+
         if (x >= 0 && x < dungeon.width && y >= 0 && y < dungeon.height) {
           if (dungeon.cells[y][x].type === 'wall') {
             dungeon.cells[y][x] = {

@@ -288,8 +288,8 @@ export class DungeonManager {
       description: 'A simple dungeon with rooms and corridors',
       floors: 10,
       generationParams: {
-        width: 40,
-        height: 30,
+        width: 45,
+        height: 45,
         minRooms: 4,
         maxRooms: 8,
         minRoomSize: 4,

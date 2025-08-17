@@ -644,8 +644,8 @@ export class MultipleDungeonSystem {
         description: dungeon.description,
         floors: dungeon.maxFloors,
         generationParams: {
-          width: 40,
-          height: 30,
+          width: 45,
+          height: 45,
           minRooms: 4,
           maxRooms: 8,
           minRoomSize: 4,
