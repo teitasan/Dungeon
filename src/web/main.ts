@@ -286,6 +286,29 @@ async function start(): Promise<void> {
 
     if (next && !inventoryOpen) {
       dungeonManager.moveEntity(player, next);
+      
+      // 階段タイルに移動した場合、自動的にモーダルを開く
+      const newCell = dungeonManager.getCellAt(next);
+      if (newCell && (newCell.type === 'stairs-down' || newCell.type === 'stairs-up')) {
+        const dir = dungeonManager.getCurrentProgressionDirection();
+        const title = dir === 'down' ? '次の階へ進みますか？' : '前の階へ戻りますか？';
+        openChoiceModal({
+          title,
+          options: [
+            { id: 'yes', label: 'はい' },
+            { id: 'no', label: 'いいえ' },
+          ],
+          defaultIndex: 0,
+        }).then((res) => {
+          if (res.type === 'ok' && res.selectedId === 'yes') {
+            onAdvanceFloor();
+            ui.pushMessage(dir === 'down' ? '次の階へ進んだ' : '前の階へ戻った');
+          } else {
+            ui.pushMessage('いいえを選んだ');
+          }
+          render();
+        });
+      }
     }
 
     render();
