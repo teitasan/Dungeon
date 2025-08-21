@@ -299,7 +299,8 @@ export class DungeonGenerator {
         if (isEmpty) {
           for (let y = gridY; y < gridY + cellHeight && isEmpty; y++) {
             for (let x = gridX; x < gridX + cellWidth; x++) {
-              if (dungeon.cells[y][x].type === 'floor') {
+              // セルの存在チェックを追加
+              if (dungeon.cells[y] && dungeon.cells[y][x] && dungeon.cells[y][x].type === 'floor') {
                 // Found existing corridor, mark as not empty
                 isEmpty = false;
                 break;
@@ -690,7 +691,8 @@ export class DungeonGenerator {
         const y = position.y + dy;
 
         if (x >= 0 && x < dungeon.width && y >= 0 && y < dungeon.height) {
-          if (dungeon.cells[y][x].type === 'wall') {
+          // セルの存在チェックを追加
+          if (dungeon.cells[y] && dungeon.cells[y][x] && dungeon.cells[y][x].type === 'wall') {
             dungeon.cells[y][x] = {
               type: 'floor',
               walkable: true,
@@ -719,7 +721,10 @@ export class DungeonGenerator {
         y: lastRoom.y + Math.floor(lastRoom.height / 2)
       };
       dungeon.stairsDown = stairsDown;
-      dungeon.cells[stairsDown.y][stairsDown.x].type = 'stairs-down';
+      // セルの存在チェックを追加
+      if (dungeon.cells[stairsDown.y] && dungeon.cells[stairsDown.y][stairsDown.x]) {
+        dungeon.cells[stairsDown.y][stairsDown.x].type = 'stairs-down';
+      }
       // Ensure no stairs-up
       dungeon.stairsUp = undefined;
     } else {
@@ -730,7 +735,10 @@ export class DungeonGenerator {
         y: firstRoom.y + Math.floor(firstRoom.height / 2)
       };
       dungeon.stairsUp = stairsUp;
-      dungeon.cells[stairsUp.y][stairsUp.x].type = 'stairs-up';
+      // セルの存在チェックを追加
+      if (dungeon.cells[stairsUp.y] && dungeon.cells[stairsUp.y][stairsUp.x]) {
+        dungeon.cells[stairsUp.y][stairsUp.x].type = 'stairs-up';
+      }
       // Ensure no stairs-down
       dungeon.stairsDown = undefined;
     }

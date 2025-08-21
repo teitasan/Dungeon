@@ -144,10 +144,15 @@ async function start(): Promise<void> {
   const onAdvanceFloor = () => {
     const adv = multi.advanceFloor(player);
     if (!adv.success) return;
+    
     const newDungeon = dungeonManager.getCurrentDungeon();
     if (newDungeon) {
       const newSpawn = newDungeon.playerSpawn;
+      
+      // プレイヤーの位置を更新
       player.setPosition(newSpawn);
+      
+      // 新しいダンジョンにプレイヤーを追加
       dungeonManager.addEntity(player, newSpawn);
     }
   };
@@ -218,10 +223,11 @@ async function start(): Promise<void> {
                 if (res.type === 'ok' && res.selectedId === 'yes') {
                   onAdvanceFloor();
                   ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
+                  render();
                 } else {
                   ui.pushMessage(config.messages.ui.stairsDecline);
+                  render();
                 }
-                render();
               });
             } else {
               // Attack: try adjacent target
@@ -273,10 +279,11 @@ async function start(): Promise<void> {
           if (res.type === 'ok' && res.selectedId === 'yes') {
             onAdvanceFloor();
             ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
+            render();
           } else {
             ui.pushMessage(config.messages.ui.stairsDecline);
+            render();
           }
-          render();
         });
       }
     }
