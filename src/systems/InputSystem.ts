@@ -2,289 +2,89 @@
  * Input handling system for keyboard and mouse input
  */
 
-import { Position } from '../types/core';
-import { GameEntity } from '../types/entities';
-import { 
-  InputHandler, 
-  TurnAction, 
-  MovementDirection,
-  KeyToDirection 
-} from '../types/movement';
-import { TurnSystem } from './TurnSystem';
-import { MovementSystem } from './MovementSystem';
+import type { Position } from '../types/core.js';
+import type { GameConfig } from '../types/core.js';
 
-export class InputSystem implements InputHandler {
-  private turnSystem: TurnSystem;
-  private movementSystem: MovementSystem;
-  private playerEntity: GameEntity | null = null;
-  private keyListeners: Map<string, (key: string) => void> = new Map();
+export interface InputAction {
+  type: 'movement' | 'action';
+  direction?: 'up' | 'down' | 'left' | 'right';
+  action?: 'confirm' | 'cancel' | 'inventory';
+}
 
-  constructor(turnSystem: TurnSystem, movementSystem: MovementSystem) {
-    this.turnSystem = turnSystem;
-    this.movementSystem = movementSystem;
-    this.setupKeyboardListeners();
+export class InputSystem {
+  private config: GameConfig;
+
+  constructor(config: GameConfig) {
+    this.config = config;
   }
 
   /**
-   * Set the player entity for input handling
+   * キーイベントを入力アクションに変換
    */
-  setPlayerEntity(entity: GameEntity): void {
-    this.playerEntity = entity;
-  }
-
-  /**
-   * Handle keyboard input
-   */
-  handleKeyPress(key: string): TurnAction | null {
-    if (!this.playerEntity) return null;
-
-    // Check if it's the player's turn
-    if (!this.turnSystem.isEntityTurn(this.playerEntity)) {
-      return null;
+  processKeyEvent(key: string): InputAction | null {
+    // 移動キーの処理
+    for (const [direction, keys] of Object.entries(this.config.input.keys.movement)) {
+      if (keys.includes(key)) {
+        return {
+          type: 'movement',
+          direction: direction as 'up' | 'down' | 'left' | 'right'
+        };
+      }
     }
 
-    // Handle movement keys
-    const direction = KeyToDirection[key];
-    if (direction) {
-      return this.handleMovementInput(direction);
-    }
-
-    // Handle other action keys
-    switch (key.toLowerCase()) {
-      case ' ':
-      case 'space':
-        return this.handleWaitInput();
-      
-      case 'enter':
-        return this.handleConfirmInput();
-      
-      case 'escape':
-        return this.handleCancelInput();
-      
-      case 'i':
-        return this.handleInventoryInput();
-      
-      case 'g':
-        return this.handlePickupInput();
-      
-      case 'u':
-        return this.handleUseInput();
-      
-      default:
-        return null;
-    }
-  }
-
-  /**
-   * Handle mouse click input
-   */
-  handleMouseClick(position: Position): TurnAction | null {
-    if (!this.playerEntity) return null;
-
-    // Check if it's the player's turn
-    if (!this.turnSystem.isEntityTurn(this.playerEntity)) {
-      return null;
-    }
-
-    // Check if position is adjacent (only allow adjacent movement via mouse)
-    if (!this.movementSystem.arePositionsAdjacent(this.playerEntity.position, position)) {
-      return null;
-    }
-
-    // Calculate direction to clicked position
-    const direction = this.movementSystem.getDirectionBetween(
-      this.playerEntity.position, 
-      position
-    );
-
-    if (direction) {
-      return this.handleMovementInput(direction);
+    // アクションキーの処理
+    for (const [action, keys] of Object.entries(this.config.input.keys.actions)) {
+      if (keys.includes(key)) {
+        return {
+          type: 'action',
+          action: action as 'confirm' | 'cancel' | 'inventory'
+        };
+      }
     }
 
     return null;
   }
 
   /**
-   * Handle movement input
+   * 移動方向から次の位置を計算
    */
-  private handleMovementInput(direction: MovementDirection): TurnAction {
-    return this.turnSystem.createAction(
-      'move',
-      this.playerEntity!,
-      { direction },
-      1.0
-    );
-  }
+  calculateNextPosition(current: Position, direction: 'up' | 'down' | 'left' | 'right'): Position {
+    const movementConfig = this.config.player.movementConfig;
+    const distance = movementConfig.distance;
 
-  /**
-   * Handle wait/skip turn input
-   */
-  private handleWaitInput(): TurnAction {
-    return this.turnSystem.createAction(
-      'wait',
-      this.playerEntity!,
-      {},
-      1.0
-    );
-  }
-
-  /**
-   * Handle confirm input (context-dependent)
-   */
-  private handleConfirmInput(): TurnAction {
-    // This could be used for confirming actions, using stairs, etc.
-    return this.turnSystem.createAction(
-      'special',
-      this.playerEntity!,
-      { action: 'confirm' },
-      0.0 // No turn cost for confirmation
-    );
-  }
-
-  /**
-   * Handle cancel input
-   */
-  private handleCancelInput(): TurnAction {
-    return this.turnSystem.createAction(
-      'special',
-      this.playerEntity!,
-      { action: 'cancel' },
-      0.0
-    );
-  }
-
-  /**
-   * Handle inventory input
-   */
-  private handleInventoryInput(): TurnAction {
-    return this.turnSystem.createAction(
-      'special',
-      this.playerEntity!,
-      { action: 'inventory' },
-      0.0 // Opening inventory doesn't cost a turn
-    );
-  }
-
-  /**
-   * Handle pickup input
-   */
-  private handlePickupInput(): TurnAction {
-    return this.turnSystem.createAction(
-      'special',
-      this.playerEntity!,
-      { action: 'pickup' },
-      0.5 // Picking up items costs half a turn
-    );
-  }
-
-  /**
-   * Handle use item input
-   */
-  private handleUseInput(): TurnAction {
-    return this.turnSystem.createAction(
-      'use-item',
-      this.playerEntity!,
-      { action: 'use' },
-      1.0
-    );
-  }
-
-  /**
-   * Setup keyboard event listeners
-   */
-  private setupKeyboardListeners(): void {
-    if (typeof window !== 'undefined') {
-      window.addEventListener('keydown', (event) => {
-        const action = this.handleKeyPress(event.key);
-        if (action) {
-          this.turnSystem.processTurnAction(action);
-          event.preventDefault();
-        }
-      });
+    switch (direction) {
+      case 'up':
+        return { x: current.x, y: current.y - distance };
+      case 'down':
+        return { x: current.x, y: current.y + distance };
+      case 'left':
+        return { x: current.x - distance, y: current.y };
+      case 'right':
+        return { x: current.x + distance, y: current.y };
+      default:
+        return current;
     }
   }
 
   /**
-   * Add custom key listener
-   */
-  addKeyListener(key: string, callback: (key: string) => void): void {
-    this.keyListeners.set(key, callback);
-  }
-
-  /**
-   * Remove key listener
-   */
-  removeKeyListener(key: string): void {
-    this.keyListeners.delete(key);
-  }
-
-  /**
-   * Process custom key listeners
-   */
-  private processCustomKeyListeners(key: string): void {
-    const listener = this.keyListeners.get(key);
-    if (listener) {
-      listener(key);
-    }
-  }
-
-  /**
-   * Get available movement directions for current player
-   */
-  getAvailableMovements(): MovementDirection[] {
-    if (!this.playerEntity) return [];
-    
-    return this.movementSystem.getValidMovements(this.playerEntity);
-  }
-
-  /**
-   * Check if a key is a movement key
+   * キーが移動キーかチェック
    */
   isMovementKey(key: string): boolean {
-    return key in KeyToDirection;
+    return Object.values(this.config.input.keys.movement).flat().includes(key);
   }
 
   /**
-   * Get direction from key
+   * キーがアクションキーかチェック
    */
-  getDirectionFromKey(key: string): MovementDirection | null {
-    return KeyToDirection[key] || null;
+  isActionKey(key: string): boolean {
+    return Object.values(this.config.input.keys.actions).flat().includes(key);
   }
 
   /**
-   * Enable/disable input processing
+   * キーがナビゲーションキーかチェック（ページスクロール防止用）
    */
-  private inputEnabled: boolean = true;
-
-  setInputEnabled(enabled: boolean): void {
-    this.inputEnabled = enabled;
-  }
-
-  isInputEnabled(): boolean {
-    return this.inputEnabled;
-  }
-
-  /**
-   * Process queued actions (for AI or automated input)
-   */
-  private actionQueue: TurnAction[] = [];
-
-  queueAction(action: TurnAction): void {
-    this.actionQueue.push(action);
-  }
-
-  processQueuedActions(): void {
-    while (this.actionQueue.length > 0) {
-      const action = this.actionQueue.shift()!;
-      this.turnSystem.processTurnAction(action);
-    }
-  }
-
-  clearActionQueue(): void {
-    this.actionQueue = [];
-  }
-
-  getQueuedActionCount(): number {
-    return this.actionQueue.length;
+  isNavigationKey(key: string): boolean {
+    const navKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', '.'];
+    return navKeys.includes(key);
   }
 }
