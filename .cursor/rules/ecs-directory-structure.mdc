@@ -1,0 +1,215 @@
+# ECSディレクトリ構造ルール
+
+## 🎯 **基本原則**
+
+本プロジェクトのディレクトリ構造は**完全なECSアーキテクチャ**に最適化され、従来のOOPベースの設計から脱却します。
+
+## 🏗️ **推奨ディレクトリ構造**
+
+```
+src/
+├── ecs/                          # ECSコアシステム
+│   ├── core/                     # ECS基盤
+│   │   ├── World.ts             # エンティティワールド
+│   │   ├── Entity.ts            # 純粋なエンティティ（IDのみ）
+│   │   ├── Component.ts         # コンポーネント基底
+│   │   ├── System.ts            # システム基底
+│   │   ├── Query.ts             # クエリシステム
+│   │   ├── Archetype.ts         # アーキタイプシステム
+│   │   └── ComponentManager.ts  # コンポーネント管理
+│   ├── components/               # コンポーネント定義
+│   │   ├── common/              # 共通コンポーネント
+│   │   │   ├── Position.ts      # 位置
+│   │   │   ├── Velocity.ts      # 速度
+│   │   │   ├── Health.ts        # 生命値
+│   │   │   └── index.ts
+│   │   ├── movement/            # 移動関連
+│   │   │   ├── Movement.ts      # 移動
+│   │   │   ├── Collision.ts     # 衝突
+│   │   │   └── index.ts
+│   │   ├── combat/              # 戦闘関連
+│   │   │   ├── Attack.ts        # 攻撃
+│   │   │   ├── Defense.ts       # 防御
+│   │   │   ├── Weapon.ts        # 武器
+│   │   │   └── index.ts
+│   │   ├── status/               # 状態関連
+│   │   │   ├── StatusEffect.ts  # 状態異常
+│   │   │   ├── Buff.ts          # バフ
+│   │   │   └── index.ts
+│   │   └── index.ts
+│   ├── systems/                  # システム実装
+│   │   ├── movement/            # 移動システム
+│   │   │   ├── MovementSystem.ts
+│   │   │   ├── CollisionSystem.ts
+│   │   │   └── index.ts
+│   │   ├── combat/              # 戦闘システム
+│   │   │   ├── CombatSystem.ts
+│   │   │   ├── DamageSystem.ts
+│   │   │   └── index.ts
+│   │   ├── status/              # 状態システム
+│   │   │   ├── StatusEffectSystem.ts
+│   │   │   ├── BuffSystem.ts
+│   │   │   └── index.ts
+│   │   └── index.ts
+│   └── index.ts
+├── game/                         # ゲーム固有のロジック
+│   ├── dungeon/                 # ダンジョン生成
+│   │   ├── DungeonGenerator.ts
+│   │   ├── RoomGenerator.ts
+│   │   └── index.ts
+│   ├── entities/                # ゲームエンティティ定義
+│   │   ├── prefabs/             # エンティティのプリセット
+│   │   │   ├── PlayerPrefab.ts
+│   │   │   ├── MonsterPrefab.ts
+│   │   │   └── index.ts
+│   │   └── index.ts
+│   └── index.ts
+├── config/                       # 設定管理
+│   ├── ConfigLoader.ts
+│   ├── GameConfig.ts
+│   └── index.ts
+├── rendering/                    # 描画システム
+│   ├── Renderer.ts
+│   ├── SpriteManager.ts
+│   └── index.ts
+├── input/                        # 入力システム
+│   ├── InputManager.ts
+│   ├── KeyBindings.ts
+│   └── index.ts
+├── audio/                        # 音声システム
+│   ├── AudioManager.ts
+│   ├── SoundEffects.ts
+│   └── index.ts
+├── utils/                        # ユーティリティ
+│   ├── Math.ts
+│   ├── Random.ts
+│   └── index.ts
+└── index.ts                      # メインエントリーポイント
+```
+
+## 🚫 **禁止される構造**
+
+### **1. 従来のOOPベースの構造**
+```
+src/
+├── entities/                     # ❌ 禁止: クラスベースのエンティティ
+│   ├── Player.ts                # ❌ 禁止: 継承ベースのクラス
+│   ├── Monster.ts               # ❌ 禁止: 継承ベースのクラス
+│   └── GameEntity.ts            # ❌ 禁止: 基底クラス
+├── systems/                      # ❌ 禁止: 直接実装されたシステム
+│   ├── CombatSystem.ts          # ❌ 禁止: エンティティを直接操作
+│   └── MovementSystem.ts        # ❌ 禁止: エンティティを直接操作
+```
+
+### **2. 混在したアーキテクチャ**
+```
+src/
+├── core/                         # ❌ 禁止: 混在したアーキテクチャ
+│   ├── Component.ts             # ❌ 禁止: ロジックを含むコンポーネント
+│   ├── ComponentSystem.ts       # ❌ 禁止: ハイブリッドなシステム
+│   └── ConfigLoader.ts          # ✅ 許可: 設定管理は独立
+```
+
+## ✅ **推奨される構造**
+
+### **1. ECSコアシステム**
+```
+src/ecs/core/
+├── World.ts                     # エンティティワールドの管理
+├── Entity.ts                    # 純粋なエンティティ（IDのみ）
+├── Component.ts                 # 純粋なデータ構造
+├── System.ts                    # システム基底クラス
+├── Query.ts                     # クエリシステム
+├── Archetype.ts                 # アーキタイプシステム
+└── ComponentManager.ts          # コンポーネント管理
+```
+
+### **2. コンポーネント定義**
+```
+src/ecs/components/
+├── common/                      # 共通コンポーネント
+│   ├── Position.ts             # 位置データ
+│   ├── Velocity.ts             # 速度データ
+│   └── Health.ts               # 生命値データ
+├── movement/                    # 移動関連コンポーネント
+│   ├── Movement.ts             # 移動データ
+│   └── Collision.ts            # 衝突データ
+└── combat/                      # 戦闘関連コンポーネント
+    ├── Attack.ts               # 攻撃データ
+    └── Defense.ts              # 防御データ
+```
+
+### **3. システム実装**
+```
+src/ecs/systems/
+├── movement/                    # 移動システム
+│   ├── MovementSystem.ts       # 移動処理
+│   └── CollisionSystem.ts      # 衝突処理
+├── combat/                      # 戦闘システム
+│   ├── CombatSystem.ts         # 戦闘処理
+│   └── DamageSystem.ts         # ダメージ処理
+└── status/                      # 状態システム
+    ├── StatusEffectSystem.ts   # 状態異常処理
+    └── BuffSystem.ts           # バフ処理
+```
+
+## 🔄 **移行手順**
+
+### **Phase 1: 基盤の再構築**
+1. **`src/ecs/`ディレクトリの作成**
+2. **純粋なECSコアシステムの実装**
+3. **既存の`core/`からECSコアへの移行**
+
+### **Phase 2: コンポーネントの分離**
+1. **`src/ecs/components/`の作成**
+2. **既存のエンティティからデータの抽出**
+3. **純粋なデータ構造としてのコンポーネント定義**
+
+### **Phase 3: システムの再実装**
+1. **`src/ecs/systems/`の作成**
+2. **既存システムのECSベースへの書き換え**
+3. **クエリベースの処理への移行**
+
+### **Phase 4: ゲーム固有ロジックの分離**
+1. **`src/game/`ディレクトリの作成**
+2. **ダンジョン生成ロジックの移行**
+3. **プリセットエンティティの定義**
+
+## 📋 **ファイル命名規則**
+
+### **1. コンポーネント**
+- **命名**: `PascalCase` + `Component`サフィックス
+- **例**: `PositionComponent.ts`, `HealthComponent.ts`
+
+### **2. システム**
+- **命名**: `PascalCase` + `System`サフィックス
+- **例**: `MovementSystem.ts`, `CombatSystem.ts`
+
+### **3. インターフェース**
+- **命名**: `PascalCase` + `Interface`サフィックス（必要に応じて）
+- **例**: `ComponentInterface.ts`, `SystemInterface.ts`
+
+### **4. 型定義**
+- **命名**: `PascalCase` + `Type`サフィックス（必要に応じて）
+- **例**: `ComponentType.ts`, `SystemType.ts`
+
+## 🎯 **この構造の利点**
+
+1. **関心の分離**: ECS、ゲームロジック、描画、入力が明確に分離
+2. **再利用性**: コンポーネントとシステムの独立した再利用
+3. **テスト容易性**: 各層を独立してテスト可能
+4. **拡張性**: 新機能の追加が容易
+5. **パフォーマンス**: ECSの最適化が最大限活用可能
+
+## ⚠️ **注意事項**
+
+1. **段階的移行**: 既存機能を壊さないよう段階的に移行
+2. **インポートパスの更新**: 移行に伴うインポートパスの一括更新
+3. **テストの更新**: ディレクトリ構造変更に伴うテストファイルの更新
+4. **ドキュメントの更新**: 新しい構造に合わせたドキュメントの更新
+
+このディレクトリ構造により、プロジェクトは完全なECSアーキテクチャに最適化され、保守性、拡張性、パフォーマンスが大幅に向上します。
+description:
+globs:
+alwaysApply: false
+---

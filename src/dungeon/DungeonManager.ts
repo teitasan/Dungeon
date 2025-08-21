@@ -345,7 +345,8 @@ export class DungeonManager {
     for (let y = 0; y < this.currentDungeon.height; y++) {
       for (let x = 0; x < this.currentDungeon.width; x++) {
         totalCells++;
-        if (this.currentDungeon.cells[y][x].type === 'floor') {
+        // セルの存在チェックを追加
+        if (this.currentDungeon.cells[y] && this.currentDungeon.cells[y][x] && this.currentDungeon.cells[y][x].type === 'floor') {
           // Check if this floor cell is part of a room
           let inRoom = false;
           for (const room of this.currentDungeon.rooms) {

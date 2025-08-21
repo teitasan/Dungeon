@@ -81,6 +81,39 @@ export interface GameConfig {
   monsters: MonsterConfig;
   attributes: AttributeConfig;
   ui: UIConfig;
+  input: InputConfig;
+  messages: MessageConfig;
+}
+
+export interface InputConfig {
+  keys: {
+    movement: {
+      up: string[];
+      down: string[];
+      left: string[];
+      right: string[];
+    };
+    actions: {
+      confirm: string[];
+      cancel: string[];
+      inventory: string[];
+    };
+  };
+}
+
+export interface MessageConfig {
+  ui: {
+    inventoryOpen: string;
+    inventoryClose: string;
+    cancel: string;
+    attackMiss: string;
+    stairsConfirmDown: string;
+    stairsConfirmUp: string;
+    stairsAdvanceDown: string;
+    stairsAdvanceUp: string;
+    stairsDecline: string;
+    itemUseUnimplemented: string;
+  };
 }
 
 export interface PlayerConfig {
@@ -162,7 +195,31 @@ export interface RecoverySystemConfig {
 export type StatusEffectType = 'poison' | 'confusion' | 'paralysis' | 'bind';
 
 export interface DungeonConfig {
-  [key: string]: any; // Will be expanded in later tasks
+  defaultTileset: DungeonTilesetConfig;
+  dungeonSpecificTilesets: {
+    [dungeonId: string]: DungeonTilesetConfig;
+  };
+}
+
+export interface DungeonTilesetConfig {
+  imagePath: string;
+  tileSize: number;
+  tiles: {
+    floor: TileConfig;
+    wall: TileConfig;
+    'stairs-down': TileConfig;
+    'stairs-up': TileConfig;
+  };
+  overlay: {
+    wall: TileConfig;
+  };
+}
+
+export interface TileConfig {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface ItemConfig {
@@ -175,7 +232,32 @@ export interface MonsterConfig {
 
 export interface UIConfig {
   fonts: FontConfig;
+  viewport: ViewportConfig;
+  minimap: MinimapConfig;
+  layout: LayoutConfig;
+  messages: {
+    maxLines: number;
+  };
 }
+
+export interface ViewportConfig {
+  tilesX: number;
+  tilesY: number;
+  tileSize: number;
+}
+
+export interface MinimapConfig {
+  width: number;
+  height: number;
+}
+
+export interface LayoutConfig {
+  maxWidth: number;
+  gridTemplateColumns: string;
+  gridTemplateRows: string;
+}
+
+
 
 export interface FontConfig {
   primary: string;

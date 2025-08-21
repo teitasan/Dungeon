@@ -1,0 +1,117 @@
+# 3層アーキテクチャ厳守ルール
+
+## 基本原則
+
+本プロジェクトは以下の3層アーキテクチャを厳守し、各層の責務を明確に分離します：
+
+### 1. Configuration Layer（設定層）
+- **責務**: 全ての数値、ルール、動作パラメータの管理
+- **実装**: JSON形式の設定ファイル群（`config/`ディレクトリ）
+- **禁止事項**: 
+  - コード内での数値・ルール・挙動の直書き
+  - 設定値のハードコード
+  - 設定ファイル以外でのパラメータ管理
+
+### 2. Component Layer（コンポーネント層）
+- **責務**: 再利用可能な機能単位の実装
+- **実装**: 設定に基づいて動作を決定するコンポーネント
+- **禁止事項**:
+  - 設定値の直接参照
+  - ビジネスロジックの混在
+  - 状態管理の重複
+
+### 3. System Layer（システム層）
+- **責務**: コンポーネントを組み合わせたゲームロジックの実行
+- **実装**: ターン管理、状態管理、イベント処理
+- **禁止事項**:
+  - コンポーネントの内部実装への直接アクセス
+  - 設定値の直接操作
+  - UI要素の直接操作
+
+## 実装ガイドライン
+
+### 設定値の管理
+```typescript
+// ❌ 禁止: 直書き
+const VIEW_TILES_X = 20;
+const TILE_SIZE = 32;
+
+// ✅ 推奨: 設定ファイル経由
+const config = await configLoader.loadGameConfig();
+const viewTilesX = config.ui.viewport.tilesX;
+const tileSize = config.dungeon.tileSize;
+```
+
+### コンポーネントの実装
+```typescript
+// ❌ 禁止: 設定値の直接参照
+class MovementComponent {
+  execute() {
+    return { x: 1, y: 0 }; // 固定値
+  }
+}
+
+// ✅ 推奨: 設定経由の動作
+class MovementComponent {
+  execute(context: GameContext) {
+    const config = context.getConfig();
+    return { 
+      x: config.movement.distance, 
+      y: 0 
+    };
+  }
+}
+```
+
+### システム層の実装
+```typescript
+// ❌ 禁止: 直接的な値操作
+if (key === 'ArrowUp') {
+  player.position.y -= 1; // 直接操作
+}
+
+// ✅ 推奨: コンポーネント経由
+if (key === 'ArrowUp') {
+  const movement = player.getComponent('movement');
+  movement.execute({ direction: 'up' });
+}
+```
+
+## ファイル構造の遵守
+
+### 設定ファイル
+- メイン設定: `config/game.json`
+- ダンジョン設定: `config/dungeons/`
+- アイテム設定: `config/items/`
+- モンスター設定: `config/monsters/`
+
+### コンポーネントファイル
+- 基本コンポーネント: `src/core/Component.ts`
+- 移動コンポーネント: `src/systems/MovementSystem.ts`
+- 戦闘コンポーネント: `src/systems/CombatSystem.ts`
+
+### システムファイル
+- ゲーム管理: `src/Game.ts`
+- ダンジョン管理: `src/dungeon/DungeonManager.ts`
+- エンティティ管理: `src/entities/`
+
+## 検証チェックリスト
+
+コードレビュー時は以下を確認してください：
+
+- [ ] 数値・ルール・挙動が設定ファイルで管理されているか
+- [ ] 各層の責務が適切に分離されているか
+- [ ] コンポーネントが設定経由で動作しているか
+- [ ] システム層がコンポーネント経由で機能を実行しているか
+- [ ] 直書き（ハードコード）が存在しないか
+
+## 参考ファイル
+
+- 設計仕様: [.kiro/specs/mystery-dungeon-game/design.md](mdc:.kiro/specs/mystery-dungeon-game/design.md)
+- 要件仕様: [.kiro/specs/mystery-dungeon-game/requirements.md](mdc:.kiro/specs/mystery-dungeon-game/requirements.md)
+- 設定ローダー: [src/core/ConfigLoader.ts](mdc:src/core/ConfigLoader.ts)
+- コンポーネント基盤: [src/core/Component.ts](mdc:src/core/Component.ts)
+description:
+globs:
+alwaysApply: true
+---
