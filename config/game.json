@@ -194,5 +194,12 @@
       "advantage": 1.2
     },
     "applicationTiming": "final"
+  },
+  "ui": {
+    "fonts": {
+      "primary": "PixelMplus",
+      "secondary": "PixelMplus12",
+      "fallback": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+    }
   }
 }

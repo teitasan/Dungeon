@@ -26,9 +26,9 @@ function createUI(): void {
     </div>
     <div id="inventoryModal" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); place-items: center;">
       <div style="background:#1a1a1a; color:#eee; padding:16px; border-radius:10px; min-width:280px; box-shadow: 0 0 0 1px #333 inset;">
-        <div style="font-weight:600; margin-bottom:8px;">Inventory</div>
+        <div style="font-family:'PixelMplus'; font-weight:600; margin-bottom:8px;">Inventory</div>
         <ul id="inventoryList" style="list-style:none; padding-left:0; margin:0 0 8px 0; max-height:40vh; overflow:auto;"></ul>
-        <div style="opacity:0.8; font-size:12px;">Z:決定 / X:閉じる</div>
+        <div style="font-family:'PixelMplus'; opacity:0.8; font-size:12px;">Z:決定 / X:閉じる</div>
       </div>
     </div>
     <!-- confirm modal is created dynamically via Modal.ts -->
@@ -106,10 +106,14 @@ async function start(): Promise<void> {
           await tilesetManager.load();
           console.log('Tileset loaded successfully');
           renderer.setTilesetManager(tilesetManager);
+          // ゲーム設定もレンダラーに渡す
+          renderer.setGameConfig(config);
         } catch (error) {
           console.warn('Failed to load tileset:', error);
           // エラーが発生してもレンダラーに設定（フォールバック表示）
           renderer.setTilesetManager(tilesetManager);
+          // ゲーム設定もレンダラーに渡す
+          renderer.setGameConfig(config);
         }
       } else {
         console.log('No dungeon tileset config found');

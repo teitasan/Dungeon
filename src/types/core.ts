@@ -80,6 +80,7 @@ export interface GameConfig {
   items: ItemConfig;
   monsters: MonsterConfig;
   attributes: AttributeConfig;
+  ui: UIConfig;
 }
 
 export interface PlayerConfig {
@@ -170,6 +171,16 @@ export interface ItemConfig {
 
 export interface MonsterConfig {
   [key: string]: any; // Will be expanded in later tasks
+}
+
+export interface UIConfig {
+  fonts: FontConfig;
+}
+
+export interface FontConfig {
+  primary: string;
+  secondary: string;
+  fallback: string;
 }
 
 export interface AttributeConfig {

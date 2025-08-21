@@ -66,7 +66,7 @@ export class ConfigLoader {
    * Validate game configuration structure
    */
   private validateGameConfig(config: any): GameConfig {
-    const requiredSections = ['player', 'combat', 'dungeon', 'items', 'monsters', 'attributes'];
+    const requiredSections = ['player', 'combat', 'dungeon', 'items', 'monsters', 'attributes', 'ui'];
     
     for (const section of requiredSections) {
       if (!config[section]) {
@@ -162,6 +162,13 @@ export class ConfigLoader {
           advantage: 1.2
         },
         applicationTiming: 'final'
+      },
+      ui: {
+        fonts: {
+          primary: 'PixelMplus',
+          secondary: 'PixelMplus12',
+          fallback: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+        }
       }
     };
   }

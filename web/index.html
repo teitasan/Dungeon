@@ -5,7 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Mystery Dungeon (Browser Demo)</title>
     <style>
-      html, body { height: 100%; margin: 0; background: #111; color: #eee; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      @font-face {
+        font-family: 'PixelMplus';
+        src: url('/fonts/PixelMplus10-Regular.ttf') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'PixelMplus';
+        src: url('/fonts/PixelMplus10-Bold.ttf') format('truetype');
+        font-weight: bold;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'PixelMplus12';
+        src: url('/fonts/PixelMplus12-Regular.ttf') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'PixelMplus12';
+        src: url('/fonts/PixelMplus12-Bold.ttf') format('truetype');
+        font-weight: bold;
+        font-style: normal;
+      }
+      
+      html, body { height: 100%; margin: 0; background: #111; color: #eee; font-family: 'PixelMplus', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
       #layout { display: grid; grid-template-columns: 1fr 320px; gap: 12px; padding: 12px; box-sizing: border-box; height: 100%; }
       .map { background: #000; padding: 12px; border-radius: 8px; overflow: auto; box-shadow: 0 0 0 1px #333 inset; line-height: 1.05; font-size: 12px; }
       #sidebar { display: grid; grid-template-rows: auto 1fr auto; gap: 12px; }

@@ -1,5 +1,6 @@
 import type { Dungeon, Room } from '../types/dungeon';
 import type { PlayerEntity } from '../entities/Player';
+import type { GameConfig } from '../types/core.js';
 import { DungeonManager } from '../dungeon/DungeonManager.js';
 import { TilesetManager } from './TilesetManager.js';
 
@@ -13,6 +14,7 @@ export class CanvasRenderer {
   private explored: boolean[][] | null = null;
   private currentDungeonId: string | null = null;
   private tilesetManager: TilesetManager | null = null;
+  private gameConfig: GameConfig | null = null;
 
   constructor(private canvas: HTMLCanvasElement, tileSize: number = 20) {
     const ctx = canvas.getContext('2d');
@@ -57,6 +59,13 @@ export class CanvasRenderer {
    */
   setTilesetManager(tilesetManager: TilesetManager): void {
     this.tilesetManager = tilesetManager;
+  }
+
+  /**
+   * ゲーム設定を設定
+   */
+  setGameConfig(gameConfig: GameConfig): void {
+    this.gameConfig = gameConfig;
   }
 
   render(dungeon: Dungeon, dungeonManager: DungeonManager, player: PlayerEntity): void {
@@ -219,7 +228,8 @@ export class CanvasRenderer {
       this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
       this.ctx.fillRect(gx + 3, gy + 3, tileSize - 6, tileSize - 6);
       this.ctx.fillStyle = '#d0d0d0';
-      this.ctx.font = `${Math.floor(tileSize * 0.7)}px ui-monospace, Menlo, monospace`;
+              const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
+        this.ctx.font = `${Math.floor(tileSize * 0.7)}px '${fontFamily}', ui-monospace, Menlo, monospace`;
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
       this.ctx.fillText(glyph, gx + tileSize / 2, gy + tileSize / 2 + 1);

@@ -70,6 +70,7 @@ export function openChoiceModal(params: {
 
   const header = document.createElement('div');
   header.textContent = title;
+  header.style.fontFamily = 'PixelMplus';
   header.style.fontWeight = '600';
   header.style.marginBottom = '8px';
 
@@ -80,6 +81,7 @@ export function openChoiceModal(params: {
   options.forEach(opt => {
     const item = document.createElement('div');
     item.textContent = opt.label;
+    item.style.fontFamily = 'PixelMplus';
     item.style.padding = '6px 12px';
     item.style.borderRadius = '8px';
     item.style.boxShadow = '0 0 0 1px #333 inset';
@@ -88,6 +90,7 @@ export function openChoiceModal(params: {
 
   const hint = document.createElement('div');
   hint.textContent = '左右キーで選択 / Z:決定 / X:キャンセル';
+  hint.style.fontFamily = 'PixelMplus';
   hint.style.opacity = '0.8';
   hint.style.fontSize = '12px';
   hint.style.marginTop = '8px';
