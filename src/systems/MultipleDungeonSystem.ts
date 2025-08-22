@@ -3,7 +3,7 @@
  */
 
 import { DungeonManager } from '../dungeon/DungeonManager';
-import { DungeonTemplate } from '../types/dungeon';
+import { DungeonTemplate, DungeonGenerationParams } from '../types/dungeon';
 import { PlayerEntity } from '../entities/Player';
 
 // Dungeon definition
@@ -195,90 +195,144 @@ export class MultipleDungeonSystem {
     message: string;
     isCompleted: boolean;
   } {
-    if (!this.currentDungeon) {
+    try {
+      console.log('[DEBUG] advanceFloor: 開始, currentFloor:', this.currentFloor);
+      console.log('[DEBUG] currentDungeon:', this.currentDungeon);
+      
+      if (!this.currentDungeon) {
+        console.log('[DEBUG] アクティブなダンジョンがありません');
+        return {
+          success: false,
+          newFloor: this.currentFloor,
+          message: 'No active dungeon',
+          isCompleted: false
+        };
+      }
+
+      this.currentFloor++;
+      console.log('[DEBUG] フロア進行:', this.currentFloor);
+      
+      // Check if dungeon is completed
+      if (this.currentFloor > this.currentDungeon.maxFloors) {
+        console.log('[DEBUG] ダンジョン完了条件達成, maxFloors:', this.currentDungeon.maxFloors);
+        const completion = this.completeDungeon(player);
+        console.log('[DEBUG] ダンジョン完了処理結果:', completion);
+        return {
+          success: true,
+          newFloor: this.currentFloor - 1,
+          message: completion.message,
+          isCompleted: true
+        };
+      }
+
+      console.log('[DEBUG] 次のフロア生成中...');
+      // Generate next floor
+      this.ensureTemplateForDungeon(this.currentDungeon);
+      this.dungeonManager.generateDungeon(this.currentDungeon.id, this.currentFloor);
+      console.log('[DEBUG] 次のフロア生成完了');
+      
+      // Update progress
+      const progress = this.getPlayerProgress(this.currentDungeon.id);
+      progress.bestFloor = Math.max(progress.bestFloor, this.currentFloor);
+      console.log('[DEBUG] 進捗更新完了, bestFloor:', progress.bestFloor);
+
+      console.log('[DEBUG] advanceFloor: 完了');
+      return {
+        success: true,
+        newFloor: this.currentFloor,
+        message: `Advanced to floor ${this.currentFloor}`,
+        isCompleted: false
+      };
+    } catch (error) {
+      console.error('[ERROR] advanceFloorでエラーが発生:', error);
       return {
         success: false,
         newFloor: this.currentFloor,
-        message: 'No active dungeon',
+        message: `Error: ${error}`,
         isCompleted: false
       };
     }
-
-    this.currentFloor++;
-    
-    // Check if dungeon is completed
-    if (this.currentFloor > this.currentDungeon.maxFloors) {
-      const completion = this.completeDungeon(player);
-      return {
-        success: true,
-        newFloor: this.currentFloor - 1,
-        message: completion.message,
-        isCompleted: true
-      };
-    }
-
-    // Generate next floor
-    this.ensureTemplateForDungeon(this.currentDungeon);
-    this.dungeonManager.generateDungeon(this.currentDungeon.id, this.currentFloor);
-    
-    // Update progress
-    const progress = this.getPlayerProgress(this.currentDungeon.id);
-    progress.bestFloor = Math.max(progress.bestFloor, this.currentFloor);
-
-    return {
-      success: true,
-      newFloor: this.currentFloor,
-      message: `Advanced to floor ${this.currentFloor}`,
-      isCompleted: false
-    };
   }
 
   /**
    * Complete current dungeon
    */
   private completeDungeon(player: PlayerEntity): DungeonCompletionResult {
-    if (!this.currentDungeon) {
+    try {
+      console.log('[DEBUG] completeDungeon: 開始');
+      
+      if (!this.currentDungeon) {
+        console.log('[DEBUG] アクティブなダンジョンがありません');
+        return {
+          success: false,
+          dungeon: {} as DungeonDefinition,
+          floorReached: 0,
+          rewards: [],
+          newUnlocks: [],
+          message: 'No active dungeon'
+        };
+      }
+
+      const dungeon = this.currentDungeon;
+      console.log('[DEBUG] 完了するダンジョン:', dungeon.id, dungeon.name);
+      const progress = this.getPlayerProgress(dungeon.id);
+      
+      // Mark as completed
+      progress.isCompleted = true;
+      progress.completionCount++;
+      progress.bestFloor = Math.max(progress.bestFloor, this.currentFloor - 1);
+      console.log('[DEBUG] 進捗更新完了, completionCount:', progress.completionCount);
+      
+      if (!progress.firstClearTime) {
+        progress.firstClearTime = new Date();
+      }
+
+      // Give rewards
+      const rewards = [...dungeon.rewards];
+      console.log('[DEBUG] 報酬付与中:', rewards);
+      this.giveRewards(rewards, player);
+
+      // Check for new unlocks
+      const newUnlocks = this.checkNewUnlocks(player);
+      console.log('[DEBUG] 新規アンロック:', newUnlocks);
+
+      console.log('[DEBUG] ダンジョン状態リセット中...');
+      // Reset current dungeon
+      this.currentDungeon = undefined;
+      this.currentFloor = 1;
+      
+      // ダンジョン完了後は最初のダンジョンを選択状態にする
+      const firstDungeon = this.dungeonDefinitions.get('beginner-cave');
+      if (firstDungeon) {
+        console.log('[DEBUG] 最初のダンジョンを選択状態に設定:', firstDungeon.id);
+        this.currentDungeon = firstDungeon;
+        this.currentFloor = 1;
+        this.dungeonManager.generateDungeon(firstDungeon.id, 1);
+        console.log('[DEBUG] 最初のダンジョン生成完了');
+      } else {
+        console.error('[ERROR] 最初のダンジョンが見つかりません');
+      }
+
+      console.log('[DEBUG] completeDungeon: 完了');
+      return {
+        success: true,
+        dungeon,
+        floorReached: this.currentFloor - 1,
+        rewards,
+        newUnlocks,
+        message: `Completed ${dungeon.name}! Received ${rewards.length} rewards.`
+      };
+    } catch (error) {
+      console.error('[ERROR] completeDungeonでエラーが発生:', error);
       return {
         success: false,
         dungeon: {} as DungeonDefinition,
         floorReached: 0,
         rewards: [],
         newUnlocks: [],
-        message: 'No active dungeon'
+        message: `Error: ${error}`
       };
     }
-
-    const dungeon = this.currentDungeon;
-    const progress = this.getPlayerProgress(dungeon.id);
-    
-    // Mark as completed
-    progress.isCompleted = true;
-    progress.completionCount++;
-    progress.bestFloor = Math.max(progress.bestFloor, this.currentFloor - 1);
-    
-    if (!progress.firstClearTime) {
-      progress.firstClearTime = new Date();
-    }
-
-    // Give rewards
-    const rewards = [...dungeon.rewards];
-    this.giveRewards(rewards, player);
-
-    // Check for new unlocks
-    const newUnlocks = this.checkNewUnlocks(player);
-
-    // Reset current dungeon
-    this.currentDungeon = undefined;
-    this.currentFloor = 1;
-
-    return {
-      success: true,
-      dungeon,
-      floorReached: this.currentFloor - 1,
-      rewards,
-      newUnlocks,
-      message: `Completed ${dungeon.name}! Received ${rewards.length} rewards.`
-    };
   }
 
   /**
@@ -634,46 +688,33 @@ export class MultipleDungeonSystem {
     const existing = this.dungeonManager.getTemplate(dungeon.id);
     if (existing) return;
 
-    // Fallback: try to reuse an existing template id if any exist
-    const availableTemplateIds = this.dungeonManager.getTemplateIds();
-    if (availableTemplateIds.length === 0) {
-      // No templates exist; register a minimal one
-      const template: DungeonTemplate = {
-        id: dungeon.id,
-        name: dungeon.name,
-        description: dungeon.description,
-        floors: dungeon.maxFloors,
-        generationParams: {
-          width: 45,
-          height: 45,
-          minRooms: 4,
-          maxRooms: 8,
-          minRoomSize: 4,
-          maxRoomSize: 10,
-          corridorWidth: 1,
-          roomDensity: 0.3,
-          specialRoomChance: 0.1,
-          trapDensity: 0.05
-        },
-        tileSet: 'basic',
-        monsterTable: [],
-        itemTable: [],
-        specialRules: []
-      };
-      this.dungeonManager.registerTemplate(template);
-      return;
-    }
+    // Use default generation parameters
+    const generationParams: DungeonGenerationParams = {
+      width: 45,
+      height: 45,
+      minRooms: 4,
+      maxRooms: 8,
+      minRoomSize: 4,
+      maxRoomSize: 10,
+      corridorWidth: 1,
+      roomDensity: 0.3,
+      specialRoomChance: 0.1,
+      trapDensity: 0.05
+    };
 
-    // Templates exist but not for this id; clone a basic template shape with this dungeon's identity
-    const baseTemplate = this.dungeonManager.getTemplate(availableTemplateIds[0])!;
-    const clonedTemplate: DungeonTemplate = {
-      ...baseTemplate,
+    const template: DungeonTemplate = {
       id: dungeon.id,
       name: dungeon.name,
       description: dungeon.description,
-      floors: dungeon.maxFloors
+      floors: dungeon.maxFloors,
+      generationParams,
+      tileSet: 'basic',
+      monsterTable: [],
+      itemTable: [],
+      specialRules: []
     };
-    this.dungeonManager.registerTemplate(clonedTemplate);
+    
+    this.dungeonManager.registerTemplate(template);
   }
 
   /**

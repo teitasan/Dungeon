@@ -29,26 +29,39 @@ export class DungeonManager {
    * Generate a new dungeon from template
    */
   generateDungeon(templateId: string, floor: number, seed?: number): Dungeon {
-    const template = this.dungeonTemplates.get(templateId);
-    if (!template) {
-      throw new Error(`Dungeon template not found: ${templateId}`);
+    try {
+      console.log('[DEBUG] generateDungeon: 開始, templateId:', templateId, 'floor:', floor);
+      
+      const template = this.dungeonTemplates.get(templateId);
+      if (!template) {
+        console.error('[ERROR] ダンジョンテンプレートが見つかりません:', templateId);
+        throw new Error(`Dungeon template not found: ${templateId}`);
+      }
+      console.log('[DEBUG] テンプレート取得完了:', template.name);
+
+      this.currentTemplateId = templateId;
+
+      if (seed !== undefined) {
+        this.generator.setSeed(seed);
+        console.log('[DEBUG] シード設定:', seed);
+      }
+
+      console.log('[DEBUG] ダンジョン生成中...');
+      const dungeon = this.generator.generateDungeon(
+        `${templateId}-floor-${floor}`,
+        `${template.name} Floor ${floor}`,
+        floor,
+        template.generationParams
+      );
+      console.log('[DEBUG] ダンジョン生成完了, サイズ:', dungeon.width, 'x', dungeon.height);
+
+      this.currentDungeon = dungeon;
+      console.log('[DEBUG] currentDungeon設定完了');
+      return dungeon;
+    } catch (error) {
+      console.error('[ERROR] generateDungeonでエラーが発生:', error);
+      throw error;
     }
-
-    this.currentTemplateId = templateId;
-
-    if (seed !== undefined) {
-      this.generator.setSeed(seed);
-    }
-
-    const dungeon = this.generator.generateDungeon(
-      `${templateId}-floor-${floor}`,
-      `${template.name} Floor ${floor}`,
-      floor,
-      template.generationParams
-    );
-
-    this.currentDungeon = dungeon;
-    return dungeon;
   }
 
   /**

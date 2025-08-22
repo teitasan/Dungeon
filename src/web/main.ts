@@ -141,19 +141,57 @@ async function start(): Promise<void> {
     uiManager.displayMessages(ui.getMessages(config.ui.messages.maxLines));
   };
 
-  const onAdvanceFloor = () => {
-    const adv = multi.advanceFloor(player);
-    if (!adv.success) return;
-    
-    const newDungeon = dungeonManager.getCurrentDungeon();
-    if (newDungeon) {
-      const newSpawn = newDungeon.playerSpawn;
+  const onAdvanceFloor = async (): Promise<void> => {
+    try {
+      console.log('[DEBUG] onAdvanceFloor: 開始');
       
-      // プレイヤーの位置を更新
-      player.setPosition(newSpawn);
+      // 古いダンジョンからプレイヤーを削除
+      console.log('[DEBUG] プレイヤーを古いダンジョンから削除中...');
+      dungeonManager.removeEntity(player);
+      console.log('[DEBUG] プレイヤー削除完了');
       
-      // 新しいダンジョンにプレイヤーを追加
-      dungeonManager.addEntity(player, newSpawn);
+      console.log('[DEBUG] advanceFloor呼び出し中...');
+      const adv = multi.advanceFloor(player);
+      console.log('[DEBUG] advanceFloor結果:', adv);
+      
+      if (!adv.success) {
+        console.log('[DEBUG] advanceFloor失敗:', adv);
+        ui.pushMessage('フロア進行に失敗しました');
+        return;
+      }
+      
+      // ダンジョン完了の場合の処理
+      if (adv.isCompleted) {
+        console.log('[DEBUG] ダンジョン完了:', adv.message);
+        ui.pushMessage(adv.message);
+        return;
+      }
+      
+      console.log('[DEBUG] 新しいダンジョン取得中...');
+      const newDungeon = dungeonManager.getCurrentDungeon();
+      console.log('[DEBUG] 新しいダンジョン:', newDungeon);
+      
+      if (newDungeon) {
+        const newSpawn = newDungeon.playerSpawn;
+        console.log('[DEBUG] 新しいスポーン位置:', newSpawn);
+        
+        // プレイヤーの位置を更新
+        player.setPosition(newSpawn);
+        console.log('[DEBUG] プレイヤー位置更新完了');
+        
+        // 新しいダンジョンにプレイヤーを追加
+        dungeonManager.addEntity(player, newSpawn);
+        console.log('[DEBUG] プレイヤーを新しいダンジョンに追加完了');
+      } else {
+        console.error('[ERROR] 新しいダンジョンが取得できません');
+        ui.pushMessage('新しいダンジョンの生成に失敗しました');
+      }
+      
+      console.log('[DEBUG] onAdvanceFloor: 完了');
+    } catch (error) {
+      console.error('[ERROR] onAdvanceFloorでエラーが発生:', error);
+      ui.pushMessage('フロア進行中にエラーが発生しました');
+      throw error; // 呼び出し元でエラーハンドリングできるように再スロー
     }
   };
 
@@ -219,11 +257,27 @@ async function start(): Promise<void> {
                   { id: 'no', label: 'いいえ' },
                 ],
                 defaultIndex: 0,
-              }).then((res) => {
+              }).then(async (res) => {
                 if (res.type === 'ok' && res.selectedId === 'yes') {
-                  onAdvanceFloor();
-                  ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
-                  render();
+                  console.log('[DEBUG] 階段進行開始');
+                  try {
+                    // タイムアウト処理を追加
+                    const timeoutPromise = new Promise((_, reject) => {
+                      setTimeout(() => reject(new Error('フロア進行がタイムアウトしました')), 10000);
+                    });
+                    
+                    await Promise.race([
+                      onAdvanceFloor(),
+                      timeoutPromise
+                    ]);
+                    
+                    ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
+                    render();
+                  } catch (error) {
+                    console.error('[ERROR] 階段進行中にエラー:', error);
+                    ui.pushMessage('フロア進行中にエラーが発生しました');
+                    render();
+                  }
                 } else {
                   ui.pushMessage(config.messages.ui.stairsDecline);
                   render();
@@ -275,11 +329,27 @@ async function start(): Promise<void> {
             { id: 'no', label: 'いいえ' },
           ],
           defaultIndex: 0,
-        }).then((res) => {
+        }).then(async (res) => {
           if (res.type === 'ok' && res.selectedId === 'yes') {
-            onAdvanceFloor();
-            ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
-            render();
+            console.log('[DEBUG] 移動時の階段進行開始');
+            try {
+              // タイムアウト処理を追加
+              const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('フロア進行がタイムアウトしました')), 10000);
+              });
+              
+              await Promise.race([
+                onAdvanceFloor(),
+                timeoutPromise
+              ]);
+              
+              ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
+              render();
+            } catch (error) {
+              console.error('[ERROR] 移動時の階段進行中にエラー:', error);
+              ui.pushMessage('フロア進行中にエラーが発生しました');
+              render();
+            }
           } else {
             ui.pushMessage(config.messages.ui.stairsDecline);
             render();
