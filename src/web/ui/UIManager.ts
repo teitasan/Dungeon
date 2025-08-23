@@ -64,7 +64,7 @@ export class UIManager {
     }
   }
 
-    /**
+  /**
    * 複数行のメッセージを表示
    */
   displayMessages(messages: string[]): void {
@@ -73,6 +73,38 @@ export class UIManager {
       const maxLines = this.config.ui.messages.maxLines;
       const displayMessages = messages.slice(-maxLines);
       messagesElement.textContent = displayMessages.join('\n');
+    }
+  }
+
+  /**
+   * 新しいメッセージを追加してアニメーション表示
+   */
+  addMessageWithAnimation(message: string): void {
+    const messagesElement = document.getElementById('messages');
+    if (messagesElement) {
+      const charCount = message.length;
+      const animatedMessage = `<span class="typing-message" style="--char-count: ${charCount}">${message}</span>`;
+      
+      // 既存のメッセージに新しいメッセージを追加
+      const currentContent = messagesElement.textContent || '';
+      const messages = currentContent.split('\n').filter(m => m.trim() !== '');
+      messages.push(message);
+      
+      // 最大行数制限
+      const maxLines = this.config.ui.messages.maxLines;
+      const displayMessages = messages.slice(-maxLines);
+      
+      // 最新メッセージだけアニメーション、他は通常表示
+      const formattedMessages = displayMessages.map((msg, index) => {
+        if (index === displayMessages.length - 1) {
+          const count = msg.length;
+          return `<span class="typing-message" style="--char-count: ${count}">${msg}</span>`;
+        } else {
+          return msg;
+        }
+      });
+      
+      messagesElement.innerHTML = formattedMessages.join('\n');
     }
   }
 

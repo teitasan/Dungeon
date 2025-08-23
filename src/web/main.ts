@@ -49,6 +49,9 @@ async function start(): Promise<void> {
   const combat = new CombatSystem();
   const inputSystem = new InputSystem(config);
 
+  // UISystemにUIManagerを設定
+  ui.setUIManager(uiManager);
+
   const player = new PlayerEntity('player-1', 'Hero', { x: 0, y: 0 });
 
   const select = multi.selectDungeon('beginner-cave', player);
@@ -138,7 +141,7 @@ async function start(): Promise<void> {
     const current = dungeonManager.getCurrentDungeon();
     if (!current) return;
     renderer.render(current, dungeonManager, player);
-    uiManager.displayMessages(ui.getMessages(config.ui.messages.maxLines));
+    // メッセージはpushMessage時に直接表示されるため、ここでは表示しない
   };
 
   const onAdvanceFloor = async (): Promise<void> => {
@@ -362,6 +365,13 @@ async function start(): Promise<void> {
   });
 
   ui.pushMessage(`Entered ${select.dungeon!.name}`);
+  
+  // サンプル用：50文字程度の日本語メッセージ
+  setTimeout(() => {
+    ui.pushMessage('プレイヤーは強力な魔法の剣を手に入れて、敵に対して大きなダメージを与えることができるようになった。この武器は伝説の鍛冶師によって作られたものである。');
+  }, 1000);
+  
+  // 初回レンダリング（メッセージは既にpushMessageで表示済み）
   render();
 }
 

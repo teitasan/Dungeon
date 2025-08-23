@@ -121,6 +121,24 @@ a {
   line-height: 1.4;
 }
 
+/* タイプライター風アニメーション */
+.typing-message {
+  display: inline-block;
+  white-space: nowrap;
+  overflow: visible;
+  animation: typing calc(var(--char-count) * 0.03s) steps(var(--char-count)) forwards;
+}
+
+/* テキスト表示（clip-pathで左から右へ表示）のアニメーション */
+@keyframes typing {
+  from { 
+    clip-path: inset(0 100% 0 0);
+  }
+  to { 
+    clip-path: inset(0 0% 0 0);
+  }
+}
+
 /* ========================================
    インベントリモーダル
    ======================================== */

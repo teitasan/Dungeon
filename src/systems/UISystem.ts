@@ -6,13 +6,22 @@
 import { DungeonManager } from '../dungeon/DungeonManager';
 import { PlayerEntity } from '../entities/Player';
 import { GameEntity } from '../types/entities';
+import { UIManager } from '../web/ui/UIManager';
 
 export class UISystem {
   private dungeonManager: DungeonManager;
   private messages: string[] = [];
+  private uiManager?: UIManager;
 
   constructor(dungeonManager: DungeonManager) {
     this.dungeonManager = dungeonManager;
+  }
+
+  /**
+   * UIManagerを設定
+   */
+  setUIManager(uiManager: UIManager): void {
+    this.uiManager = uiManager;
   }
 
   /**
@@ -57,6 +66,11 @@ export class UISystem {
   pushMessage(message: string): void {
     this.messages.push(message);
     if (this.messages.length > 100) this.messages.shift();
+    
+    // UIManagerにアニメーション付きでメッセージを追加
+    if (this.uiManager) {
+      this.uiManager.addMessageWithAnimation(message);
+    }
   }
 
   /**
