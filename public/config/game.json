@@ -194,5 +194,58 @@
       "advantage": 1.2
     },
     "applicationTiming": "final"
+  },
+  "ui": {
+    "fonts": {
+      "primary": "PixelMplus",
+      "secondary": "PixelMplus12",
+      "fallback": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+    },
+    "viewport": {
+      "tilesX": 20,
+      "tilesY": 10,
+      "tileSize": 32
+    },
+    "minimap": {
+      "width": 240,
+      "height": 160
+    },
+    "layout": {
+      "maxWidth": 1180,
+      "gridTemplateColumns": "1fr",
+      "gridTemplateRows": "auto auto"
+    },
+    "messages": {
+      "maxLines": 5
+    }
+  },
+  "input": {
+    "keys": {
+      "movement": {
+        "up": ["ArrowUp", "w", "W"],
+        "down": ["ArrowDown", "s", "S"],
+        "left": ["ArrowLeft", "a", "A"],
+        "right": ["ArrowRight", "d", "D"]
+      },
+      "actions": {
+        "confirm": ["z", "Z", "Enter"],
+        "cancel": ["x", "X", "Escape"],
+        "inventory": ["i", "I"]
+      }
+    }
+  },
+  "messages": {
+    "ui": {
+      "inventoryOpen": "インベントリを開いた",
+      "inventoryClose": "インベントリを閉じた",
+      "cancel": "キャンセル",
+      "attackMiss": "空振りした",
+      "stairsConfirmDown": "次の階へ進みますか？",
+      "stairsConfirmUp": "前の階へ戻りますか？",
+      "stairsAdvanceDown": "次の階へ進んだ",
+      "stairsAdvanceUp": "前の階へ戻った",
+      "stairsDecline": "いいえを選んだ",
+      "itemUseUnimplemented": "決定: アイテム使用は未実装"
+    }
   }
 }

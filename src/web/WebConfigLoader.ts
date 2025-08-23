@@ -8,7 +8,7 @@ export class WebConfigLoader {
   private configCache: Map<string, any> = new Map();
   private basePath: string;
 
-  constructor(basePath: string = '/config') {
+  constructor(basePath: string = '/public/config') {
     this.basePath = basePath;
   }
 
@@ -29,7 +29,7 @@ export class WebConfigLoader {
       return validatedConfig;
     } catch (error) {
       console.error('Failed to load game configuration:', error);
-      return this.getDefaultGameConfig();
+      throw new Error('設定ファイルの読み込みに失敗しました。設定ファイルが正しく配置されているか確認してください。');
     }
   }
 
@@ -38,13 +38,15 @@ export class WebConfigLoader {
    */
   async loadConfigFile(filename: string): Promise<any> {
     const filePath = `${this.basePath}/${filename}`;
+    console.log(`[DEBUG] Loading config file: ${filePath}`);
     
     try {
       const response = await fetch(filePath);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      return await response.json();
+      const config = await response.json();
+      return config;
     } catch (error) {
       throw new Error(`Failed to load config file ${filename}: ${error}`);
     }
@@ -88,143 +90,5 @@ export class WebConfigLoader {
     return config as GameConfig;
   }
 
-  /**
-   * デフォルトゲーム設定を取得（フォールバック用）
-   */
-  private getDefaultGameConfig(): GameConfig {
-    return {
-      player: {
-        initialStats: {
-          hp: 100,
-          maxHp: 100,
-          attack: 10,
-          defense: 5,
-          evasionRate: 0.05
-        },
-        levelUpConfig: {
-          experienceTable: [100, 220, 360, 520, 700, 900, 1120, 1360, 1620, 1900],
-          statGrowthRates: {
-            hp: 1.1,
-            attack: 1.2,
-            defense: 1.2
-          },
-          maxLevel: 100
-        },
-        hungerConfig: {
-          maxValue: 100,
-          decreaseRate: 1,
-          minValue: 0,
-          damageAmount: 5,
-          recoveryAmount: 20,
-          maxOverfeedTime: 10
-        },
-        movementConfig: {
-          distance: 1,
-          directions: ["up", "down", "left", "right"],
-          restrictions: []
-        }
-      },
-      combat: {
-        baseDamageFormula: "{attack * 1.3 * (35/36)^defense} * random(7/8, 9/8)",
-        minDamage: 1,
-        randomRange: {
-          min: 0.875,
-          max: 1.125
-        },
-        defenseReductionBase: 0.9722222222222222,
-        attackMultiplier: 1.3,
-        criticalChance: 0.05,
-        criticalEffect: "defense-ignore",
-        criticalFormula: "{attack * 1.3} * random(7/8, 9/8)",
-        evasionEnabled: true,
-        baseEvasionRate: 0.05,
-        evasionEffect: "damage-zero",
-        evasionTiming: "pre-damage",
-        unavoidableAttackFlag: false,
-        statusEffects: {},
-        attributeDamageEnabled: true
-      },
-      dungeon: {
-        defaultTileset: {
-          imagePath: "/images/base.png",
-          tileSize: 32,
-          tiles: {
-            floor: { x: 1, y: 4, width: 1, height: 1 },
-            wall: { x: 1, y: 10, width: 1, height: 1 },
-            "stairs-down": { x: 6, y: 51, width: 1, height: 1 },
-            "stairs-up": { x: 6, y: 52, width: 1, height: 1 }
-          },
-          overlay: {
-            wall: { x: 1, y: 10, width: 1, height: 1 }
-          }
-        },
-        dungeonSpecificTilesets: {}
-      },
-      items: {},
-      monsters: {},
-      attributes: {
-        availableAttributes: [],
-        compatibilityMatrix: {},
-        damageMultipliers: {
-          disadvantage: 0.8,
-          neutral: 1.0,
-          advantage: 1.2
-        },
-        applicationTiming: "final"
-      },
-      ui: {
-        fonts: {
-          primary: "PixelMplus",
-          secondary: "PixelMplus12",
-          fallback: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
-        },
-        viewport: {
-          tilesX: 20,
-          tilesY: 10,
-          tileSize: 32
-        },
-        minimap: {
-          width: 240,
-          height: 160
-        },
-        layout: {
-          maxWidth: 1180,
-          gridTemplateColumns: "1fr",
-          gridTemplateRows: "auto auto"
-        },
-        messages: {
-          maxLines: 8
-        }
-      },
-      input: {
-        keys: {
-          movement: {
-            up: ["ArrowUp", "w", "W"],
-            down: ["ArrowDown", "s", "S"],
-            left: ["ArrowLeft", "a", "A"],
-            right: ["ArrowRight", "d", "D"]
-          },
-          actions: {
-            confirm: ["z", "Z", "Enter"],
-            cancel: ["x", "X", "Escape"],
-            inventory: ["i", "I"]
-          }
-        }
-      },
-      messages: {
-        ui: {
-          inventoryOpen: "インベントリを開いた",
-          inventoryClose: "インベントリを閉じた",
-          cancel: "キャンセル",
-          attackMiss: "空振りした",
-          stairsConfirmDown: "次の階へ進みますか？",
-          stairsConfirmUp: "前の階へ戻りますか？",
-          stairsAdvanceDown: "次の階へ進んだ",
-          stairsAdvanceUp: "前の階へ戻った",
-          stairsDecline: "いいえを選んだ",
-          itemUseUnimplemented: "決定: アイテム使用は未実装"
-        }
-      }
-    };
-  }
+
 }

@@ -216,7 +216,7 @@
       "gridTemplateRows": "auto auto"
     },
     "messages": {
-      "maxLines": 8
+      "maxLines": 5
     }
   },
   "input": {
