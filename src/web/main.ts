@@ -208,13 +208,13 @@ async function start(): Promise<void> {
     if (inputSystem.isActionKey(key) && key.toLowerCase() === 'x') {
       if (isModalOpen()) {
         cancelCurrentModal();
-        ui.pushMessage(config.messages.ui.cancel);
+        // キャンセル操作はゲームログではないので、メッセージ表示しない
         render();
         return;
       }
       if (inventoryOpen) {
         setInventoryOpen(false);
-        ui.pushMessage(config.messages.ui.cancel);
+        // キャンセル操作はゲームログではないので、メッセージ表示しない
         render();
         return;
       }
