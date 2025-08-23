@@ -212,7 +212,7 @@
     },
     "layout": {
       "maxWidth": 1180,
-      "gridTemplateColumns": "1fr",
+      "gridTemplateColumns": "1fr 320px",
       "gridTemplateRows": "auto auto"
     },
     "messages": {

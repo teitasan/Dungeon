@@ -1,0 +1,176 @@
+/* ========================================
+   ボックスモデル設定
+   ======================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* ========================================
+   フォント定義
+   ======================================== */
+@font-face {
+  font-family: 'PixelMplus';
+  src: url('/fonts/PixelMplus10-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'PixelMplus';
+  src: url('/fonts/PixelMplus10-Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'PixelMplus12';
+  src: url('/fonts/PixelMplus12-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'PixelMplus12';
+  src: url('/fonts/PixelMplus12-Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}
+
+/* ========================================
+   基本スタイル
+   ======================================== */
+html, body { 
+  height: 100%; 
+  margin: 0; 
+  background: blue; 
+  color: #eee; 
+  font-family: 'PixelMplus', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; 
+}
+
+a { 
+  color: #6cf; 
+}
+
+/* ========================================
+   メインレイアウト
+   ======================================== */
+#layout { 
+  display: grid; 
+  grid-template-columns: 1fr 320px; 
+  gap: 12px; 
+  padding: 12px; 
+  box-sizing: border-box; 
+  height: 100%; 
+}
+
+/* ========================================
+   ゲームエリア
+   ======================================== */
+.map { 
+  background: #000; 
+  border-radius: 8px; 
+  overflow: auto; 
+  box-shadow: 0 0 0 1px #333 inset; 
+  line-height: 1.05; 
+  font-size: 12px; 
+}
+
+#game {
+  width: 100%;
+  image-rendering: pixelated;
+}
+
+/* ========================================
+   サイドバー
+   ======================================== */
+#sidebar { 
+  display: grid; 
+  grid-template-rows: auto 1fr auto; 
+  gap: 12px; 
+}
+
+.status, .messages, .help { 
+  background: #1a1a1a; 
+  padding: 10px; 
+  border-radius: 8px; 
+  box-shadow: 0 0 0 1px #333 inset; 
+}
+
+/* ========================================
+   ボトムエリア（ミニマップ + メッセージ）
+   ======================================== */
+#bottom {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: start;
+  height: 160px;
+}
+
+#minimap {
+  background: #000;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #333 inset;
+  height: 100%;
+}
+
+#messages {
+  height: 100%;
+  white-space: pre-wrap;
+}
+
+/* ========================================
+   インベントリモーダル
+   ======================================== */
+#inventoryModal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  place-items: center;
+}
+
+#inventoryModal > div {
+  background: #1a1a1a;
+  color: #eee;
+  padding: 16px;
+  border-radius: 10px;
+  min-width: 280px;
+  box-shadow: 0 0 0 1px #333 inset;
+}
+
+#inventoryModal .title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+#inventoryList {
+  list-style: none;
+  padding-left: 0;
+  margin: 0 0 8px 0;
+  max-height: 40vh;
+  overflow: auto;
+}
+
+#inventoryList li {
+  padding: 4px 0;
+}
+
+#inventoryList li.empty {
+  opacity: 0.7;
+}
+
+#inventoryModal .controls {
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+/* ========================================
+   レスポンシブ対応
+   ======================================== */
+@media (max-width: 900px) { 
+  #layout { 
+    grid-template-columns: 1fr; 
+    grid-template-rows: auto auto auto; 
+  } 
+}
