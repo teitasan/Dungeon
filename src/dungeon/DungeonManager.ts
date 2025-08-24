@@ -359,7 +359,7 @@ export class DungeonManager {
       for (let x = 0; x < this.currentDungeon.width; x++) {
         totalCells++;
         // セルの存在チェックを追加
-        if (this.currentDungeon.cells[y] && this.currentDungeon.cells[y][x] && this.currentDungeon.cells[y][x].type === 'floor') {
+        if (this.currentDungeon.cells[y] && this.currentDungeon.cells[y][x] && (this.currentDungeon.cells[y][x].type === 'floor' || this.currentDungeon.cells[y][x].type === 'room' || this.currentDungeon.cells[y][x].type === 'corridor')) {
           // Check if this floor cell is part of a room
           let inRoom = false;
           for (const room of this.currentDungeon.rooms) {

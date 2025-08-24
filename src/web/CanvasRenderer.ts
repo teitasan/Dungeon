@@ -88,6 +88,8 @@ export class CanvasRenderer {
       const py = player.position.y;
       const room = this.findRoomAt(dungeon, px, py);
       
+      console.log(`Player at (${px}, ${py}), room: ${room ? `(${room.x},${room.y}) ${room.width}x${room.height}` : 'none'}`);
+      
       if (room) {
         // 部屋内なら部屋全体をマッピング
         for (let y = room.y; y < room.y + room.height; y++) {
@@ -109,6 +111,10 @@ export class CanvasRenderer {
             this.explored[y][x] = true;
           }
         }
+        
+        const roomArea = room.width * room.height;
+        const surroundingArea = (room.width + 2) * (room.height + 2) - roomArea;
+        console.log(`Room exploration: room=${roomArea}, surrounding=${surroundingArea}, total=${roomArea + surroundingArea}`);
       } else {
         // 通路内：プレイヤー位置と周囲8マス
         this.explored[py][px] = true;
@@ -126,6 +132,8 @@ export class CanvasRenderer {
             this.explored[cy][cx] = true;
           }
         }
+        
+        console.log(`Corridor exploration: player + 8 surrounding tiles = 9`);
       }
     }
 
@@ -319,12 +327,16 @@ export class CanvasRenderer {
     const room = this.findRoomAt(dungeon, px, py);
     if (room) {
       // 部屋内なら部屋全体可視
+      let roomVisibleCount = 0;
       for (let y = room.y; y < room.y + room.height; y++) {
         for (let x = room.x; x < room.x + room.width; x++) {
           visible[y][x] = true;
+          roomVisibleCount++;
         }
       }
+      
       // 部屋の周囲1マスまで可視にする（通路・壁問わず）
+      let surroundingVisibleCount = 0;
       for (let y = room.y - 1; y < room.y + room.height + 1; y++) {
         for (let x = room.x - 1; x < room.x + room.width + 1; x++) {
           // 部屋の範囲外のみチェック
@@ -336,13 +348,17 @@ export class CanvasRenderer {
           
           // 通路・壁問わず可視にする
           visible[y][x] = true;
+          surroundingVisibleCount++;
         }
       }
+      
+      console.log(`Room visibility: room=${roomVisibleCount}, surrounding=${surroundingVisibleCount}, total=${roomVisibleCount + surroundingVisibleCount}`);
     } else {
       // 廊下内：プレイヤー位置と周囲8マス
       visible[py][px] = true;
 
       // 周囲8マスを可視にする
+      let visibleCount = 1; // プレイヤー位置
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           if (dx === 0 && dy === 0) continue; // プレイヤー位置はスキップ
@@ -353,8 +369,12 @@ export class CanvasRenderer {
           if (cx < 0 || cx >= w || cy < 0 || cy >= h) continue;
 
           visible[cy][cx] = true;
+          visibleCount++;
         }
       }
+      
+      // デバッグ：周囲8マスの可視化確認
+      console.log(`Corridor visibility: player at (${px}, ${py}), visible tiles: ${visibleCount}`);
     }
 
     return visible;
@@ -388,19 +408,56 @@ export class CanvasRenderer {
     const offsetY = Math.floor((H - dungeon.height * mmTile) / 2);
 
     // 描画（探索済みの場所のみ）
+    let exploredCount = 0;
+    let visibleCount = 0;
+    let wallCount = 0;
+    let floorCount = 0;
+    let stairsDownCount = 0;
+    let stairsUpCount = 0;
     for (let y = 0; y < dungeon.height; y++) {
       for (let x = 0; x < dungeon.width; x++) {
         const cell = dungeon.cells[y][x];
         const isVisible = visible[y][x];
         const isExplored = this.explored ? this.explored[y][x] : false;
 
+        if (isExplored) exploredCount++;
+        if (isVisible) visibleCount++;
+
         // 探索済みの場所のみ表示
         if (!isExplored) continue;
+        
+        // セルタイプの統計
+        switch (cell.type) {
+          case 'wall':
+            wallCount++;
+            break;
+          case 'floor':
+          case 'room':
+          case 'corridor':
+            floorCount++;
+            break;
+          case 'stairs-down':
+            stairsDownCount++;
+            break;
+          case 'stairs-up':
+            stairsUpCount++;
+            break;
+          default:
+            console.log(`Unknown cell type: "${cell.type}" at (${x}, ${y})`);
+            break;
+        }
 
         let color = '#2a2a35'; // wall base (brighter for minimap)
+        let cellType = cell.type;
         switch (cell.type) {
           case 'floor':
             color = '#4a4a55';
+            break;
+          case 'room':
+            color = '#4a4a55'; // 部屋は床と同じ色
+            break;
+          case 'corridor':
+            color = '#4a4a55'; // 通路も床と同じ色
             break;
           case 'stairs-down':
             color = '#d4a017';
@@ -418,8 +475,17 @@ export class CanvasRenderer {
         }
         mm.fillStyle = color;
         mm.fillRect(offsetX + x * mmTile, offsetY + y * mmTile, mmTile, mmTile);
+        
+        // デバッグ：色の使用状況を追跡
+        if (x === 0 && y === 0) { // 最初のセルのみログ出力
+          console.log(`Minimap colors: wall=${cell.type === 'wall' ? 'used' : 'not used'}, floor=${cell.type === 'floor' ? 'used' : 'not used'}, stairs-down=${cell.type === 'stairs-down' ? 'used' : 'not used'}, stairs-up=${cell.type === 'stairs-up' ? 'used' : 'not used'}`);
+        }
       }
     }
+    
+    // デバッグ情報をコンソールに出力
+    console.log(`Minimap: explored=${exploredCount}, visible=${visibleCount}, total=${dungeon.width * dungeon.height}`);
+    console.log(`Minimap cell types: wall=${wallCount}, floor=${floorCount}, stairs-down=${stairsDownCount}, stairs-up=${stairsUpCount}`);
 
     // ビューポート枠
     mm.strokeStyle = 'rgba(255,255,255,0.6)';

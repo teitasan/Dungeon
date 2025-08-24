@@ -268,7 +268,7 @@ export class DungeonGenerator {
     for (let y = room.y; y < room.y + room.height; y++) {
       for (let x = room.x; x < room.x + room.width; x++) {
         dungeon.cells[y][x] = {
-          type: 'floor',
+          type: 'room',  // ⭐ 部屋用に変更
           walkable: true,
           transparent: true,
           entities: []
@@ -397,7 +397,7 @@ export class DungeonGenerator {
             for (let y = gridY; y < gridY + cellHeight && isEmpty; y++) {
               for (let x = gridX; x < gridX + cellWidth; x++) {
                 // セルの存在チェックを追加
-                if (dungeon.cells[y] && dungeon.cells[y][x] && dungeon.cells[y][x].type === 'floor') {
+                if (dungeon.cells[y] && dungeon.cells[y][x] && (dungeon.cells[y][x].type === 'floor' || dungeon.cells[y][x].type === 'room' || dungeon.cells[y][x].type === 'corridor')) {
                   // Found existing corridor, mark as not empty
                   isEmpty = false;
                   break;
@@ -441,9 +441,6 @@ export class DungeonGenerator {
           y: gridCell.y + Math.floor(cellHeight / 2)
         };
         
-        // 中心に1タイルの通路を作成
-        this.carveCorridor(dungeon, gridCenter, params.corridorWidth);
-        
         // このグリッドセルに最も近い2つの部屋を見つける
         const roomDistances = dungeon.rooms.map(room => {
           const roomCenter = {
@@ -454,20 +451,49 @@ export class DungeonGenerator {
           return { room, distance };
         });
         
-        // 距離でソートして最も近い2つを選択
+        // 距離でソートして最も近い部屋を選択（異なる部屋であることを保証）
         roomDistances.sort((a, b) => a.distance - b.distance);
-        const closestRooms = roomDistances.slice(0, 2);
         
-        // グリッド中心から各近い部屋に通路を作成
-        for (const { room } of closestRooms) {
+        // 異なる部屋を選択する（最大2つ）
+        const selectedRooms: typeof roomDistances = [];
+        const usedRoomIds = new Set<string>();
+        
+        for (const roomDistance of roomDistances) {
+          if (selectedRooms.length >= 2) break; // 最大2つまで
+          
+          const roomId = roomDistance.room.id;
+          if (!usedRoomIds.has(roomId)) {
+            selectedRooms.push(roomDistance);
+            usedRoomIds.add(roomId);
+            console.log(`[DEBUG] 空グリッド${i}: 部屋${roomId}を選択 (距離: ${roomDistance.distance})`);
+          }
+        }
+        
+        console.log(`[DEBUG] 空グリッド${i}: 選択された部屋: ${selectedRooms.map(r => r.room.id).join(', ')}`);
+        
+        // 選択された部屋に通路を作成
+        if (selectedRooms.length === 0) {
+          console.log(`[DEBUG] 空グリッド${i}: 接続可能な部屋が見つかりません`);
+        } else if (selectedRooms.length === 1) {
+          console.log(`[DEBUG] 空グリッド${i}: 部屋が1つしかないため、1方向の通路のみ作成`);
+        } else {
+          console.log(`[DEBUG] 空グリッド${i}: 2方向の通路を作成`);
+        }
+        
+        for (let j = 0; j < selectedRooms.length; j++) {
+          const { room } = selectedRooms[j];
           const roomCenter = {
             x: room.x + Math.floor(room.width / 2),
             y: room.y + Math.floor(room.height / 2)
           };
           
+          console.log(`[DEBUG] 空グリッド${i}から部屋${room.id}への通路${j + 1}を作成: (${gridCenter.x},${gridCenter.y}) → (${roomCenter.x},${roomCenter.y})`);
+          
           // グリッド中心から部屋中心への通路を作成
           this.createCorridorPath(dungeon, gridCenter, roomCenter, params);
         }
+        
+        // 空グリッド基準点は各通路生成時に自動的に通路として設定される
         
         console.log(`[DEBUG] 空グリッド${i}処理完了`);
       }
@@ -575,38 +601,104 @@ export class DungeonGenerator {
   }
 
   /**
-   * Create a simple corridor path between two positions
+   * Create a corridor path using the new boundary-reaching algorithm
+   * 連結しようとした部屋の双方からグリッドの境界へむけて通路を伸ばして、
+   * yないしx軸が揃ったら間をむすんで通路とする
    */
   private createCorridorPath(dungeon: Dungeon, start: Position, end: Position, params: DungeonGenerationParams): void {
-    let current = { ...start };
-    
-    // Simple L-shaped path
     const dx = end.x - start.x;
     const dy = end.y - start.y;
     
-    // Move horizontally first, then vertically
-    if (Math.abs(dx) > Math.abs(dy)) {
-      // Horizontal first
-      while (current.x !== end.x) {
-        current.x += current.x < end.x ? 1 : -1;
-        this.carveCorridor(dungeon, current, params.corridorWidth);
-      }
-      // Then vertical
-      while (current.y !== end.y) {
-        current.y += current.y < end.y ? 1 : -1;
-        this.carveCorridor(dungeon, current, params.corridorWidth);
-      }
+    // 決定: どちらの軸を先に揃えるか
+    // より距離が短い軸を先に揃えることで、効率的な通路を作成
+    const extendXFirst = Math.abs(dx) > Math.abs(dy);
+    
+    if (extendXFirst) {
+      // X軸を先に揃える場合
+      this.createCorridorPathXFirst(dungeon, start, end, params);
     } else {
-      // Vertical first
-      while (current.y !== end.y) {
-        current.y += current.y < end.y ? 1 : -1;
-        this.carveCorridor(dungeon, current, params.corridorWidth);
-      }
-      // Then horizontal
-      while (current.x !== end.x) {
-        current.x += current.x < end.x ? 1 : -1;
-        this.carveCorridor(dungeon, current, params.corridorWidth);
-      }
+      // Y軸を先に揃える場合
+      this.createCorridorPathYFirst(dungeon, start, end, params);
+    }
+  }
+
+  /**
+   * Create corridor path with X-axis alignment first
+   */
+  private createCorridorPathXFirst(dungeon: Dungeon, start: Position, end: Position, params: DungeonGenerationParams): void {
+    // 開始点自体を通路として確実に設定
+    this.carveCorridor(dungeon, start, params.corridorWidth);
+    
+    // 1. 開始点からX軸方向に境界まで伸ばす
+    let currentStart = { ...start };
+    const startXPath: Position[] = [];
+    
+    // X軸方向に伸ばす（目標のX座標まで）
+    while (currentStart.x !== end.x) {
+      currentStart.x += currentStart.x < end.x ? 1 : -1;
+      startXPath.push({ ...currentStart });
+      this.carveCorridor(dungeon, currentStart, params.corridorWidth);
+    }
+    
+    // 2. 終了点からY軸方向に境界まで伸ばす
+    let currentEnd = { ...end };
+    const endYPath: Position[] = [];
+    
+    // Y軸方向に伸ばす（開始点のY座標まで）
+    while (currentEnd.y !== start.y) {
+      currentEnd.y += currentEnd.y < start.y ? 1 : -1;
+      endYPath.push({ ...currentEnd });
+      this.carveCorridor(dungeon, currentEnd, params.corridorWidth);
+    }
+    
+    // 3. 2つの通路の間を接続（X軸が揃った状態でY軸方向に接続）
+    const connectionStart = { x: currentStart.x, y: Math.min(currentStart.y, currentEnd.y) };
+    const connectionEnd = { x: currentStart.x, y: Math.max(currentStart.y, currentEnd.y) };
+    
+    let currentConnection = { ...connectionStart };
+    while (currentConnection.y !== connectionEnd.y) {
+      currentConnection.y += 1;
+      this.carveCorridor(dungeon, currentConnection, params.corridorWidth);
+    }
+  }
+
+  /**
+   * Create corridor path with Y-axis alignment first
+   */
+  private createCorridorPathYFirst(dungeon: Dungeon, start: Position, end: Position, params: DungeonGenerationParams): void {
+    // 開始点自体を通路として確実に設定
+    this.carveCorridor(dungeon, start, params.corridorWidth);
+    
+    // 1. 開始点からY軸方向に境界まで伸ばす
+    let currentStart = { ...start };
+    const startYPath: Position[] = [];
+    
+    // Y軸方向に伸ばす（目標のY座標まで）
+    while (currentStart.y !== end.y) {
+      currentStart.y += currentStart.y < end.y ? 1 : -1;
+      startYPath.push({ ...currentStart });
+      this.carveCorridor(dungeon, currentStart, params.corridorWidth);
+    }
+    
+    // 2. 終了点からX軸方向に境界まで伸ばす
+    let currentEnd = { ...end };
+    const endXPath: Position[] = [];
+    
+    // X軸方向に伸ばす（開始点のX座標まで）
+    while (currentEnd.x !== start.x) {
+      currentEnd.x += currentEnd.x < start.x ? 1 : -1;
+      endXPath.push({ ...currentEnd });
+      this.carveCorridor(dungeon, currentEnd, params.corridorWidth);
+    }
+    
+    // 3. 2つの通路の間を接続（Y軸が揃った状態でX軸方向に接続）
+    const connectionStart = { x: Math.min(currentStart.x, currentEnd.x), y: currentStart.y };
+    const connectionEnd = { x: Math.max(currentStart.x, currentEnd.x), y: currentStart.y };
+    
+    let currentConnection = { ...connectionStart };
+    while (currentConnection.x !== connectionEnd.x) {
+      currentConnection.x += 1;
+      this.carveCorridor(dungeon, currentConnection, params.corridorWidth);
     }
   }
 
@@ -733,6 +825,7 @@ export class DungeonGenerator {
 
   /**
    * Find the best exit point on the edge of a room facing another room
+   * 通路の接続先を偶数または奇数マスに限定して、通路同士がくっつくことを防ぐ
    */
   private findRoomExitPoint(room: Room, targetRoom: Room): Position {
     const roomCenter = {
@@ -752,37 +845,34 @@ export class DungeonGenerator {
       // Horizontal connection - use left or right edge
       if (dx > 0) {
         // Target is to the right, use right edge
-        return {
-          x: room.x + room.width - 1,
-          y: roomCenter.y
-        };
+        const exitX = room.x + room.width - 1;
+        const exitY = this.adjustToEvenOddGrid(roomCenter.y, room.y, room.y + room.height - 1);
+        return { x: exitX, y: exitY };
       } else {
         // Target is to the left, use left edge
-        return {
-          x: room.x,
-          y: roomCenter.y
-        };
+        const exitX = room.x;
+        const exitY = this.adjustToEvenOddGrid(roomCenter.y, room.y, room.y + room.height - 1);
+        return { x: exitX, y: exitY };
       }
     } else {
       // Vertical connection - use top or bottom edge
       if (dy > 0) {
         // Target is below, use bottom edge
-        return {
-          x: roomCenter.x,
-          y: room.y + room.height - 1
-        };
+        const exitY = room.y + room.height - 1;
+        const exitX = this.adjustToEvenOddGrid(roomCenter.x, room.x, room.x + room.width - 1);
+        return { x: exitX, y: exitY };
       } else {
         // Target is above, use top edge
-        return {
-          x: roomCenter.x,
-          y: room.y
-        };
+        const exitY = room.y;
+        const exitX = this.adjustToEvenOddGrid(roomCenter.x, room.x, room.x + room.width - 1);
+        return { x: exitX, y: exitY };
       }
     }
   }
 
   /**
    * Find the best entrance point on the edge of a room from another room
+   * 通路の接続先を偶数または奇数マスに限定して、通路同士がくっつくことを防ぐ
    */
   private findRoomEntrancePoint(room: Room, sourceRoom: Room): Position {
     const roomCenter = {
@@ -802,33 +892,55 @@ export class DungeonGenerator {
       // Horizontal connection - use left or right edge
       if (dx > 0) {
         // Source is to the left, use left edge
-        return {
-          x: room.x,
-          y: roomCenter.y
-        };
+        const entranceX = room.x;
+        const entranceY = this.adjustToEvenOddGrid(roomCenter.y, room.y, room.y + room.height - 1);
+        return { x: entranceX, y: entranceY };
       } else {
         // Source is to the right, use right edge
-        return {
-          x: room.x + room.width - 1,
-          y: roomCenter.y
-        };
+        const entranceX = room.x + room.width - 1;
+        const entranceY = this.adjustToEvenOddGrid(roomCenter.y, room.y, room.y + room.height - 1);
+        return { x: entranceX, y: entranceY };
       }
     } else {
       // Vertical connection - use top or bottom edge
       if (dy > 0) {
         // Source is above, use top edge
-        return {
-          x: roomCenter.x,
-          y: room.y
-        };
+        const entranceY = room.y;
+        const entranceX = this.adjustToEvenOddGrid(roomCenter.x, room.x, room.x + room.width - 1);
+        return { x: entranceX, y: entranceY };
       } else {
         // Source is below, use bottom edge
-        return {
-          x: roomCenter.x,
-          y: room.y + room.height - 1
-        };
+        const entranceY = room.y + room.height - 1;
+        const entranceX = this.adjustToEvenOddGrid(roomCenter.x, room.x, room.x + room.width - 1);
+        return { x: entranceX, y: entranceY };
       }
     }
+  }
+
+  /**
+   * Adjust position to even or odd grid to prevent corridors from touching
+   * 通路同士がくっつくことを防ぐため、偶数または奇数マスに位置を調整する
+   */
+  private adjustToEvenOddGrid(centerPos: number, minPos: number, maxPos: number): number {
+    // 中心位置を基準に、偶数または奇数マスに調整
+    // 偶数マスに調整する場合（0, 2, 4, 6...）
+    const adjustedPos = centerPos;
+    
+    // 範囲内で最も近い偶数マスを探す
+    let evenPos = Math.floor(adjustedPos / 2) * 2;
+    let oddPos = evenPos + 1;
+    
+    // 範囲外の場合は調整
+    if (evenPos < minPos) evenPos = minPos;
+    if (oddPos < minPos) oddPos = minPos;
+    if (evenPos > maxPos) evenPos = maxPos;
+    if (oddPos > maxPos) oddPos = maxPos;
+    
+    // 中心位置により近い方を選択
+    const evenDistance = Math.abs(adjustedPos - evenPos);
+    const oddDistance = Math.abs(adjustedPos - oddPos);
+    
+    return evenDistance <= oddDistance ? evenPos : oddPos;
   }
 
   /**
@@ -843,10 +955,10 @@ export class DungeonGenerator {
         const y = position.y + dy;
 
         if (x >= 0 && x < dungeon.width && y >= 0 && y < dungeon.height) {
-          // セルの存在チェックを追加
+          // セルの存在チェックを追加（壁以外は変更しない）
           if (dungeon.cells[y] && dungeon.cells[y][x] && dungeon.cells[y][x].type === 'wall') {
             dungeon.cells[y][x] = {
-              type: 'floor',
+              type: 'corridor',  // ⭐ 通路用に変更
               walkable: true,
               transparent: true,
               entities: []

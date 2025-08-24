@@ -6,7 +6,7 @@ import { Position } from './core';
 import { GameEntity } from './entities';
 
 // Dungeon cell types
-export type CellType = 'wall' | 'floor' | 'door' | 'stairs-up' | 'stairs-down' | 'water' | 'void';
+export type CellType = 'wall' | 'floor' | 'room' | 'corridor' | 'door' | 'stairs-up' | 'stairs-down' | 'water' | 'void';
 
 // Dungeon cell structure
 export interface DungeonCell {

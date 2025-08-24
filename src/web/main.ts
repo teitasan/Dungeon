@@ -339,6 +339,19 @@ async function start(): Promise<void> {
     if (next && !inventoryOpen) {
       dungeonManager.moveEntity(player, next);
       
+      // 現在のタイル情報を出力
+      const currentCell = dungeonManager.getCellAt(next);
+      if (currentCell) {
+        console.log(`[DEBUG] プレイヤー位置: (${next.x}, ${next.y}), タイルタイプ: ${currentCell.type}`);
+        // タイルの詳細情報も出力
+        console.log(`[DEBUG] タイル詳細:`, {
+          type: currentCell.type,
+          walkable: currentCell.walkable,
+          transparent: currentCell.transparent,
+          entities: currentCell.entities.length
+        });
+      }
+      
       // 階段タイルに移動した場合、自動的にモーダルを開く
       const newCell = dungeonManager.getCellAt(next);
       if (newCell && (newCell.type === 'stairs-down' || newCell.type === 'stairs-up')) {

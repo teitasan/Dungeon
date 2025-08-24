@@ -104,6 +104,10 @@
     "attributeDamageEnabled": true
   },
   "dungeon": {
+    "coordinateConstraints": {
+      "roomCenterEven": true,
+      "corridorOddOnly": true
+    },
     "defaultTileset": {
       "imagePath": "/images/base.png",
       "tileSize": 32,

@@ -37,7 +37,7 @@ export class UISystem {
       for (let x = 0; x < dungeon.width; x++) {
         const cell = dungeon.cells[y][x];
         let ch = '#';
-        if (cell.type === 'floor') ch = '.';
+        if (cell.type === 'floor' || cell.type === 'room' || cell.type === 'corridor') ch = '.';
         if (cell.type === 'stairs-down') ch = '>';
         if (cell.type === 'stairs-up') ch = '<';
 
