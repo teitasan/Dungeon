@@ -10,6 +10,7 @@ import { TilesetManager } from './TilesetManager.js';
 import { WebConfigLoader } from './WebConfigLoader.js';
 import { InputSystem } from '../systems/InputSystem.js';
 import { UIManager } from './ui/UIManager.js';
+import { TurnSystem } from '../systems/TurnSystem.js';
 
 function $(selector: string): HTMLElement {
   const el = document.querySelector(selector);
@@ -48,6 +49,7 @@ async function start(): Promise<void> {
   const ui = new UISystem(dungeonManager);
   const combat = new CombatSystem();
   const inputSystem = new InputSystem(config);
+  const turnSystem = new TurnSystem();
 
   // UISystemにUIManagerを設定
   ui.setUIManager(uiManager);
@@ -123,6 +125,9 @@ async function start(): Promise<void> {
     renderer.attachMinimap(minimap);
   }
 
+  // ゲーム情報オーバーレイを作成
+  uiManager.createGameInfoOverlay();
+
   let inventoryOpen = false;
 
   const renderInventory = () => {
@@ -140,7 +145,21 @@ async function start(): Promise<void> {
   const render = () => {
     const current = dungeonManager.getCurrentDungeon();
     if (!current) return;
-    renderer.render(current, dungeonManager, player);
+    
+    // ターンシステムの初期化
+    const entities = dungeonManager.getAllEntities();
+    turnSystem.initializeTurnOrder(entities);
+    
+    // ゲーム情報オーバーレイを更新
+    uiManager.updateGameInfoOverlay({
+      floor: current.floor,
+      level: player.stats.level,
+      currentHp: player.stats.hp,
+      maxHp: player.stats.maxHp,
+      gold: 0 // プレイヤーの所持金（現在は0で固定）
+    });
+    
+    renderer.render(current, dungeonManager, player, turnSystem);
     // メッセージはpushMessage時に直接表示されるため、ここでは表示しない
   };
 

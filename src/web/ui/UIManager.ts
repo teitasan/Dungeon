@@ -26,7 +26,7 @@ export class UIManager {
         <canvas id="game" class="map"></canvas>
         <div id="sidebar">
           <div id="bottom">
-            <canvas id="minimap" style="width: ${minimap.width}px;"></canvas>
+            <canvas id="minimap"></canvas>
             <div id="messages" class="messages"></div>
           </div>
         </div>
@@ -220,5 +220,93 @@ export class UIManager {
    */
   getMinimapCanvas(): HTMLCanvasElement | null {
     return document.getElementById('minimap') as HTMLCanvasElement;
+  }
+
+  /**
+   * ゲーム情報オーバーレイを作成
+   */
+  createGameInfoOverlay(): void {
+    const overlay = document.createElement('div');
+    overlay.id = 'gameInfoOverlay';
+    overlay.className = 'game-info-overlay';
+    
+    overlay.innerHTML = `
+      <div class="info-item floor-info">B1F</div>
+      <div class="info-item level-info">Lv.1</div>
+      <div class="info-item hp-bar-container">
+        <div class="hp-bar">
+          <div class="hp-fill"></div>
+          <span class="hp-text">100/100</span>
+        </div>
+      </div>
+      <div class="info-item gold-info">0 G</div>
+    `;
+    
+    // レイアウト要素内に配置（canvasと同じ親要素内）
+    const layout = document.getElementById('layout');
+    if (layout) {
+      layout.appendChild(overlay);
+    }
+  }
+
+  /**
+   * ゲーム情報オーバーレイを更新
+   */
+  updateGameInfoOverlay(data: {
+    floor: number;
+    level: number;
+    currentHp: number;
+    maxHp: number;
+    gold: number;
+  }): void {
+    const overlay = document.getElementById('gameInfoOverlay');
+    if (!overlay) return;
+
+    // フロア情報
+    const floorInfo = overlay.querySelector('.floor-info');
+    if (floorInfo) {
+      floorInfo.textContent = `B${data.floor}F`;
+    }
+
+    // レベル情報
+    const levelInfo = overlay.querySelector('.level-info');
+    if (levelInfo) {
+      levelInfo.textContent = `Lv.${data.level}`;
+    }
+
+    // HPバー
+    const hpFill = overlay.querySelector('.hp-fill');
+    const hpText = overlay.querySelector('.hp-text');
+    if (hpFill && hpText) {
+      const hpRatio = Math.max(0, Math.min(1, data.currentHp / data.maxHp));
+      (hpFill as HTMLElement).style.width = `${hpRatio * 100}%`;
+      
+      // HPに応じて色を変更
+      if (hpRatio > 0.5) {
+        (hpFill as HTMLElement).style.backgroundColor = '#00ff00';
+      } else if (hpRatio > 0.25) {
+        (hpFill as HTMLElement).style.backgroundColor = '#ffff00';
+      } else {
+        (hpFill as HTMLElement).style.backgroundColor = '#ff0000';
+      }
+      
+      hpText.textContent = `${data.currentHp}/${data.maxHp}`;
+    }
+
+    // 所持金
+    const goldInfo = overlay.querySelector('.gold-info');
+    if (goldInfo) {
+      goldInfo.textContent = `${data.gold} G`;
+    }
+  }
+
+  /**
+   * ゲーム情報オーバーレイを表示/非表示
+   */
+  setGameInfoOverlayVisible(visible: boolean): void {
+    const overlay = document.getElementById('gameInfoOverlay');
+    if (overlay) {
+      overlay.style.display = visible ? 'flex' : 'none';
+    }
   }
 }

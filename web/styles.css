@@ -57,10 +57,11 @@ a {
 #layout { 
   display: grid; 
   grid-template-columns: 1fr; 
-  gap: 12px; 
+  gap: 6px; 
   padding: 12px; 
   box-sizing: border-box; 
   height: 100%; 
+  position: relative;
 }
 
 /* ========================================
@@ -102,7 +103,7 @@ a {
 #bottom {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 8px;
+  gap: 6px;
   align-items: start;
   height: 160px;
 }
@@ -111,6 +112,7 @@ a {
   background: #000;
   border-radius: 6px;
   box-shadow: 0 0 0 1px #333 inset;
+  width: 240px;
   height: 100%;
 }
 
@@ -185,6 +187,75 @@ a {
   font-size: 12px;
 }
 
+/* ゲーム情報オーバーレイ */
+.game-info-overlay {
+  position: absolute;
+  top: 20px; /* #layoutのpaddingに合わせる */
+  left: 25px; /* #layoutのpaddingに合わせる */
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  z-index: 1000;
+  pointer-events: none; /* ゲーム操作を妨げない */
+  /* ゲームキャンバスエリア内に制限 */
+  max-width: calc(100vw - 344px); /* サイドバー幅(320px) + パディング(24px)を考慮 */
+}
+
+.info-item {
+  color: white;
+  font-family: 'PixelMplus';
+  font-size: 32px;
+  font-weight: bold;
+  letter-spacing: 2px; /* 文字間隔を増やす */
+  -webkit-font-smoothing: none; /* Webkit系ブラウザでスムージングオフ */
+  -moz-osx-font-smoothing: none; /* Firefoxでスムージングオフ */
+  font-smooth: never; /* 標準プロパティ（対応ブラウザのみ） */
+  white-space: nowrap;
+}
+
+.hp-bar-container {
+  display: flex;
+  align-items: center;
+}
+
+.hp-bar {
+  position: relative;
+  width: 120px;
+  height: 16px;
+  background-color: rgba(255, 0, 0, 0.3);
+  border: 2px solid white; /* 枠線を2pxに太くして目立たせる */
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5); /* 追加の枠線効果 */
+}
+
+.hp-fill {
+  height: 100%;
+  background-color: #00ff00;
+  transition: width 0.2s ease, background-color 0.2s ease;
+  border-radius: 1px;
+}
+
+.hp-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  font-family: 'PixelMplus';
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: none;
+  font-smooth: never;
+  text-shadow: 
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    1px 1px 0 #000;
+  white-space: nowrap;
+}
+
 /* ========================================
    レスポンシブ対応
    ======================================== */
@@ -192,5 +263,10 @@ a {
   #layout { 
     grid-template-columns: 1fr; 
     grid-template-rows: auto auto auto; 
-  } 
+  }
+  
+  /* 小画面ではオーバーレイの幅を調整 */
+  .game-info-overlay {
+    max-width: calc(100vw - 24px); /* パディングのみ考慮 */
+  }
 }
