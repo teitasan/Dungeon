@@ -15,6 +15,12 @@ export class CanvasRenderer {
   private currentDungeonId: string | null = null;
   private tilesetManager: TilesetManager | null = null;
   private gameConfig: GameConfig | null = null;
+  private clairvoyanceActive: boolean = false;
+  private remillaActive: boolean = false;
+  private trapDetectionActive: boolean = false;
+  private monsterVisionActive: boolean = false;
+  private dungeonManager: DungeonManager | null = null;
+  private activeEffectsFloor: number | null = null;
 
   constructor(private canvas: HTMLCanvasElement, tileSize: number = 20) {
     const ctx = canvas.getContext('2d');
@@ -71,12 +77,23 @@ export class CanvasRenderer {
   render(dungeon: Dungeon, dungeonManager: DungeonManager, player: PlayerEntity, turnSystem?: any): void {
     const { ctx, tileSize } = this;
 
-    // Dungeon change → explored リセット
+    // Dungeon change → explored リセット + 効果リセット
     if (this.currentDungeonId !== dungeon.id) {
+      console.log(`[DEBUG] ダンジョン変更: ${this.currentDungeonId} → ${dungeon.id}`);
       this.currentDungeonId = dungeon.id;
       this.explored = Array.from({ length: dungeon.height }, () =>
         Array<boolean>(dungeon.width).fill(false)
       );
+      
+      // ダンジョン変更時は効果もリセット
+      if (this.activeEffectsFloor !== null) {
+        console.log(`[DEBUG] ダンジョン変更による効果リセット`);
+        this.clairvoyanceActive = false;
+        this.remillaActive = false;
+        this.trapDetectionActive = false;
+        this.monsterVisionActive = false;
+        this.activeEffectsFloor = null;
+      }
     }
 
     // 可視マップを計算（部屋ベース）
@@ -228,9 +245,9 @@ export class CanvasRenderer {
               break;
           }
 
-          // 見えていない範囲は少し暗くする
-          if (!isVisible) {
-            color = this.mix(color, '#000000', 0.3);
+          // 見えていない範囲は少し暗くする（レミーラ効果が有効な場合は適用しない）
+          if (!isVisible && !this.remillaActive) {
+            color = this.mix(color, '#000000', 0.4);
           }
 
           ctx.fillStyle = color;
@@ -281,7 +298,7 @@ export class CanvasRenderer {
     const py = (player.position.y - camY - 0.5) * tileSize + tileSize / 2;
     ctx.beginPath();
     ctx.arc(px, py, tileSize * 0.35, 0, Math.PI * 2);
-    ctx.fillStyle = '#58a6ff';
+    ctx.fillStyle = this.gameConfig?.ui.minimap.playerColor || '#58a6ff'; // 設定ファイルから色を読み取り
     ctx.fill();
     ctx.lineWidth = 2;
     ctx.strokeStyle = '#1f6feb';
@@ -394,8 +411,8 @@ export class CanvasRenderer {
     const W = this.minimapCanvas.width;
     const H = this.minimapCanvas.height;
 
-    // ミニマップ描画時はスムージングを有効化（ピクセル境界を明確に）
-    mm.imageSmoothingEnabled = true;
+    // ミニマップ描画時はスムージングを無効化（ピクセル境界を明確に）
+    mm.imageSmoothingEnabled = false;
 
     // 背景
     mm.fillStyle = '#0b0b0d';
@@ -403,11 +420,11 @@ export class CanvasRenderer {
 
     // Canvasのサイズに合わせて適切なタイルサイズを計算
     // タイルサイズを3pxに固定
-    const mmTile = 3;
+    const mmTile = 4;
     const offsetX = Math.floor((W - dungeon.width * mmTile) / 2);
     const offsetY = Math.floor((H - dungeon.height * mmTile) / 2);
 
-    // 描画（探索済みの場所のみ）
+    // 描画（探索済みの場所のみ、レミーラ効果が有効な場合は全エリア表示）
     let exploredCount = 0;
     let visibleCount = 0;
     let wallCount = 0;
@@ -423,8 +440,16 @@ export class CanvasRenderer {
         if (isExplored) exploredCount++;
         if (isVisible) visibleCount++;
 
-        // 探索済みの場所のみ表示
-        if (!isExplored) continue;
+        // レミーラ効果が有効でない場合は探索済みの場所のみ表示
+        if (!this.remillaActive && !isExplored) continue;
+        
+        // レミーラ効果が有効な場合は全エリア表示
+        if (this.remillaActive && !isExplored) {
+          // デバッグ：レミーラ効果で表示されるセルをログ出力（最初のセルのみ）
+          if (x === 0 && y === 0) {
+            console.log(`[DEBUG] レミーラ効果: 未探索セル(${x}, ${y})を表示, セルタイプ: ${cell.type}`);
+          }
+        }
         
         // セルタイプの統計
         switch (cell.type) {
@@ -460,10 +485,12 @@ export class CanvasRenderer {
             color = '#4a4a55'; // 通路も床と同じ色
             break;
           case 'stairs-down':
-            color = '#d4a017';
+            // 設定ファイルから色を取得、なければデフォルト色
+            color = this.gameConfig?.ui?.minimap?.colors?.['stairs-down'] || '#87CEEB';
             break;
           case 'stairs-up':
-            color = '#3aa3e3';
+            // 設定ファイルから色を取得、なければデフォルト色
+            color = this.gameConfig?.ui?.minimap?.colors?.['stairs-up'] || '#87CEEB';
             break;
           default:
             color = '#2a2a35';
@@ -471,10 +498,25 @@ export class CanvasRenderer {
         }
         // 見えていない範囲は少し暗くする
         if (!isVisible) {
-          color = this.mix(color, '#000000', 0.3);
+          color = this.mix(color, '#000000', 0.4);
         }
-        mm.fillStyle = color;
-        mm.fillRect(offsetX + x * mmTile, offsetY + y * mmTile, mmTile, mmTile);
+        
+        // 階段は□の形（枠線のみ）で描画
+        if (cell.type === 'stairs-down' || cell.type === 'stairs-up') {
+          mm.strokeStyle = color;
+          mm.lineWidth = 1;
+          // ピクセル境界を正確に合わせるために0.5pxオフセット
+          mm.strokeRect(
+            offsetX + x * mmTile + 0.5, 
+            offsetY + y * mmTile + 0.5, 
+            mmTile - 1, 
+            mmTile - 1
+          );
+        } else {
+          // その他のセルは塗りつぶしで描画
+          mm.fillStyle = color;
+          mm.fillRect(offsetX + x * mmTile, offsetY + y * mmTile, mmTile, mmTile);
+        }
         
         // デバッグ：色の使用状況を追跡
         if (x === 0 && y === 0) { // 最初のセルのみログ出力
@@ -482,10 +524,6 @@ export class CanvasRenderer {
         }
       }
     }
-    
-    // デバッグ情報をコンソールに出力
-    console.log(`Minimap: explored=${exploredCount}, visible=${visibleCount}, total=${dungeon.width * dungeon.height}`);
-    console.log(`Minimap cell types: wall=${wallCount}, floor=${floorCount}, stairs-down=${stairsDownCount}, stairs-up=${stairsUpCount}`);
 
     // ビューポート枠
     mm.strokeStyle = 'rgba(255,255,255,0.6)';
@@ -498,16 +536,249 @@ export class CanvasRenderer {
     );
 
     // プレイヤー点
-    mm.fillStyle = '#58a6ff';
+    mm.fillStyle = this.gameConfig?.ui.minimap.playerColor || '#58a6ff'; // 設定ファイルから色を読み取り、デフォルトは青色
+    const playerSize = this.gameConfig?.ui.minimap.playerSize || 0.5; // デフォルトは0.5（mmTileの半分）
+    const playerPixelSize = Math.max(1, Math.floor(mmTile * playerSize));
     mm.fillRect(
-      offsetX + player.position.x * mmTile,
-      offsetY + player.position.y * mmTile,
-      Math.max(1, Math.floor(mmTile / 2)),
-      Math.max(1, Math.floor(mmTile / 2))
+      offsetX + player.position.x * mmTile + (mmTile - playerPixelSize) / 2,
+      offsetY + player.position.y * mmTile + (mmTile - playerPixelSize) / 2,
+      playerPixelSize,
+      playerPixelSize
     );
 
     // 描画完了後、スムージング設定を元に戻す
     mm.imageSmoothingEnabled = false;
+  }
+
+  /**
+   * ミニマップにアイテム位置を表示
+   */
+  private renderMinimapItems(
+    mm: CanvasRenderingContext2D,
+    dungeon: Dungeon,
+    mmTile: number,
+    offsetX: number,
+    offsetY: number
+  ): void {
+    // 千里眼効果が有効な場合のみアイテムを表示
+    if (!this.clairvoyanceActive) return;
+
+    // DungeonManagerが設定されていない場合は表示しない
+    if (!this.dungeonManager) return;
+
+    // ダンジョン内の全エンティティを取得し、アイテムをフィルタリング
+    const allEntities = this.dungeonManager.getAllEntities();
+    const items = allEntities.filter(entity => {
+      // アイテムかどうかを判定（名前やIDで判定）
+      return entity.id.includes('scroll') || entity.id.includes('item') || 
+             (entity as any).name?.includes('巻物') || (entity as any).name?.includes('アイテム');
+    });
+
+    console.log('[DEBUG] 千里眼効果: アイテム数:', items.length);
+    console.log('[DEBUG] 千里眼効果: アイテム詳細:', items);
+
+    // アイテムを小さな点で表示
+    mm.fillStyle = '#ffd700'; // 金色
+    for (const item of items) {
+      if (item.position) {
+        const x = offsetX + item.position.x * mmTile + Math.floor(mmTile / 4);
+        const y = offsetY + item.position.y * mmTile + Math.floor(mmTile / 4);
+        const size = Math.max(1, Math.floor(mmTile / 4));
+        
+        mm.fillRect(x, y, size, size);
+        
+        // デバッグ用：アイテム位置をコンソールに表示
+        console.log(`[DEBUG] アイテム位置: ${item.id} at (${item.position.x}, ${item.position.y})`);
+      }
+    }
+  }
+
+  /**
+   * ミニマップにモンスター位置を表示
+   */
+  private renderMinimapMonsters(
+    mm: CanvasRenderingContext2D,
+    dungeon: Dungeon,
+    mmTile: number,
+    offsetX: number,
+    offsetY: number
+  ): void {
+    // 透視効果が有効な場合のみモンスターを表示
+    if (!this.monsterVisionActive) return;
+
+    // DungeonManagerが設定されていない場合は表示しない
+    if (!this.dungeonManager) return;
+
+    // ダンジョン内の全エンティティを取得し、モンスターをフィルタリング
+    const allEntities = this.dungeonManager.getAllEntities();
+    const monsters = allEntities.filter(entity => {
+      // モンスターかどうかを判定（名前やIDで判定）
+      return entity.id.includes('monster') || entity.id.includes('enemy') || 
+             (entity as any).name?.includes('モンスター') || (entity as any).name?.includes('敵');
+    });
+
+    console.log('[DEBUG] 透視効果: モンスター数:', monsters.length);
+    console.log('[DEBUG] 透視効果: モンスター詳細:', monsters);
+
+    // モンスターを小さな点で表示
+    mm.fillStyle = '#ff4444'; // 赤色
+    for (const monster of monsters) {
+      if (monster.position) {
+        const x = offsetX + monster.position.x * mmTile + Math.floor(mmTile / 4);
+        const y = offsetY + monster.position.y * mmTile + Math.floor(mmTile / 4);
+        const size = Math.max(1, Math.floor(mmTile / 4));
+        
+        mm.fillRect(x, y, size, size);
+        
+        // デバッグ用：モンスター位置をコンソールに表示
+        console.log(`[DEBUG] モンスター位置: ${monster.id} at (${monster.position.x}, ${monster.position.y})`);
+      }
+    }
+  }
+
+  /**
+   * 千里眼効果を有効化
+   */
+  public activateClairvoyance(floor: number): void {
+    this.clairvoyanceActive = true;
+    this.activeEffectsFloor = floor;
+    console.log(`[DEBUG] 千里眼効果有効化: フロア${floor}`);
+    
+    // ミニマップが接続されている場合は即座に更新
+    this.forceMinimapUpdate();
+  }
+
+  /**
+   * 千里眼効果を無効化
+   */
+  public deactivateClairvoyance(): void {
+    this.clairvoyanceActive = false;
+  }
+
+  /**
+   * DungeonManagerを設定
+   */
+  public setDungeonManager(dungeonManager: DungeonManager): void {
+    this.dungeonManager = dungeonManager;
+  }
+
+  /**
+   * レミーラ効果を有効化
+   */
+  public activateRemilla(floor: number): void {
+    this.remillaActive = true;
+    this.activeEffectsFloor = floor;
+    console.log(`[DEBUG] レミーラ効果有効化: フロア${floor}`);
+    
+    // ミニマップが接続されている場合は即座に更新
+    this.forceMinimapUpdate();
+  }
+
+  /**
+   * レミーラ効果を無効化
+   */
+  public deactivateRemilla(): void {
+    this.remillaActive = false;
+  }
+
+  /**
+   * 罠探知効果を有効化
+   */
+  public activateTrapDetection(floor: number): void {
+    this.trapDetectionActive = true;
+    this.activeEffectsFloor = floor;
+    console.log(`[DEBUG] 罠探知効果有効化: フロア${floor}`);
+    
+    // ミニマップが接続されている場合は即座に更新
+    this.forceMinimapUpdate();
+  }
+
+  /**
+   * 罠探知効果を無効化
+   */
+  public deactivateTrapDetection(): void {
+    this.trapDetectionActive = false;
+  }
+
+  /**
+   * 透視効果を有効化
+   */
+  public activateMonsterVision(floor: number): void {
+    this.monsterVisionActive = true;
+    this.activeEffectsFloor = floor;
+    console.log(`[DEBUG] 透視効果有効化: フロア${floor}`);
+    
+    // ミニマップが接続されている場合は即座に更新
+    this.forceMinimapUpdate();
+  }
+
+  /**
+   * 透視効果を無効化
+   */
+  public deactivateMonsterVision(): void {
+    this.monsterVisionActive = false;
+  }
+
+  /**
+   * ミニマップの強制更新
+   */
+  private forceMinimapUpdate(): void {
+    if (!this.minimapCtx || !this.minimapCanvas) {
+      console.log('[DEBUG] ミニマップが接続されていません');
+      return;
+    }
+    
+    // 現在のダンジョンとプレイヤー情報がない場合は更新できない
+    if (!this.dungeonManager) {
+      console.log('[DEBUG] DungeonManagerが設定されていません');
+      return;
+    }
+    
+    const currentDungeon = this.dungeonManager.getCurrentDungeon();
+    if (!currentDungeon) {
+      console.log('[DEBUG] 現在のダンジョンが取得できません');
+      return;
+    }
+    
+    const player = this.dungeonManager.getAllEntities().find(e => e.id === 'player-1') as PlayerEntity;
+    if (!player) {
+      console.log('[DEBUG] プレイヤーが見つかりません');
+      return;
+    }
+    
+    console.log('[DEBUG] ミニマップ強制更新実行');
+    
+    // 可視性を計算してミニマップを更新
+    const visible = this.computeVisibility(currentDungeon, player);
+    const [camX, camY, viewW, viewH] = this.computeCamera(currentDungeon, player);
+    this.renderMinimap(currentDungeon, visible, camX, camY, viewW, viewH, player);
+  }
+
+  /**
+   * フロア変更時に効果をチェック（異なるフロアの場合は効果を無効化）
+   */
+  
+  public checkFloorChange(currentFloor: number): void {
+    console.log(`[DEBUG] 効果チェック: 現在のフロア = ${currentFloor}, 効果が有効なフロア = ${this.activeEffectsFloor}`);
+    console.log(`[DEBUG] 効果状態: 千里眼=${this.clairvoyanceActive}, レミーラ=${this.remillaActive}, 罠探知=${this.trapDetectionActive}, 透視=${this.monsterVisionActive}`);
+    
+    // フロアが変更された場合、すべての効果を無効化
+    if (this.activeEffectsFloor !== null && this.activeEffectsFloor !== currentFloor) {
+      console.log(`[DEBUG] フロア変更: ${this.activeEffectsFloor} → ${currentFloor}, 効果を無効化`);
+      this.clairvoyanceActive = false;
+      this.remillaActive = false;
+      this.trapDetectionActive = false;
+      this.monsterVisionActive = false;
+      this.activeEffectsFloor = null;
+      console.log(`[DEBUG] 効果無効化完了: 千里眼=${this.clairvoyanceActive}, レミーラ=${this.remillaActive}, 罠探知=${this.trapDetectionActive}, 透視=${this.monsterVisionActive}`);
+    } else if (this.activeEffectsFloor === null) {
+      console.log(`[DEBUG] 効果が有効なフロアが設定されていません`);
+    } else {
+      console.log(`[DEBUG] 同じフロア内です: ${currentFloor}`);
+    }
+    
+    // フロア変更後の状態をログ出力
+    console.log(`[DEBUG] フロア変更後の効果状態: 千里眼=${this.clairvoyanceActive}, レミーラ=${this.remillaActive}, 罠探知=${this.trapDetectionActive}, 透視=${this.monsterVisionActive}`);
   }
 
   // 簡易カラー合成

@@ -212,7 +212,13 @@
     },
     "minimap": {
       "width": 240,
-      "height": 160
+      "height": 160,
+      "playerSize": 0.8,
+      "playerColor": "#FFFFFF",
+      "colors": {
+        "stairs-down": "#87CEEB",
+        "stairs-up": "#87CEEB"
+      }
     },
     "layout": {
       "maxWidth": 1180,

@@ -1,7 +1,9 @@
 import { DungeonManager } from '../dungeon/DungeonManager.js';
 import { MultipleDungeonSystem } from '../systems/MultipleDungeonSystem.js';
 import { PlayerEntity } from '../entities/Player.js';
+import { ItemEntity } from '../entities/Item.js';
 import { UISystem } from '../systems/UISystem.js';
+import { ItemSystem } from '../systems/ItemSystem.js';
 import type { Position } from '../types/core.js';
 import { CanvasRenderer } from './CanvasRenderer.js';
 import { CombatSystem } from '../systems/CombatSystem.js';
@@ -50,9 +52,11 @@ async function start(): Promise<void> {
   const combat = new CombatSystem();
   const inputSystem = new InputSystem(config);
   const turnSystem = new TurnSystem();
+  const itemSystem = new ItemSystem(dungeonManager);
 
-  // UISystemにUIManagerを設定
+  // システム間の依存関係を設定
   ui.setUIManager(uiManager);
+  ui.setItemSystem(itemSystem);
 
   const player = new PlayerEntity('player-1', 'Hero', { x: 0, y: 0 });
 
@@ -72,6 +76,47 @@ async function start(): Promise<void> {
   player.setPosition(spawn);
   dungeonManager.addEntity(player, spawn);
 
+  // テスト用アイテムを初期インベントリに追加（レミーラ5個）
+  const testItems = [
+    {
+      id: 'scroll-remilla-1',
+      name: 'レミーラの巻物',
+      effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
+    },
+    {
+      id: 'scroll-remilla-2',
+      name: 'レミーラの巻物',
+      effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
+    },
+    {
+      id: 'scroll-remilla-3',
+      name: 'レミーラの巻物',
+      effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
+    },
+    {
+      id: 'scroll-remilla-4',
+      name: 'レミーラの巻物',
+      effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
+    },
+    {
+      id: 'scroll-remilla-5',
+      name: 'レミーラの巻物',
+      effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
+    }
+  ];
+
+  for (const itemData of testItems) {
+    const item = new ItemEntity(
+      itemData.id,
+      itemData.name,
+      'consumable',
+      { x: 0, y: 0 }
+    );
+    item.addEffect(itemData.effect);
+    item.identify();
+    player.addToInventory(item);
+  }
+
   const canvas = uiManager.getGameCanvas();
   if (!canvas) {
     console.error('Game canvas not found');
@@ -80,6 +125,15 @@ async function start(): Promise<void> {
   
   const renderer = new CanvasRenderer(canvas, config.ui.viewport.tileSize);
   
+  // DungeonManagerをCanvasRendererに設定（千里眼効果用）
+  renderer.setDungeonManager(dungeonManager);
+  
+  // UISystemにレンダラーを設定
+  ui.setRenderer(renderer);
+  
+  // MultipleDungeonSystemにレンダラーを設定（フロア変更時の効果管理用）
+  multi.setRenderer(renderer);
+
   // タイルセットマネージャーの初期化
   let tilesetManager: TilesetManager | null = null;
   try {
@@ -140,8 +194,6 @@ async function start(): Promise<void> {
     if (open) renderInventory();
   };
 
-  // Confirm modal is handled by openChoiceModal()
-
   const render = () => {
     const current = dungeonManager.getCurrentDungeon();
     if (!current) return;
@@ -160,61 +212,6 @@ async function start(): Promise<void> {
     });
     
     renderer.render(current, dungeonManager, player, turnSystem);
-    // メッセージはpushMessage時に直接表示されるため、ここでは表示しない
-  };
-
-  const onAdvanceFloor = async (): Promise<void> => {
-    try {
-      console.log('[DEBUG] onAdvanceFloor: 開始');
-      
-      // 古いダンジョンからプレイヤーを削除
-      console.log('[DEBUG] プレイヤーを古いダンジョンから削除中...');
-      dungeonManager.removeEntity(player);
-      console.log('[DEBUG] プレイヤー削除完了');
-      
-      console.log('[DEBUG] advanceFloor呼び出し中...');
-      const adv = multi.advanceFloor(player);
-      console.log('[DEBUG] advanceFloor結果:', adv);
-      
-      if (!adv.success) {
-        console.log('[DEBUG] advanceFloor失敗:', adv);
-        ui.pushMessage('フロア進行に失敗しました');
-        return;
-      }
-      
-      // ダンジョン完了の場合の処理
-      if (adv.isCompleted) {
-        console.log('[DEBUG] ダンジョン完了:', adv.message);
-        ui.pushMessage(adv.message);
-        return;
-      }
-      
-      console.log('[DEBUG] 新しいダンジョン取得中...');
-      const newDungeon = dungeonManager.getCurrentDungeon();
-      console.log('[DEBUG] 新しいダンジョン:', newDungeon);
-      
-      if (newDungeon) {
-        const newSpawn = newDungeon.playerSpawn;
-        console.log('[DEBUG] 新しいスポーン位置:', newSpawn);
-        
-        // プレイヤーの位置を更新
-        player.setPosition(newSpawn);
-        console.log('[DEBUG] プレイヤー位置更新完了');
-        
-        // 新しいダンジョンにプレイヤーを追加
-        dungeonManager.addEntity(player, newSpawn);
-        console.log('[DEBUG] プレイヤーを新しいダンジョンに追加完了');
-      } else {
-        console.error('[ERROR] 新しいダンジョンが取得できません');
-        ui.pushMessage('新しいダンジョンの生成に失敗しました');
-      }
-      
-      console.log('[DEBUG] onAdvanceFloor: 完了');
-    } catch (error) {
-      console.error('[ERROR] onAdvanceFloorでエラーが発生:', error);
-      ui.pushMessage('フロア進行中にエラーが発生しました');
-      throw error; // 呼び出し元でエラーハンドリングできるように再スロー
-    }
   };
 
   bindKeys((e) => {
@@ -227,17 +224,14 @@ async function start(): Promise<void> {
     if (inputSystem.isActionKey(key) && key.toLowerCase() === 'x') {
       if (isModalOpen()) {
         cancelCurrentModal();
-        // キャンセル操作はゲームログではないので、メッセージ表示しない
         render();
         return;
       }
       if (inventoryOpen) {
         setInventoryOpen(false);
-        // キャンセル操作はゲームログではないので、メッセージ表示しない
         render();
         return;
       }
-      // No modal open: treat as noop cancel
       return;
     }
 
@@ -248,11 +242,50 @@ async function start(): Promise<void> {
 
     let inputAction: any = null;
     
-    if (!inventoryOpen && !isModalOpen()) {
+    // インベントリが開いている場合でもキー入力を処理
+    if (!isModalOpen()) {
       inputAction = inputSystem.processKeyEvent(key);
+    }
+    
+    // インベントリ内でのキー操作を優先処理
+    if (inventoryOpen) {
       if (inputAction?.type === 'movement' && inputAction.direction) {
-        next = inputSystem.calculateNextPosition(current, inputAction.direction);
+        // インベントリ内でのアイテム選択移動
+        if (inputAction.direction === 'up' || inputAction.direction === 'down') {
+          const result = ui.handleInventoryAction('move-selection', inputAction.direction);
+          if (result.success) {
+            renderInventory();
+          }
+        }
       }
+      
+      if (inputAction?.type === 'action' && inputAction.action === 'confirm') {
+        // アイテム使用処理
+        const result = ui.handleInventoryAction('use-item');
+        ui.pushMessage(result.message);
+        
+        // アイテム使用後に即座にレンダリングを更新（ミニマップ反映のため）
+        render();
+        
+        if (result.shouldClose) {
+          setInventoryOpen(false);
+          renderInventory();
+        }
+        return;
+      }
+      
+      if (inputAction?.type === 'action' && inputAction.action === 'cancel') {
+        setInventoryOpen(false);
+        render();
+        return;
+      }
+      
+      return;
+    }
+    
+    // 通常のゲーム操作（インベントリが閉じている場合）
+    if (inputAction?.type === 'movement' && inputAction.direction) {
+      next = inputSystem.calculateNextPosition(current, inputAction.direction);
     }
     
     if (inputAction?.type === 'action') {
@@ -264,8 +297,7 @@ async function start(): Promise<void> {
           break;
         case 'confirm':
           if (inventoryOpen) {
-            ui.pushMessage(config.messages.ui.itemUseUnimplemented);
-            setInventoryOpen(false);
+            break;
           } else {
             // If on stairs, open confirm modal; otherwise attack
             const cell = dungeonManager.getCellAt(player.position);
@@ -281,19 +313,19 @@ async function start(): Promise<void> {
                 defaultIndex: 0,
               }).then(async (res) => {
                 if (res.type === 'ok' && res.selectedId === 'yes') {
-                  console.log('[DEBUG] 階段進行開始');
                   try {
-                    // タイムアウト処理を追加
-                    const timeoutPromise = new Promise((_, reject) => {
-                      setTimeout(() => reject(new Error('フロア進行がタイムアウトしました')), 10000);
-                    });
-                    
-                    await Promise.race([
-                      onAdvanceFloor(),
-                      timeoutPromise
-                    ]);
-                    
-                    ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
+                    const result = await multi.advanceFloorWithPlayer(player);
+                    if (result.success) {
+                      if (result.isCompleted) {
+                        ui.pushMessage(result.message);
+                      } else {
+                        ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
+                        
+                        // フロア変更時の効果チェックはMultipleDungeonSystem内で処理される
+                      }
+                    } else {
+                      ui.pushMessage('フロア進行に失敗しました');
+                    }
                     render();
                   } catch (error) {
                     console.error('[ERROR] 階段進行中にエラー:', error);
@@ -343,7 +375,6 @@ async function start(): Promise<void> {
       const currentCell = dungeonManager.getCellAt(next);
       if (currentCell) {
         console.log(`[DEBUG] プレイヤー位置: (${next.x}, ${next.y}), タイルタイプ: ${currentCell.type}`);
-        // タイルの詳細情報も出力
         console.log(`[DEBUG] タイル詳細:`, {
           type: currentCell.type,
           walkable: currentCell.walkable,
@@ -366,19 +397,19 @@ async function start(): Promise<void> {
           defaultIndex: 0,
         }).then(async (res) => {
           if (res.type === 'ok' && res.selectedId === 'yes') {
-            console.log('[DEBUG] 移動時の階段進行開始');
             try {
-              // タイムアウト処理を追加
-              const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('フロア進行がタイムアウトしました')), 10000);
-              });
-              
-              await Promise.race([
-                onAdvanceFloor(),
-                timeoutPromise
-              ]);
-              
-              ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
+              const result = await multi.advanceFloorWithPlayer(player);
+              if (result.success) {
+                if (result.isCompleted) {
+                  ui.pushMessage(result.message);
+                } else {
+                  ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
+                  
+                  // フロア変更時の効果チェックはMultipleDungeonSystem内で処理される
+                }
+              } else {
+                ui.pushMessage('フロア進行に失敗しました');
+              }
               render();
             } catch (error) {
               console.error('[ERROR] 移動時の階段進行中にエラー:', error);

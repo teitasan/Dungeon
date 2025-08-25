@@ -3,6 +3,8 @@ import type { GameConfig } from '../../types/core.js';
 export class UIManager {
   private config: GameConfig;
   private appElement: HTMLElement;
+  private selectedInventoryIndex: number = 0;
+  private currentInventoryItems: Array<{ id: string; name?: string }> = [];
 
   constructor(config: GameConfig, appElement: HTMLElement) {
     this.config = config;
@@ -193,6 +195,10 @@ export class UIManager {
     const list = document.getElementById('inventoryList') as HTMLUListElement;
     if (!list) return;
 
+    // 現在のインベントリアイテムを保存
+    this.currentInventoryItems = items;
+    this.selectedInventoryIndex = Math.min(this.selectedInventoryIndex, Math.max(0, items.length - 1));
+
     list.innerHTML = '';
     if (items.length === 0) {
       const li = document.createElement('li');
@@ -200,12 +206,42 @@ export class UIManager {
       li.className = 'empty';
       list.appendChild(li);
     } else {
-      items.forEach((item) => {
+      items.forEach((item, index) => {
         const li = document.createElement('li');
         li.textContent = item.name || item.id;
+        if (index === this.selectedInventoryIndex) {
+          li.style.backgroundColor = '#333';
+          li.style.color = '#fff';
+        }
         list.appendChild(li);
       });
     }
+  }
+
+  /**
+   * 選択されたインベントリアイテムを取得
+   */
+  getSelectedInventoryItem(): { id: string; name?: string } | null {
+    if (this.currentInventoryItems.length === 0 || this.selectedInventoryIndex >= this.currentInventoryItems.length) {
+      return null;
+    }
+    return this.currentInventoryItems[this.selectedInventoryIndex];
+  }
+
+  /**
+   * インベントリ選択を移動
+   */
+  moveInventorySelection(direction: 'up' | 'down'): void {
+    if (this.currentInventoryItems.length === 0) return;
+    
+    if (direction === 'up') {
+      this.selectedInventoryIndex = (this.selectedInventoryIndex - 1 + this.currentInventoryItems.length) % this.currentInventoryItems.length;
+    } else {
+      this.selectedInventoryIndex = (this.selectedInventoryIndex + 1) % this.currentInventoryItems.length;
+    }
+    
+    // 選択状態を更新
+    this.updateInventoryList(this.currentInventoryItems);
   }
 
   /**

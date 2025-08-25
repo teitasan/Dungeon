@@ -249,6 +249,12 @@ export interface ViewportConfig {
 export interface MinimapConfig {
   width: number;
   height: number;
+  playerSize?: number; // プレイヤーの表示サイズ（mmTileに対する比率）
+  playerColor?: string; // プレイヤーの色
+  colors?: {
+    'stairs-down'?: string;
+    'stairs-up'?: string;
+  };
 }
 
 export interface LayoutConfig {

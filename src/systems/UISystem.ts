@@ -7,11 +7,15 @@ import { DungeonManager } from '../dungeon/DungeonManager';
 import { PlayerEntity } from '../entities/Player';
 import { GameEntity } from '../types/entities';
 import { UIManager } from '../web/ui/UIManager';
+import { ItemSystem } from './ItemSystem';
+import { CanvasRenderer } from '../web/CanvasRenderer';
 
 export class UISystem {
   private dungeonManager: DungeonManager;
   private messages: string[] = [];
   private uiManager?: UIManager;
+  private itemSystem?: ItemSystem;
+  private renderer?: CanvasRenderer;
 
   constructor(dungeonManager: DungeonManager) {
     this.dungeonManager = dungeonManager;
@@ -22,6 +26,113 @@ export class UISystem {
    */
   setUIManager(uiManager: UIManager): void {
     this.uiManager = uiManager;
+  }
+
+  /**
+   * ItemSystemを設定
+   */
+  setItemSystem(itemSystem: ItemSystem): void {
+    this.itemSystem = itemSystem;
+  }
+
+  /**
+   * CanvasRendererを設定
+   */
+  setRenderer(renderer: CanvasRenderer): void {
+    this.renderer = renderer;
+  }
+
+  /**
+   * インベントリ操作を処理
+   */
+  handleInventoryAction(action: 'open' | 'close' | 'use-item' | 'move-selection', direction?: 'up' | 'down'): {
+    success: boolean;
+    message: string;
+    shouldClose?: boolean;
+  } {
+    if (!this.uiManager) {
+      return { success: false, message: 'UIマネージャーが設定されていません' };
+    }
+
+    switch (action) {
+      case 'open':
+        this.uiManager.setInventoryModalOpen(true);
+        return { success: true, message: 'インベントリを開きました' };
+      
+      case 'close':
+        this.uiManager.setInventoryModalOpen(false);
+        return { success: true, message: 'インベントリを閉じました' };
+      
+      case 'move-selection':
+        if (direction) {
+          this.uiManager.moveInventorySelection(direction);
+          return { success: true, message: '選択を移動しました' };
+        }
+        return { success: false, message: '移動方向が指定されていません' };
+      
+      case 'use-item':
+        return this.handleItemUsage();
+      
+      default:
+        return { success: false, message: '不明なアクションです' };
+    }
+  }
+
+  /**
+   * アイテム使用処理
+   */
+  private handleItemUsage(): { success: boolean; message: string; shouldClose?: boolean } {
+    if (!this.uiManager || !this.itemSystem || !this.renderer) {
+      return { success: false, message: '必要なシステムが設定されていません' };
+    }
+
+    const selectedItem = this.uiManager.getSelectedInventoryItem();
+    if (!selectedItem) {
+      return { success: false, message: 'アイテムが選択されていません' };
+    }
+
+    // プレイヤーを取得（簡易的な実装）
+    const player = this.dungeonManager.getAllEntities().find(e => e.id === 'player-1') as PlayerEntity;
+    if (!player) {
+      return { success: false, message: 'プレイヤーが見つかりません' };
+    }
+
+    // プレイヤーのインベントリからアイテムエンティティを取得
+    const itemEntity = player.inventory.find(item => item.id === selectedItem.id);
+    if (!itemEntity) {
+      return { success: false, message: 'アイテムが見つかりません' };
+    }
+
+    // アイテム使用実行
+    const result = this.itemSystem.useItem(player, itemEntity as any);
+    
+    // 特殊効果の処理
+    if (result.success && result.appliedEffects) {
+      const currentFloor = this.dungeonManager.getCurrentDungeon()?.floor || 1;
+      
+      for (const effectType of result.appliedEffects) {
+        switch (effectType) {
+          case 'reveal-items':
+            this.renderer.activateClairvoyance(currentFloor);
+            break;
+          case 'reveal-map':
+            this.renderer.activateRemilla(currentFloor);
+            break;
+          case 'reveal-traps':
+            this.renderer.activateTrapDetection(currentFloor);
+            break;
+          case 'reveal-monsters':
+            this.renderer.activateMonsterVision(currentFloor);
+            break;
+        }
+      }
+    }
+
+    return {
+      success: result.success,
+      message: result.message,
+      shouldClose: result.success
+    };
   }
 
   /**
