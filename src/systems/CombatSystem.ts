@@ -15,6 +15,7 @@ import {
   CombatState
 } from '../types/combat';
 import { AttributeSystem } from './AttributeSystem';
+import { ActionResult } from '../types/movement';
 
 export class CombatSystem {
   private config: CombatConfig;
@@ -47,6 +48,42 @@ export class CombatSystem {
     // Use a deterministic RNG by default for stable tests; can be overridden via setRNG
     this.rng = () => 0.5;
     this.attributeSystem = new AttributeSystem();
+  }
+
+  /**
+   * 攻撃を試行し、ActionResultを返す（ターン消費判定用）
+   */
+  attemptAttackWithActionResult(params: AttackParams): ActionResult {
+    // 攻撃範囲チェック
+    if (!this.isInAttackRange(params.attacker, params.defender)) {
+      return {
+        success: false,
+        actionType: 'attack',
+        consumedTurn: false,  // 攻撃範囲外はターン消費しない
+        message: '攻撃範囲外だ'
+      };
+    }
+
+    // 攻撃実行
+    const combatResult = this.executeAttack(params);
+    
+    if (combatResult.success) {
+      return {
+        success: true,
+        actionType: 'attack',
+        consumedTurn: true,  // 攻撃成功時はターン消費
+        message: combatResult.message,
+        data: combatResult
+      };
+    } else {
+      return {
+        success: false,
+        actionType: 'attack',
+        consumedTurn: false,  // 攻撃失敗時はターン消費しない
+        message: combatResult.message,
+        data: combatResult
+      };
+    }
   }
 
   /**
@@ -110,6 +147,18 @@ export class CombatSystem {
     }, result);
 
     return result;
+  }
+
+  /**
+   * 攻撃範囲内かチェック
+   */
+  private isInAttackRange(attacker: GameEntity, defender: GameEntity): boolean {
+    // 現在は隣接攻撃のみ対応
+    const attackerPos = attacker.position;
+    const defenderPos = defender.position;
+    
+    const distance = Math.abs(attackerPos.x - defenderPos.x) + Math.abs(attackerPos.y - defenderPos.y);
+    return distance <= 1; // 隣接（マンハッタン距離1以下）
   }
 
   /**

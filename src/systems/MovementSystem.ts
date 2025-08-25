@@ -9,7 +9,8 @@ import {
   MovementResult, 
   MovementEvent, 
   MovementConstraints,
-  DirectionVectors 
+  DirectionVectors,
+  ActionResult
 } from '../types/movement';
 import { DungeonManager } from '../dungeon/DungeonManager';
 
@@ -110,6 +111,45 @@ export class MovementSystem {
       newPosition,
       triggeredEvents: events
     };
+  }
+
+  /**
+   * 移動を試行し、ActionResultを返す（ターン消費判定用）
+   */
+  attemptMoveWithActionResult(
+    entity: GameEntity, 
+    direction: MovementDirection, 
+    constraints?: Partial<MovementConstraints>
+  ): ActionResult {
+    const moveResult = this.moveEntity(entity, direction, constraints);
+    
+    if (moveResult.success) {
+      return {
+        success: true,
+        actionType: 'move',
+        consumedTurn: true,  // 移動成功時はターン消費
+        message: '移動した',
+        data: moveResult
+      };
+    } else {
+      // 移動失敗時はターン消費しない
+      let message = '移動できない';
+      if (moveResult.reason === 'Target cell is not walkable') {
+        message = '壁にぶつかった';
+      } else if (moveResult.reason === 'Target cell is occupied') {
+        message = '他のキャラクターがいる';
+      } else if (moveResult.reason === 'Out of bounds') {
+        message = '境界外だ';
+      }
+      
+      return {
+        success: false,
+        actionType: 'move',
+        consumedTurn: false,  // 移動失敗時はターン消費しない
+        message,
+        data: moveResult
+      };
+    }
   }
 
   /**

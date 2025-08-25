@@ -57,11 +57,11 @@ export class UISystem {
     switch (action) {
       case 'open':
         this.uiManager.setInventoryModalOpen(true);
-        return { success: true, message: 'インベントリを開きました' };
+        return { success: true, message: '' };
       
       case 'close':
         this.uiManager.setInventoryModalOpen(false);
-        return { success: true, message: 'インベントリを閉じました' };
+        return { success: true, message: '' };
       
       case 'move-selection':
         if (direction) {

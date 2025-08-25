@@ -25,6 +25,11 @@ export interface GameEntity {
   components: Component[];
   stats: EntityStats;
   flags: EntityFlags;
+  speedState?: 'normal' | 'fast' | 'slow';
+  customRules?: {
+    action1?: Partial<import('./movement.js').ActionConfig>;
+    action2?: Partial<import('./movement.js').ActionConfig>;
+  };
 }
 
 export interface EntityStats {
@@ -80,6 +85,7 @@ export interface GameConfig {
   items: ItemConfig;
   monsters: MonsterConfig;
   attributes: AttributeConfig;
+  turnSystem: any; // Will be properly typed when TurnSystemConfig is imported
   ui: UIConfig;
   input: InputConfig;
   messages: MessageConfig;

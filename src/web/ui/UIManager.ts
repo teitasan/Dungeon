@@ -269,6 +269,7 @@ export class UIManager {
     overlay.innerHTML = `
       <div class="info-item floor-info">B1F</div>
       <div class="info-item level-info">Lv.1</div>
+      <div class="info-item turn-info">T1</div>
       <div class="info-item hp-bar-container">
         <div class="hp-bar">
           <div class="hp-fill"></div>
@@ -294,6 +295,7 @@ export class UIManager {
     currentHp: number;
     maxHp: number;
     gold: number;
+    turn: number;
   }): void {
     const overlay = document.getElementById('gameInfoOverlay');
     if (!overlay) return;
@@ -308,6 +310,12 @@ export class UIManager {
     const levelInfo = overlay.querySelector('.level-info');
     if (levelInfo) {
       levelInfo.textContent = `Lv.${data.level}`;
+    }
+
+    // ターン数情報
+    const turnInfo = overlay.querySelector('.turn-info');
+    if (turnInfo) {
+      turnInfo.textContent = `T${data.turn}`;
     }
 
     // HPバー

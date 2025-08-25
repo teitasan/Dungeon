@@ -13,6 +13,8 @@ import { WebConfigLoader } from './WebConfigLoader.js';
 import { InputSystem } from '../systems/InputSystem.js';
 import { UIManager } from './ui/UIManager.js';
 import { TurnSystem } from '../systems/TurnSystem.js';
+import { MovementSystem } from '../systems/MovementSystem.js';
+import { ActionResult } from '../types/movement.js';
 
 function $(selector: string): HTMLElement {
   const el = document.querySelector(selector);
@@ -51,7 +53,14 @@ async function start(): Promise<void> {
   const ui = new UISystem(dungeonManager);
   const combat = new CombatSystem();
   const inputSystem = new InputSystem(config);
-  const turnSystem = new TurnSystem();
+  const movementSystem = new MovementSystem(dungeonManager);
+  const turnSystem = new TurnSystem(
+    config.turnSystem,
+    dungeonManager,
+    combat,
+    undefined, // hungerSystem - 後で追加
+    undefined  // statusSystem - 後で追加
+  );
   const itemSystem = new ItemSystem(dungeonManager);
 
   // システム間の依存関係を設定
@@ -75,6 +84,58 @@ async function start(): Promise<void> {
   const spawn: Position = dungeon.playerSpawn;
   player.setPosition(spawn);
   dungeonManager.addEntity(player, spawn);
+
+  // テスト用：通常速度モンスター
+  const testMonster = {
+    id: 'enemy-test-1',
+    position: { x: spawn.x + 3, y: spawn.y + 1 },
+    components: [],
+    stats: { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.1 },
+    flags: {},
+    speedState: 'normal' as const
+  };
+  
+  // テスト用：倍速モンスター
+  const fastMonster = {
+    id: 'fast-enemy-1',
+    position: { x: spawn.x + 5, y: spawn.y + 2 },
+    components: [],
+    stats: { hp: 15, maxHp: 15, attack: 3, defense: 1, evasionRate: 0.05 },
+    flags: {},
+    speedState: 'fast' as const
+  };
+  
+  // テスト用：鈍足モンスター
+  const slowMonster = {
+    id: 'slow-enemy-1',
+    position: { x: spawn.x + 1, y: spawn.y + 3 },
+    components: [],
+    stats: { hp: 30, maxHp: 30, attack: 8, defense: 3, evasionRate: 0.2 },
+    flags: {},
+    speedState: 'slow' as const
+  };
+  
+  // テスト用：カスタムルール倍速モンスター（攻撃は1回のみ）
+  const customFastMonster = {
+    id: 'custom-fast-enemy-1',
+    position: { x: spawn.x + 2, y: spawn.y + 5 },
+    components: [],
+    stats: { hp: 12, maxHp: 12, attack: 6, defense: 2, evasionRate: 0.1 },
+    flags: {},
+    speedState: 'fast' as const,
+    customRules: {
+      action1: { canMove: true, canAttack: true },
+      action2: { canMove: true, canAttack: false }  // 2回目は移動のみ
+    }
+  };
+  
+  // モンスターをダンジョンに追加
+  const monsters = [testMonster, fastMonster, slowMonster, customFastMonster];
+  monsters.forEach(monster => {
+    if (dungeonManager.isWalkable(monster.position)) {
+      dungeonManager.addEntity(monster as any, monster.position);
+    }
+  });
 
   // テスト用アイテムを初期インベントリに追加（レミーラ5個）
   const testItems = [
@@ -208,7 +269,8 @@ async function start(): Promise<void> {
       level: player.stats.level,
       currentHp: player.stats.hp,
       maxHp: player.stats.maxHp,
-      gold: 0 // プレイヤーの所持金（現在は0で固定）
+      gold: 0, // プレイヤーの所持金（現在は0で固定）
+      turn: turnSystem.getCurrentTurn()
     });
     
     renderer.render(current, dungeonManager, player, turnSystem);
@@ -217,6 +279,34 @@ async function start(): Promise<void> {
   bindKeys((e) => {
     const current = player.position;
     let next: Position | null = null;
+    let moveResult: ActionResult | null = null;
+    
+    // プレイヤー行動ハンドラー（完全同期処理を保証）
+    function handlePlayerAction(action: 'move' | 'attack' | 'item', success: boolean, data?: any) {
+      if (success || action === 'attack') { // 攻撃は常にターン消費
+        turnSystem.recordPlayerAction(player, action, false);
+        console.log(`[DEBUG] プレイヤー行動完了: ${action}, ターン実行開始`);
+        
+        // 完全同期処理：即座にターンシステムを実行
+        turnSystem.executeTurn();
+        console.log(`[DEBUG] ターンシステム実行完了: 次のターン ${turnSystem.getCurrentTurn()}`);
+        
+        // ターンシステム実行後にUIを更新（ターン数表示を更新）
+        const current = dungeonManager.getCurrentDungeon();
+        if (current) {
+          uiManager.updateGameInfoOverlay({
+            floor: current.floor,
+            level: player.stats.level,
+            currentHp: player.stats.hp,
+            maxHp: player.stats.maxHp,
+            gold: 0,
+            turn: turnSystem.getCurrentTurn()
+          });
+        }
+        
+        console.log(`[DEBUG] プレイヤー行動完了: ${action}, ターン実行完了`);
+      }
+    }
 
     const key = e.key;
 
@@ -245,6 +335,7 @@ async function start(): Promise<void> {
     // インベントリが開いている場合でもキー入力を処理
     if (!isModalOpen()) {
       inputAction = inputSystem.processKeyEvent(key);
+      console.log(`[DEBUG] キー入力: ${key} -> アクション:`, inputAction);
     }
     
     // インベントリ内でのキー操作を優先処理
@@ -271,6 +362,13 @@ async function start(): Promise<void> {
           setInventoryOpen(false);
           renderInventory();
         }
+        
+        // アイテム使用成功時はプレイヤー行動ハンドラーでターン処理
+        if (result.success) {
+          handlePlayerAction('item', true);
+        }
+        
+        // アイテム使用後は攻撃処理をスキップ
         return;
       }
       
@@ -280,12 +378,15 @@ async function start(): Promise<void> {
         return;
       }
       
-      return;
+      // アイテム使用処理は既にhandlePlayerActionでターン処理されるため、
+      // ここでは何もしない（攻撃処理はスキップ済み）
     }
     
     // 通常のゲーム操作（インベントリが閉じている場合）
     if (inputAction?.type === 'movement' && inputAction.direction) {
+      console.log(`[DEBUG] 移動入力検出: ${inputAction.direction}`);
       next = inputSystem.calculateNextPosition(current, inputAction.direction);
+      console.log(`[DEBUG] 現在位置: (${current.x}, ${current.y}) -> 次位置: (${next.x}, ${next.y})`);
     }
     
     if (inputAction?.type === 'action') {
@@ -293,7 +394,6 @@ async function start(): Promise<void> {
         case 'inventory':
           // Inventory toggle
           setInventoryOpen(!inventoryOpen);
-          ui.pushMessage(inventoryOpen ? config.messages.ui.inventoryClose : config.messages.ui.inventoryOpen);
           break;
         case 'confirm':
           if (inventoryOpen) {
@@ -340,28 +440,46 @@ async function start(): Promise<void> {
             } else {
               // Attack: try adjacent target
               const adj = dungeonManager.getAdjacentPositions(player.position, false);
-              let attacked = false;
+              let attackResult: ActionResult | null = null;
+              
               for (const pos of adj) {
                 const targets = dungeonManager.getEntitiesAt(pos).filter(e => e.id !== player.id);
                 if (targets.length > 0) {
                   const target = targets[0];
-                  const result = combat.executeAttack({
+                  attackResult = combat.attemptAttackWithActionResult({
                     attacker: player as any,
                     defender: target as any,
                     attackType: 'melee'
                   } as any);
-                  ui.pushMessage(result.message);
-                  // Remove dead target from map
-                  if ((target.stats as any).hp <= 0) {
-                    dungeonManager.removeEntity(target);
+                  
+                  if (attackResult.success) {
+                    // Remove dead target from map
+                    if ((target.stats as any).hp <= 0) {
+                      dungeonManager.removeEntity(target);
+                    }
                   }
-                  attacked = true;
                   break;
                 }
               }
-              if (!attacked) {
-                ui.pushMessage(config.messages.ui.attackMiss);
+              
+              if (!attackResult) {
+                // 攻撃対象がいない場合（空振り）
+                const airSwingResult: ActionResult = {
+                  success: true,
+                  actionType: 'attack',
+                  consumedTurn: true,  // 空振りはターン消費
+                  message: config.messages.ui.attackMiss
+                };
+                attackResult = airSwingResult;
+                console.log(`[DEBUG] 空振り実行: ターン消費あり`);
+                console.log(`[DEBUG] 空振り結果:`, airSwingResult);
+                
+                // 空振りメッセージを表示
+                ui.pushMessage(airSwingResult.message || '空振りした');
               }
+              
+              // 攻撃は常にターン消費するため、プレイヤー行動ハンドラーで処理
+              handlePlayerAction('attack', true);
             }
           }
           break;
@@ -369,60 +487,93 @@ async function start(): Promise<void> {
     }
 
     if (next && !inventoryOpen) {
-      dungeonManager.moveEntity(player, next);
+      console.log(`[DEBUG] 移動処理開始: プレイヤー位置(${player.position.x}, ${player.position.y}) -> 目標位置(${next.x}, ${next.y})`);
       
-      // 現在のタイル情報を出力
-      const currentCell = dungeonManager.getCellAt(next);
-      if (currentCell) {
-        console.log(`[DEBUG] プレイヤー位置: (${next.x}, ${next.y}), タイルタイプ: ${currentCell.type}`);
-        console.log(`[DEBUG] タイル詳細:`, {
-          type: currentCell.type,
-          walkable: currentCell.walkable,
-          transparent: currentCell.transparent,
-          entities: currentCell.entities.length
+      // 目標位置の詳細情報を確認
+      const targetCell = dungeonManager.getCellAt(next);
+      if (targetCell) {
+        console.log(`[DEBUG] 目標位置の詳細:`, {
+          position: next,
+          type: targetCell.type,
+          walkable: targetCell.walkable,
+          transparent: targetCell.transparent,
+          entities: targetCell.entities.length
         });
       }
       
-      // 階段タイルに移動した場合、自動的にモーダルを開く
-      const newCell = dungeonManager.getCellAt(next);
-      if (newCell && (newCell.type === 'stairs-down' || newCell.type === 'stairs-up')) {
-        const dir = dungeonManager.getCurrentProgressionDirection();
-        const title = dir === 'down' ? config.messages.ui.stairsConfirmDown : config.messages.ui.stairsConfirmUp;
-        openChoiceModal({
-          title,
-          options: [
-            { id: 'yes', label: 'はい' },
-            { id: 'no', label: 'いいえ' },
-          ],
-          defaultIndex: 0,
-        }).then(async (res) => {
-          if (res.type === 'ok' && res.selectedId === 'yes') {
-            try {
-              const result = await multi.advanceFloorWithPlayer(player);
-              if (result.success) {
-                if (result.isCompleted) {
-                  ui.pushMessage(result.message);
+      // 方向名を変換（InputSystem → MovementSystem）
+      const directionMap: Record<string, string> = {
+        'up': 'north',
+        'down': 'south',
+        'left': 'west',
+        'right': 'east'
+      };
+      const movementDirection = directionMap[inputAction.direction] || inputAction.direction;
+      console.log(`[DEBUG] 方向変換: ${inputAction.direction} → ${movementDirection}`);
+      
+      // 移動を試行し、ActionResultを取得
+      const moveResult = movementSystem.attemptMoveWithActionResult(player, movementDirection as any);
+      
+      // 移動成功時のみターン処理を実行
+      if (moveResult.success) {
+        // 現在のタイル情報を出力
+        const currentCell = dungeonManager.getCellAt(next);
+        if (currentCell) {
+          console.log(`[DEBUG] プレイヤー位置: (${next.x}, ${next.y}), タイルタイプ: ${currentCell.type}`);
+          console.log(`[DEBUG] タイル詳細:`, {
+            type: currentCell.type,
+            walkable: currentCell.walkable,
+            transparent: currentCell.transparent,
+            entities: currentCell.entities.length
+          });
+        }
+        
+        // 階段タイルに移動した場合、自動的にモーダルを開く
+        if (currentCell && (currentCell.type === 'stairs-down' || currentCell.type === 'stairs-up')) {
+          const dir = dungeonManager.getCurrentProgressionDirection();
+          const title = dir === 'down' ? config.messages.ui.stairsConfirmDown : config.messages.ui.stairsConfirmUp;
+          openChoiceModal({
+            title,
+            options: [
+              { id: 'yes', label: 'はい' },
+              { id: 'no', label: 'いいえ' },
+            ],
+            defaultIndex: 0,
+          }).then(async (res) => {
+            if (res.type === 'ok' && res.selectedId === 'yes') {
+              try {
+                const result = await multi.advanceFloorWithPlayer(player);
+                if (result.success) {
+                  if (result.isCompleted) {
+                    ui.pushMessage(result.message);
+                  } else {
+                    ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
+                    
+                    // フロア変更時の効果チェックはMultipleDungeonSystem内で処理される
+                  }
                 } else {
-                  ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
-                  
-                  // フロア変更時の効果チェックはMultipleDungeonSystem内で処理される
+                  ui.pushMessage('フロア進行に失敗しました');
                 }
-              } else {
-                ui.pushMessage('フロア進行に失敗しました');
+                render();
+              } catch (error) {
+                console.error('[ERROR] 移動時の階段進行中にエラー:', error);
+                ui.pushMessage('フロア進行中にエラーが発生しました');
+                render();
               }
-              render();
-            } catch (error) {
-              console.error('[ERROR] 移動時の階段進行中にエラー:', error);
-              ui.pushMessage('フロア進行中にエラーが発生しました');
+            } else {
+              ui.pushMessage(config.messages.ui.stairsDecline);
               render();
             }
-          } else {
-            ui.pushMessage(config.messages.ui.stairsDecline);
-            render();
-          }
-        });
+          });
+        }
+        
+        // 移動成功時はプレイヤー行動ハンドラーでターン処理
+        handlePlayerAction('move', true);
       }
     }
+
+    // プレイヤー行動は各処理内でhandlePlayerActionにより即座にターン処理される
+    // 複雑な条件分岐は不要になったため削除
 
     render();
   });
