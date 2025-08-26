@@ -283,6 +283,8 @@ async function start(): Promise<void> {
   let turnInProgress = false;  // ターン進行中フラグ
   let turnStartTime = 0;       // ターン開始時刻
   const TURN_DURATION = 100;  // ターン持続時間
+  const TURN_DURATION_FAST = 50;  // 高速モード時のターン持続時間
+  let isFastMode = false;      // 高速モードフラグ
   
   // 移動処理の重複実行を防ぐフラグ
   let movementInProgress = false;
@@ -308,15 +310,16 @@ async function start(): Promise<void> {
     // ターン制御チェック
     if (turnInProgress) {
       const elapsed = Date.now() - turnStartTime;
-      if (elapsed < TURN_DURATION) {
-        // まだ1秒経過していない → 移動処理をスキップ
+      const currentTurnDuration = isFastMode ? TURN_DURATION_FAST : TURN_DURATION;
+      if (elapsed < currentTurnDuration) {
+        // まだターン持続時間経過していない → 移動処理をスキップ
         return;
       }
-      // 1秒経過 → 行動フラグをリセット
+      // ターン持続時間経過 → 行動フラグをリセット
       turnInProgress = false;
       canMove = true;
       canAttack = true;
-      console.log(`[DEBUG] ターン制御完了: 行動フラグリセット (経過時間: ${elapsed}ms)`);
+      console.log(`[DEBUG] ターン制御完了: 行動フラグリセット (経過時間: ${elapsed}ms, モード: ${isFastMode ? '高速' : '通常'})`);
     }
     
     // ターンシステムの初期化
@@ -446,6 +449,18 @@ async function start(): Promise<void> {
     if (key === 'i' || key === 'I') {
       // Inventory toggle
       setInventoryOpen(!inventoryOpen);
+      return;
+    }
+
+    // Xキーによる高速モード切り替え
+    if (key === 'x' || key === 'X') {
+      if (type === 'keydown') {
+        isFastMode = true;
+        console.log(`[DEBUG] 高速モード開始: ターン持続時間 ${TURN_DURATION_FAST}ms`);
+      } else if (type === 'keyup') {
+        isFastMode = false;
+        console.log(`[DEBUG] 高速モード終了: ターン持続時間 ${TURN_DURATION}ms`);
+      }
       return;
     }
     
