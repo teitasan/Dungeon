@@ -283,6 +283,11 @@ async function start(): Promise<void> {
   let turnInProgress = false;  // ターン進行中フラグ
   let turnStartTime = 0;       // ターン開始時刻
   const TURN_DURATION = 100;  // ターン持続時間
+  
+  // 移動処理の重複実行を防ぐフラグ
+  let movementInProgress = false;
+  let lastMovementTime = 0;  // 最後の移動処理時刻
+  const MOVEMENT_COOLDOWN = 50;  // 移動処理のクールダウン時間（ミリ秒）
 
   const renderInventory = () => {
     uiManager.updateInventoryList(player.inventory);
@@ -333,9 +338,6 @@ async function start(): Promise<void> {
     if (!turnInProgress) {
       processMovement();
     }
-    
-    // トリガー変数をリセット（Qiita記事の手法）
-    keyTrg = 0;
     
     renderer.render(current, dungeonManager, player, turnSystem);
   };
@@ -492,6 +494,8 @@ async function start(): Promise<void> {
           } else {
             ui.pushMessage(`攻撃失敗: ${attackResult.message}`);
           }
+          
+
         } else {
           console.log(`[DEBUG] ターゲットがプレイヤー自身のため攻撃スキップ`);
         }
@@ -501,6 +505,8 @@ async function start(): Promise<void> {
         ui.pushMessage('空振り！');
         canAttack = false; // 攻撃フラグをリセット
         handlePlayerAction('attack', true); // 空振りでもターン消費
+        
+
       }
       
       console.log(`[DEBUG] 攻撃処理完了`);
@@ -508,10 +514,32 @@ async function start(): Promise<void> {
     }
   });
 
+  // キー状態をリセットする関数
+  function resetKeyState(): void {
+    keyPress = 0;
+    keyTrg = 0;
+  }
+
   // 8方向移動処理（ゲームループ内で実行）
   function processMovement() {
     // 移動可能フラグチェック
     if (!canMove) {
+      return;
+    }
+
+    // ターン制御中は移動処理をスキップ
+    if (turnInProgress) {
+      return;
+    }
+
+    // 移動処理中は重複実行を防ぐ
+    if (movementInProgress) {
+      return;
+    }
+    
+    // クールダウン時間内は移動処理をスキップ
+    const currentTime = Date.now();
+    if (currentTime - lastMovementTime < MOVEMENT_COOLDOWN) {
       return;
     }
 
@@ -590,8 +618,12 @@ async function start(): Promise<void> {
     };
     const movementDirection = movementDirectionMap[direction] || direction;
     
-    // 移動処理を実行
+            // 移動処理を実行
       if (next && !inventoryOpen && !isModalOpen() && next.x !== undefined && next.y !== undefined) {
+        // 移動処理開始フラグを設定
+        movementInProgress = true;
+        lastMovementTime = Date.now();
+        
         console.log(`[DEBUG] 移動処理開始: プレイヤー位置(${player.position.x}, ${player.position.y}) -> 目標位置(${next.x}, ${next.y})`);
         
         // 目標位置の詳細情報を確認
@@ -606,12 +638,12 @@ async function start(): Promise<void> {
           });
         }
         
-      // 移動を試行
+              // 移動を試行
         console.log(`[DEBUG] 移動試行: プレイヤー(${player.id}) -> 方向(${movementDirection})`);
         const moveResult = movementSystem.attemptMoveWithActionResult(player, movementDirection as any);
         console.log(`[DEBUG] 移動結果:`, moveResult);
         
-              // 移動成功時の処理
+        // 移動成功時の処理
         if (moveResult.success) {
           console.log(`[DEBUG] 移動成功: プレイヤー位置更新`);
           
@@ -619,7 +651,7 @@ async function start(): Promise<void> {
           canMove = false;
           
           // 階段タイルの処理
-        const currentCell = dungeonManager.getCellAt(next);
+          const currentCell = dungeonManager.getCellAt(next);
           if (currentCell && (currentCell.type === 'stairs-down' || currentCell.type === 'stairs-up')) {
             const dir = dungeonManager.getCurrentProgressionDirection();
             const title = dir === 'down' ? config.messages.ui.stairsConfirmDown : config.messages.ui.stairsConfirmUp;
@@ -638,7 +670,7 @@ async function start(): Promise<void> {
                     if (result.isCompleted) {
                       ui.pushMessage(result.message);
                     } else {
-                    ui.pushMessage(dir === 'down' ? config.messages.ui.stairsConfirmDown : config.messages.ui.stairsAdvanceUp);
+                      ui.pushMessage(dir === 'down' ? config.messages.ui.stairsConfirmDown : config.messages.ui.stairsAdvanceUp);
                     }
                   } else {
                     ui.pushMessage('フロア進行に失敗しました');
@@ -656,12 +688,15 @@ async function start(): Promise<void> {
             });
           }
           
-        // プレイヤー行動ハンドラーでターン処理
+          // プレイヤー行動ハンドラーでターン処理
           handlePlayerAction('move', true);
         } else {
           console.log(`[DEBUG] 移動失敗: ${moveResult.message}`);
-          ui.pushMessage(moveResult.message || '移動できない');
+          // 移動失敗時のメッセージは表示しない
         }
+        
+        // 移動処理完了後にフラグをリセット
+        movementInProgress = false;
       }
     }
     

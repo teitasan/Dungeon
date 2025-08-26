@@ -133,13 +133,13 @@ export class MovementSystem {
       };
     } else {
       // 移動失敗時はターン消費しない
-      let message = '移動できない';
+      let message = '';
       if (moveResult.reason === 'Target cell is not walkable') {
-        message = '壁にぶつかった';
+        message = '';
       } else if (moveResult.reason === 'Target cell is occupied') {
-        message = '他のキャラクターがいる';
+        message = '';
       } else if (moveResult.reason === 'Out of bounds') {
-        message = '境界外だ';
+        message = '';
       }
       
       return {

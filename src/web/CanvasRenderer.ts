@@ -293,24 +293,76 @@ export class CanvasRenderer {
       this.ctx.fillText(glyph, gx + tileSize / 2, gy + tileSize / 2 + 1);
     }
 
-    // プレイヤー
+    // プレイヤー（円形）
     const px = (player.position.x - camX - 0.5) * tileSize + tileSize / 2;
     const py = (player.position.y - camY - 0.5) * tileSize + tileSize / 2;
+    const playerDirection = (player as any).direction || 'south';
+    
+    // 円形を描画
     ctx.beginPath();
     ctx.arc(px, py, tileSize * 0.35, 0, Math.PI * 2);
-    ctx.fillStyle = this.gameConfig?.ui.minimap.playerColor || '#58a6ff'; // 設定ファイルから色を読み取り
+    ctx.fillStyle = this.gameConfig?.ui.minimap.playerColor || '#58a6ff';
     ctx.fill();
     ctx.lineWidth = 2;
     ctx.strokeStyle = '#1f6feb';
     ctx.stroke();
 
-    // 方向ノッチ
+    // かわいいおめめ（プレイヤーの向きに基づいて配置）
+    const directionAngles: Record<string, number> = {
+      'north': 0,
+      'northeast': Math.PI / 4,
+      'east': Math.PI / 2,
+      'southeast': 3 * Math.PI / 4,
+      'south': Math.PI,
+      'southwest': 5 * Math.PI / 4,
+      'west': 3 * Math.PI / 2,
+      'northwest': 7 * Math.PI / 4
+    };
+    
+    const angle = directionAngles[playerDirection] || 0;
+    const eyeDistance = tileSize * 0.15;  // 目の間の距離
+    const eyeSize = tileSize * 0.08;      // 目のサイズ
+    const eyeOffset = tileSize * 0.25;    // プレイヤー円からの距離
+    
+    // 左目の位置を計算
+    const leftEyeAngle = angle - Math.PI / 6;  // 少し内側
+    const leftEyeX = px + Math.sin(leftEyeAngle) * eyeOffset;
+    const leftEyeY = py - Math.cos(leftEyeAngle) * eyeOffset;
+    
+    // 右目の位置を計算
+    const rightEyeAngle = angle + Math.PI / 6;  // 少し内側
+    const rightEyeX = px + Math.sin(rightEyeAngle) * eyeOffset;
+    const rightEyeY = py - Math.cos(rightEyeAngle) * eyeOffset;
+    
+    // 左目を描画
     ctx.beginPath();
-    ctx.moveTo(px, py - tileSize * 0.35);
-    ctx.lineTo(px, py - tileSize * 0.15);
-    ctx.strokeStyle = '#cdd9e5';
-    ctx.lineWidth = 1.5;
+    ctx.arc(leftEyeX, leftEyeY, eyeSize, 0, Math.PI * 2);
+    ctx.fillStyle = '#000000';  // 白目
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
     ctx.stroke();
+    
+    // 左目の黒目を描画
+    ctx.beginPath();
+    ctx.arc(leftEyeX, leftEyeY, eyeSize * 0.6, 0, Math.PI * 2);
+    ctx.fillStyle = '#000000';
+    ctx.fill();
+    
+    // 右目を描画
+    ctx.beginPath();
+    ctx.arc(rightEyeX, rightEyeY, eyeSize, 0, Math.PI * 2);
+    ctx.fillStyle = '#000000';  // 白目
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    // 右目の黒目を描画
+    ctx.beginPath();
+    ctx.arc(rightEyeX, rightEyeY, eyeSize * 0.6, 0, Math.PI * 2);
+    ctx.fillStyle = '#000000';
+    ctx.fill();
 
     // ミニマップ描画
     this.renderMinimap(dungeon, visible, camX, camY, viewW, viewH, player);
