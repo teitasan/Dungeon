@@ -15,6 +15,7 @@ export interface MovementResult {
   blocked?: boolean;
   reason?: string;
   triggeredEvents?: MovementEvent[];
+  data?: any;
 }
 
 // Movement event (traps, interactions, etc.)

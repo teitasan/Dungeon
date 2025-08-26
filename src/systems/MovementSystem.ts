@@ -55,6 +55,19 @@ export class MovementSystem {
     }
 
     const currentPosition = entity.position;
+
+    // Check diagonal movement between wall-surrounded floor cells
+    if (this.isDiagonalDirection(direction) && !finalConstraints.canMoveIntoWalls) {
+      const wallCheckResult = this.checkDiagonalWallSurroundedMovement(currentPosition, direction);
+      if (!wallCheckResult.canMove) {
+        return {
+          success: false,
+          blocked: true,
+          reason: 'Cannot move diagonally between wall-surrounded floor cells',
+          data: { wallInfo: wallCheckResult }
+        };
+      }
+    }
     const newPosition: Position = {
       x: currentPosition.x + directionVector.x,
       y: currentPosition.y + directionVector.y
@@ -233,6 +246,14 @@ export class MovementSystem {
         continue;
       }
 
+      // Check diagonal movement between wall-surrounded floor cells
+      if (this.isDiagonalDirection(movementDirection) && !finalConstraints.canMoveIntoWalls) {
+        const wallCheckResult = this.checkDiagonalWallSurroundedMovement(entity.position, movementDirection);
+        if (!wallCheckResult.canMove) {
+          continue; // Skip this direction if blocked by walls
+        }
+      }
+
       const newPosition: Position = {
         x: entity.position.x + vector.x,
         y: entity.position.y + vector.y
@@ -269,6 +290,53 @@ export class MovementSystem {
    */
   private isDiagonalDirection(direction: MovementDirection): boolean {
     return ['northeast', 'northwest', 'southeast', 'southwest'].includes(direction);
+  }
+
+  /**
+   * Check if diagonal movement is blocked by adjacent walls
+   */
+  private checkDiagonalWallSurroundedMovement(currentPosition: Position, direction: MovementDirection): { canMove: boolean; blockedWalls: Position[] } {
+    const blockedWalls: Position[] = [];
+    
+    // Calculate the two adjacent positions that would be "cut through"
+    let adjacent1: Position, adjacent2: Position;
+    
+    switch (direction) {
+      case 'northeast':
+        adjacent1 = { x: currentPosition.x, y: currentPosition.y - 1 }; // north
+        adjacent2 = { x: currentPosition.x + 1, y: currentPosition.y }; // east
+        break;
+      case 'northwest':
+        adjacent1 = { x: currentPosition.x, y: currentPosition.y - 1 }; // north
+        adjacent2 = { x: currentPosition.x - 1, y: currentPosition.y }; // west
+        break;
+      case 'southeast':
+        adjacent1 = { x: currentPosition.x, y: currentPosition.y + 1 }; // south
+        adjacent2 = { x: currentPosition.x + 1, y: currentPosition.y }; // east
+        break;
+      case 'southwest':
+        adjacent1 = { x: currentPosition.x, y: currentPosition.y + 1 }; // south
+        adjacent2 = { x: currentPosition.x - 1, y: currentPosition.y }; // west
+        break;
+      default:
+        return { canMove: true, blockedWalls: [] };
+    }
+    
+    // Check if either adjacent position is a wall
+    const adjacent1Cell = this.dungeonManager.getCellAt(adjacent1);
+    const adjacent2Cell = this.dungeonManager.getCellAt(adjacent2);
+    
+    const adjacent1IsWall = adjacent1Cell && !this.dungeonManager.isWalkable(adjacent1);
+    const adjacent2IsWall = adjacent2Cell && !this.dungeonManager.isWalkable(adjacent2);
+    
+    // If either adjacent position is a wall, diagonal movement is blocked
+    if (adjacent1IsWall || adjacent2IsWall) {
+      if (adjacent1IsWall) blockedWalls.push(adjacent1);
+      if (adjacent2IsWall) blockedWalls.push(adjacent2);
+      return { canMove: false, blockedWalls };
+    }
+    
+    return { canMove: true, blockedWalls };
   }
 
   /**
