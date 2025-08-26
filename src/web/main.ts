@@ -29,14 +29,35 @@ async function createUI(config: any): Promise<UIManager> {
   return uiManager;
 }
 
-function bindKeys(handler: (e: KeyboardEvent) => void): void {
+function bindKeys(handler: (e: KeyboardEvent & { type: string }) => void): void {
   window.addEventListener('keydown', (e) => {
     // prevent page scroll on arrow keys/space
     const navKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
     if (navKeys.includes(e.key) || e.key === ' ' || e.key === '.') {
       e.preventDefault();
     }
-    handler(e);
+    
+    // イベントオブジェクトを正しく作成
+    const eventData = {
+      key: e.key,
+      code: e.code,
+      type: 'keydown',
+      preventDefault: e.preventDefault.bind(e),
+      stopPropagation: e.stopPropagation.bind(e)
+    };
+    handler(eventData as any);
+  });
+  
+  window.addEventListener('keyup', (e) => {
+    // イベントオブジェクトを正しく作成
+    const eventData = {
+      key: e.key,
+      code: e.code,
+      type: 'keyup',
+      preventDefault: e.preventDefault.bind(e),
+      stopPropagation: e.stopPropagation.bind(e)
+    };
+    handler(eventData as any);
   });
 }
 
@@ -245,6 +266,24 @@ async function start(): Promise<void> {
 
   let inventoryOpen = false;
 
+  // ビット演算によるキー状態管理（Qiita記事を参考）
+  const KEY_UP = 1;      // 0001
+  const KEY_DOWN = 2;    // 0010
+  const KEY_LEFT = 4;    // 0100
+  const KEY_RIGHT = 8;   // 1000
+  
+  let keyPress = 0;      // 現在押されているキー
+  let keyTrg = 0;        // トリガー変数（押された瞬間のみ）
+  
+  // 行動制限フラグ（ターン制ゲーム用）
+  let canMove = true;      // 移動可能フラグ
+  let canAttack = true;    // 攻撃可能フラグ
+  
+  // ターン制御フラグ
+  let turnInProgress = false;  // ターン進行中フラグ
+  let turnStartTime = 0;       // ターン開始時刻
+  const TURN_DURATION = 100;  // ターン持続時間
+
   const renderInventory = () => {
     uiManager.updateInventoryList(player.inventory);
   };
@@ -257,7 +296,23 @@ async function start(): Promise<void> {
 
   const render = () => {
     const current = dungeonManager.getCurrentDungeon();
-    if (!current) return;
+    if (!current) {
+      return;
+    }
+    
+    // ターン制御チェック
+    if (turnInProgress) {
+      const elapsed = Date.now() - turnStartTime;
+      if (elapsed < TURN_DURATION) {
+        // まだ1秒経過していない → 移動処理をスキップ
+        return;
+      }
+      // 1秒経過 → 行動フラグをリセット
+      turnInProgress = false;
+      canMove = true;
+      canAttack = true;
+      console.log(`[DEBUG] ターン制御完了: 行動フラグリセット (経過時間: ${elapsed}ms)`);
+    }
     
     // ターンシステムの初期化
     const entities = dungeonManager.getAllEntities();
@@ -273,84 +328,88 @@ async function start(): Promise<void> {
       turn: turnSystem.getCurrentTurn()
     });
     
+    // 移動処理を実行（ゲームループ内）
+    // ターン制御中は移動処理をスキップ
+    if (!turnInProgress) {
+      processMovement();
+    }
+    
+    // トリガー変数をリセット（Qiita記事の手法）
+    keyTrg = 0;
+    
     renderer.render(current, dungeonManager, player, turnSystem);
   };
 
+  // キー状態管理のみ（移動処理はゲームループ内で実行）
   bindKeys((e) => {
-    const current = player.position;
-    let next: Position | null = null;
-    let moveResult: ActionResult | null = null;
-    
-    // プレイヤー行動ハンドラー（完全同期処理を保証）
-    function handlePlayerAction(action: 'move' | 'attack' | 'item', success: boolean, data?: any) {
-      if (success || action === 'attack') { // 攻撃は常にターン消費
-        turnSystem.recordPlayerAction(player, action, false);
-        console.log(`[DEBUG] プレイヤー行動完了: ${action}, ターン実行開始`);
-        
-        // 完全同期処理：即座にターンシステムを実行
-        turnSystem.executeTurn();
-        console.log(`[DEBUG] ターンシステム実行完了: 次のターン ${turnSystem.getCurrentTurn()}`);
-        
-        // ターンシステム実行後にUIを更新（ターン数表示を更新）
-        const current = dungeonManager.getCurrentDungeon();
-        if (current) {
-          uiManager.updateGameInfoOverlay({
-            floor: current.floor,
-            level: player.stats.level,
-            currentHp: player.stats.hp,
-            maxHp: player.stats.maxHp,
-            gold: 0,
-            turn: turnSystem.getCurrentTurn()
-          });
-        }
-        
-        console.log(`[DEBUG] プレイヤー行動完了: ${action}, ターン実行完了`);
-      }
-    }
-
     const key = e.key;
+    const type = e.type; // 'keydown' または 'keyup'
 
-    // Global cancel handling for future modal operations
-    if (inputSystem.isActionKey(key) && key.toLowerCase() === 'x') {
-      if (isModalOpen()) {
-        cancelCurrentModal();
-        render();
-        return;
-      }
-      if (inventoryOpen) {
-        setInventoryOpen(false);
-        render();
-        return;
-      }
-      return;
-    }
-
-    // While a modal is open, delegate all keys to the modal only
-    if (isModalOpen()) {
-      return;
-    }
-
-    let inputAction: any = null;
+    console.log(`[DEBUG] キーイベント受信: key=${key}, type=${type}, code=${e.code}`);
     
-    // インベントリが開いている場合でもキー入力を処理
-    if (!isModalOpen()) {
-      inputAction = inputSystem.processKeyEvent(key);
-      console.log(`[DEBUG] キー入力: ${key} -> アクション:`, inputAction);
+    // ビット演算によるキー状態管理（Qiita記事を参考）
+      if (type === 'keydown') {
+      switch (key) {
+        case 'ArrowUp':
+          if ((keyPress & KEY_UP) === 0) {
+            keyPress |= KEY_UP;
+            keyTrg |= KEY_UP;
+          }
+          break;
+        case 'ArrowDown':
+          if ((keyPress & KEY_DOWN) === 0) {
+            keyPress |= KEY_DOWN;
+            keyTrg |= KEY_DOWN;
+          }
+          break;
+        case 'ArrowLeft':
+          if ((keyPress & KEY_LEFT) === 0) {
+            keyPress |= KEY_LEFT;
+            keyTrg |= KEY_LEFT;
+          }
+          break;
+        case 'ArrowRight':
+          if ((keyPress & KEY_RIGHT) === 0) {
+            keyPress |= KEY_RIGHT;
+            keyTrg |= KEY_RIGHT;
+          }
+          break;
+      }
+    } else if (type === 'keyup') {
+      switch (key) {
+        case 'ArrowUp':
+          keyPress &= ~KEY_UP;
+          break;
+        case 'ArrowDown':
+          keyPress &= ~KEY_DOWN;
+          break;
+        case 'ArrowLeft':
+          keyPress &= ~KEY_LEFT;
+          break;
+        case 'ArrowRight':
+          keyPress &= ~KEY_RIGHT;
+          break;
+      }
     }
+    
+    console.log(`[DEBUG] 現在のキー状態: keyPress=${keyPress.toString(2).padStart(4, '0')}, keyTrg=${keyTrg.toString(2).padStart(4, '0')}`);
+    
+    // デバッグ: 個別キーの状態確認
+    console.log(`[DEBUG] 個別キー状態: UP=${(keyPress & KEY_UP) !== 0}, DOWN=${(keyPress & KEY_DOWN) !== 0}, LEFT=${(keyPress & KEY_LEFT) !== 0}, RIGHT=${(keyPress & KEY_RIGHT) !== 0}`);
     
     // インベントリ内でのキー操作を優先処理
     if (inventoryOpen) {
-      if (inputAction?.type === 'movement' && inputAction.direction) {
-        // インベントリ内でのアイテム選択移動
-        if (inputAction.direction === 'up' || inputAction.direction === 'down') {
-          const result = ui.handleInventoryAction('move-selection', inputAction.direction);
+      // インベントリ内での移動処理（簡易版）
+      if (key === 'ArrowUp' || key === 'ArrowDown') {
+        const direction = key === 'ArrowUp' ? 'up' : 'down';
+        const result = ui.handleInventoryAction('move-selection', direction);
           if (result.success) {
             renderInventory();
-          }
         }
+        return;
       }
       
-      if (inputAction?.type === 'action' && inputAction.action === 'confirm') {
+      if (key === 'Enter' || key === 'z' || key === 'Z') {
         // アイテム使用処理
         const result = ui.handleInventoryAction('use-item');
         ui.pushMessage(result.message);
@@ -372,211 +431,306 @@ async function start(): Promise<void> {
         return;
       }
       
-      if (inputAction?.type === 'action' && inputAction.action === 'cancel') {
+      if (key === 'x' || key === 'X') {
         setInventoryOpen(false);
         render();
         return;
       }
       
-      // アイテム使用処理は既にhandlePlayerActionでターン処理されるため、
-      // ここでは何もしない（攻撃処理はスキップ済み）
+      return; // インベントリ中は他の処理をスキップ
     }
     
-    // 通常のゲーム操作（インベントリが閉じている場合）
-    if (inputAction?.type === 'movement' && inputAction.direction) {
-      console.log(`[DEBUG] 移動入力検出: ${inputAction.direction}`);
-      next = inputSystem.calculateNextPosition(current, inputAction.direction);
-      console.log(`[DEBUG] 現在位置: (${current.x}, ${current.y}) -> 次位置: (${next.x}, ${next.y})`);
+    // アクションキーの処理
+    if (key === 'i' || key === 'I') {
+      // Inventory toggle
+      setInventoryOpen(!inventoryOpen);
+      return;
     }
     
-    if (inputAction?.type === 'action') {
-      switch (inputAction.action) {
-        case 'inventory':
-          // Inventory toggle
-          setInventoryOpen(!inventoryOpen);
-          break;
-        case 'confirm':
-          if (inventoryOpen) {
-            break;
-          } else {
-            // If on stairs, open confirm modal; otherwise attack
-            const cell = dungeonManager.getCellAt(player.position);
-            if (cell && (cell.type === 'stairs-down' || cell.type === 'stairs-up')) {
-              const dir = dungeonManager.getCurrentProgressionDirection();
-              const title = dir === 'down' ? config.messages.ui.stairsConfirmDown : config.messages.ui.stairsConfirmUp;
-              openChoiceModal({
-                title,
-                options: [
-                  { id: 'yes', label: 'はい' },
-                  { id: 'no', label: 'いいえ' },
-                ],
-                defaultIndex: 0,
-              }).then(async (res) => {
-                if (res.type === 'ok' && res.selectedId === 'yes') {
-                  try {
-                    const result = await multi.advanceFloorWithPlayer(player);
-                    if (result.success) {
-                      if (result.isCompleted) {
-                        ui.pushMessage(result.message);
-                      } else {
-                        ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
-                        
-                        // フロア変更時の効果チェックはMultipleDungeonSystem内で処理される
-                      }
-                    } else {
-                      ui.pushMessage('フロア進行に失敗しました');
-                    }
-                    render();
-                  } catch (error) {
-                    console.error('[ERROR] 階段進行中にエラー:', error);
-                    ui.pushMessage('フロア進行中にエラーが発生しました');
-                    render();
-                  }
-                } else {
-                  ui.pushMessage(config.messages.ui.stairsDecline);
-                  render();
-                }
-              });
-            } else {
-              // Attack: try adjacent target
-              const adj = dungeonManager.getAdjacentPositions(player.position, false);
-              let attackResult: ActionResult | null = null;
-              
-              for (const pos of adj) {
-                const targets = dungeonManager.getEntitiesAt(pos).filter(e => e.id !== player.id);
-                if (targets.length > 0) {
-                  const target = targets[0];
-                  attackResult = combat.attemptAttackWithActionResult({
-                    attacker: player as any,
-                    defender: target as any,
-                    attackType: 'melee'
-                  } as any);
-                  
-                  if (attackResult.success) {
-                    // Remove dead target from map
-                    if ((target.stats as any).hp <= 0) {
-                      dungeonManager.removeEntity(target);
-                    }
-                  }
-                  break;
-                }
-              }
-              
-              if (!attackResult) {
-                // 攻撃対象がいない場合（空振り）
-                const airSwingResult: ActionResult = {
-                  success: true,
-                  actionType: 'attack',
-                  consumedTurn: true,  // 空振りはターン消費
-                  message: config.messages.ui.attackMiss
-                };
-                attackResult = airSwingResult;
-                console.log(`[DEBUG] 空振り実行: ターン消費あり`);
-                console.log(`[DEBUG] 空振り結果:`, airSwingResult);
-                
-                // 空振りメッセージを表示
-                ui.pushMessage(airSwingResult.message || '空振りした');
-              }
-              
-              // 攻撃は常にターン消費するため、プレイヤー行動ハンドラーで処理
-              handlePlayerAction('attack', true);
-            }
-          }
-          break;
+    if (key === 'Enter' || key === 'z' || key === 'Z') {
+      // 攻撃処理はkeydownのみで実行
+      if (type !== 'keydown') {
+        return;
       }
+      
+      // 攻撃可能フラグチェック
+      if (!canAttack) {
+        console.log(`[DEBUG] 攻撃不可: フラグがfalse`);
+        return;
+      }
+      
+      console.log(`[DEBUG] 攻撃キー検出: ${key} (${type})`);
+      
+      // プレイヤーの正面の位置を計算
+      const frontPosition = getFrontPosition(player.position, player.direction);
+      console.log(`[DEBUG] プレイヤー位置: (${player.position.x}, ${player.position.y}), 向き: ${player.direction}`);
+      console.log(`[DEBUG] 正面位置: (${frontPosition.x}, ${frontPosition.y})`);
+      
+      // 正面のセルを取得
+      const frontCell = dungeonManager.getCellAt(frontPosition);
+      console.log(`[DEBUG] 正面セル情報:`, frontCell);
+      
+      if (frontCell && frontCell.entities.length > 0) {
+        // 正面に敵がいる場合：通常の攻撃
+        console.log(`[DEBUG] 正面エンティティ数: ${frontCell.entities.length}`);
+        const target = frontCell.entities[0];
+        console.log(`[DEBUG] ターゲット:`, target);
+        
+        if (target.id !== player.id) {
+          console.log(`[DEBUG] 攻撃試行: プレイヤー(${player.id}) -> ターゲット(${target.id})`);
+          const attackResult = combat.executeAttack({
+            attacker: player,
+            defender: target,
+            attackType: 'melee'
+          });
+          console.log(`[DEBUG] 攻撃結果:`, attackResult);
+          
+          if (attackResult.success) {
+            ui.pushMessage(`攻撃成功！${target.id}に${attackResult.damage}ダメージ`);
+            canAttack = false; // 攻撃フラグをリセット
+            handlePlayerAction('attack', true);
+          } else {
+            ui.pushMessage(`攻撃失敗: ${attackResult.message}`);
+          }
+        } else {
+          console.log(`[DEBUG] ターゲットがプレイヤー自身のため攻撃スキップ`);
+        }
+      } else {
+        // 正面に敵がいない場合：空振り
+        console.log(`[DEBUG] 空振り実行: プレイヤー(${player.id})`);
+        ui.pushMessage('空振り！');
+        canAttack = false; // 攻撃フラグをリセット
+        handlePlayerAction('attack', true); // 空振りでもターン消費
+      }
+      
+      console.log(`[DEBUG] 攻撃処理完了`);
+      return;
+    }
+  });
+
+  // 8方向移動処理（ゲームループ内で実行）
+  function processMovement() {
+    // 移動可能フラグチェック
+    if (!canMove) {
+      return;
     }
 
-    if (next && !inventoryOpen) {
-      console.log(`[DEBUG] 移動処理開始: プレイヤー位置(${player.position.x}, ${player.position.y}) -> 目標位置(${next.x}, ${next.y})`);
+    // モーダルが開いている場合は移動を無効化（インベントリと同様）
+    if (isModalOpen()) {
+      return;
+    }
+    
+    // ビット演算によるキー状態から移動方向を決定
+    const up = (keyPress & KEY_UP) !== 0;
+    const down = (keyPress & KEY_DOWN) !== 0;
+    const left = (keyPress & KEY_LEFT) !== 0;
+    const right = (keyPress & KEY_RIGHT) !== 0;
+    
+    // キーが押されていない場合は処理をスキップ
+    if (!up && !down && !left && !right) {
+      return;
+    }
+    
+    // 移動方向を決定（同時押しを優先）
+    let direction: string | null = null;
+    
+    // 同時押しによる斜め移動を最優先
+    if (up && right) {
+      direction = 'northeast';
+      console.log(`[DEBUG] 北東移動検出（同時押し）`);
+    } else if (up && left) {
+      direction = 'northwest';
+      console.log(`[DEBUG] 北西移動検出（同時押し）`);
+    } else if (down && right) {
+      direction = 'southeast';
+      console.log(`[DEBUG] 南東移動検出（同時押し）`);
+    } else if (down && left) {
+      direction = 'southwest';
+      console.log(`[DEBUG] 南西移動検出（同時押し）`);
+    }
+    // 単体キーによる直線移動
+    else if (up) {
+      direction = 'up';
+      console.log(`[DEBUG] 上移動検出（単体キー）`);
+    } else if (down) {
+      direction = 'down';
+      console.log(`[DEBUG] 下移動検出（単体キー）`);
+    } else if (left) {
+      direction = 'left';
+      console.log(`[DEBUG] 左移動検出（単体キー）`);
+    } else if (right) {
+      direction = 'right';
+      console.log(`[DEBUG] 右移動検出（単体キー）`);
+    }
+    
+    if (!direction) {
+      console.log(`[DEBUG] 移動方向なし - 移動処理をスキップ`);
+      return; // 移動なし
+    }
+    
+    console.log(`[DEBUG] 最終移動方向決定: ${direction}`);
+    
+    // 移動実行
+    const current = player.position;
+    const next = get8DirectionPosition(current, direction);
+    
+    console.log(`[DEBUG] 移動実行: 現在(${current.x}, ${current.y}) -> 目標(${next.x}, ${next.y})`);
+    
+    // プレイヤーの向きを更新
+    const directionMap: Record<string, 'north' | 'northeast' | 'east' | 'southeast' | 'south' | 'southwest' | 'west' | 'northwest'> = {
+      'up': 'north', 'down': 'south', 'left': 'west', 'right': 'east',
+      'northeast': 'northeast', 'southeast': 'southeast', 'southwest': 'southwest', 'northwest': 'northwest'
+    };
+    player.direction = directionMap[direction] || 'south';
+    
+    // MovementSystem用の方向変換
+    const movementDirectionMap: Record<string, string> = {
+      'up': 'north', 'down': 'south', 'left': 'west', 'right': 'east',
+      'northeast': 'northeast', 'southeast': 'southeast', 'southwest': 'southwest', 'northwest': 'northwest'
+    };
+    const movementDirection = movementDirectionMap[direction] || direction;
+    
+    // 移動処理を実行
+      if (next && !inventoryOpen && !isModalOpen() && next.x !== undefined && next.y !== undefined) {
+        console.log(`[DEBUG] 移動処理開始: プレイヤー位置(${player.position.x}, ${player.position.y}) -> 目標位置(${next.x}, ${next.y})`);
+        
+        // 目標位置の詳細情報を確認
+        const targetCell = dungeonManager.getCellAt(next);
+        if (targetCell) {
+          console.log(`[DEBUG] 目標位置の詳細:`, {
+            position: next,
+            type: targetCell.type,
+            walkable: targetCell.walkable,
+            transparent: targetCell.transparent,
+            entities: targetCell.entities.length
+          });
+        }
+        
+      // 移動を試行
+        console.log(`[DEBUG] 移動試行: プレイヤー(${player.id}) -> 方向(${movementDirection})`);
+        const moveResult = movementSystem.attemptMoveWithActionResult(player, movementDirection as any);
+        console.log(`[DEBUG] 移動結果:`, moveResult);
+        
+              // 移動成功時の処理
+        if (moveResult.success) {
+          console.log(`[DEBUG] 移動成功: プレイヤー位置更新`);
+          
+          // 移動フラグをリセット
+          canMove = false;
+          
+          // 階段タイルの処理
+        const currentCell = dungeonManager.getCellAt(next);
+          if (currentCell && (currentCell.type === 'stairs-down' || currentCell.type === 'stairs-up')) {
+            const dir = dungeonManager.getCurrentProgressionDirection();
+            const title = dir === 'down' ? config.messages.ui.stairsConfirmDown : config.messages.ui.stairsConfirmUp;
+            openChoiceModal({
+              title,
+              options: [
+                { id: 'yes', label: 'はい' },
+                { id: 'no', label: 'いいえ' },
+              ],
+              defaultIndex: 0,
+            }).then(async (res) => {
+              if (res.type === 'ok' && res.selectedId === 'yes') {
+                try {
+                  const result = await multi.advanceFloorWithPlayer(player);
+                  if (result.success) {
+                    if (result.isCompleted) {
+                      ui.pushMessage(result.message);
+                    } else {
+                    ui.pushMessage(dir === 'down' ? config.messages.ui.stairsConfirmDown : config.messages.ui.stairsAdvanceUp);
+                    }
+                  } else {
+                    ui.pushMessage('フロア進行に失敗しました');
+                  }
+                  render();
+                } catch (error) {
+                  console.error('[ERROR] 移動時の階段進行中にエラー:', error);
+                  ui.pushMessage('フロア進行中にエラーが発生しました');
+                  render();
+                }
+              } else {
+                ui.pushMessage(config.messages.ui.stairsDecline);
+                render();
+              }
+            });
+          }
+          
+        // プレイヤー行動ハンドラーでターン処理
+          handlePlayerAction('move', true);
+        } else {
+          console.log(`[DEBUG] 移動失敗: ${moveResult.message}`);
+          ui.pushMessage(moveResult.message || '移動できない');
+        }
+      }
+    }
+    
+  // プレイヤー行動ハンドラー（完全同期処理を保証）
+  function handlePlayerAction(action: 'move' | 'attack' | 'item', success: boolean, data?: any) {
+    console.log(`[DEBUG] handlePlayerAction呼び出し: action=${action}, success=${success}`);
+    
+    if (success || action === 'attack') { // 攻撃は常にターン消費
+      console.log(`[DEBUG] ターン処理開始: ${action}`);
+      turnSystem.recordPlayerAction(player, action, false);
+      console.log(`[DEBUG] プレイヤー行動完了: ${action}, ターン実行開始`);
       
-      // 目標位置の詳細情報を確認
-      const targetCell = dungeonManager.getCellAt(next);
-      if (targetCell) {
-        console.log(`[DEBUG] 目標位置の詳細:`, {
-          position: next,
-          type: targetCell.type,
-          walkable: targetCell.walkable,
-          transparent: targetCell.transparent,
-          entities: targetCell.entities.length
+      // 完全同期処理：即座にターンシステムを実行
+      turnSystem.executeTurn();
+      console.log(`[DEBUG] ターンシステム実行完了: 次のターン ${turnSystem.getCurrentTurn()}`);
+      
+      // ターンシステム実行後にUIを更新（ターン数表示を更新）
+      const current = dungeonManager.getCurrentDungeon();
+      if (current) {
+        uiManager.updateGameInfoOverlay({
+          floor: current.floor,
+          level: player.stats.level,
+          currentHp: player.stats.hp,
+          maxHp: player.stats.maxHp,
+          gold: 0,
+          turn: turnSystem.getCurrentTurn()
         });
       }
       
-      // 方向名を変換（InputSystem → MovementSystem）
-      const directionMap: Record<string, string> = {
-        'up': 'north',
-        'down': 'south',
-        'left': 'west',
-        'right': 'east'
-      };
-      const movementDirection = directionMap[inputAction.direction] || inputAction.direction;
-      console.log(`[DEBUG] 方向変換: ${inputAction.direction} → ${movementDirection}`);
+      // ターン制御フラグを設定（1秒間待機開始）
+      turnInProgress = true;
+      turnStartTime = Date.now();
+      console.log(`[DEBUG] ターン制御開始: 行動フラグはfalseのまま (経過時間: 0ms)`);
       
-      // 移動を試行し、ActionResultを取得
-      const moveResult = movementSystem.attemptMoveWithActionResult(player, movementDirection as any);
-      
-      // 移動成功時のみターン処理を実行
-      if (moveResult.success) {
-        // 現在のタイル情報を出力
-        const currentCell = dungeonManager.getCellAt(next);
-        if (currentCell) {
-          console.log(`[DEBUG] プレイヤー位置: (${next.x}, ${next.y}), タイルタイプ: ${currentCell.type}`);
-          console.log(`[DEBUG] タイル詳細:`, {
-            type: currentCell.type,
-            walkable: currentCell.walkable,
-            transparent: currentCell.transparent,
-            entities: currentCell.entities.length
-          });
-        }
-        
-        // 階段タイルに移動した場合、自動的にモーダルを開く
-        if (currentCell && (currentCell.type === 'stairs-down' || currentCell.type === 'stairs-up')) {
-          const dir = dungeonManager.getCurrentProgressionDirection();
-          const title = dir === 'down' ? config.messages.ui.stairsConfirmDown : config.messages.ui.stairsConfirmUp;
-          openChoiceModal({
-            title,
-            options: [
-              { id: 'yes', label: 'はい' },
-              { id: 'no', label: 'いいえ' },
-            ],
-            defaultIndex: 0,
-          }).then(async (res) => {
-            if (res.type === 'ok' && res.selectedId === 'yes') {
-              try {
-                const result = await multi.advanceFloorWithPlayer(player);
-                if (result.success) {
-                  if (result.isCompleted) {
-                    ui.pushMessage(result.message);
-                  } else {
-                    ui.pushMessage(dir === 'down' ? config.messages.ui.stairsAdvanceDown : config.messages.ui.stairsAdvanceUp);
-                    
-                    // フロア変更時の効果チェックはMultipleDungeonSystem内で処理される
-                  }
-                } else {
-                  ui.pushMessage('フロア進行に失敗しました');
-                }
-                render();
-              } catch (error) {
-                console.error('[ERROR] 移動時の階段進行中にエラー:', error);
-                ui.pushMessage('フロア進行中にエラーが発生しました');
-                render();
-              }
-            } else {
-              ui.pushMessage(config.messages.ui.stairsDecline);
-              render();
-            }
-          });
-        }
-        
-        // 移動成功時はプレイヤー行動ハンドラーでターン処理
-        handlePlayerAction('move', true);
-      }
+      console.log(`[DEBUG] プレイヤー行動完了: ${action}, ターン実行完了`);
+    } else {
+      console.log(`[DEBUG] ターン処理スキップ: action=${action}, success=${success}`);
     }
-
-    // プレイヤー行動は各処理内でhandlePlayerActionにより即座にターン処理される
-    // 複雑な条件分岐は不要になったため削除
-
-    render();
-  });
+  }
+  
+  // 8方向の移動方向をPositionに変換する関数
+  function get8DirectionPosition(current: Position, direction: string): Position {
+    switch (direction) {
+      case 'up': return { x: current.x, y: current.y - 1 };
+      case 'down': return { x: current.x, y: current.y + 1 };
+      case 'left': return { x: current.x - 1, y: current.y };
+      case 'right': return { x: current.x + 1, y: current.y };
+      case 'northeast': return { x: current.x + 1, y: current.y - 1 };
+      case 'southeast': return { x: current.x + 1, y: current.y + 1 };
+      case 'southwest': return { x: current.x - 1, y: current.y + 1 };
+      case 'northwest': return { x: current.x - 1, y: current.y - 1 };
+      default: return current;
+    }
+  }
+  
+  // プレイヤーの正面位置を計算する関数
+  function getFrontPosition(current: Position, direction: string): Position {
+    switch (direction) {
+      case 'north': return { x: current.x, y: current.y - 1 };
+      case 'south': return { x: current.x, y: current.y + 1 };
+      case 'west': return { x: current.x - 1, y: current.y };
+      case 'east': return { x: current.x + 1, y: current.y };
+      case 'northeast': return { x: current.x + 1, y: current.y - 1 };
+      case 'southeast': return { x: current.x + 1, y: current.y + 1 };
+      case 'southwest': return { x: current.x - 1, y: current.y + 1 };
+      case 'northwest': return { x: current.x - 1, y: current.y - 1 };
+      default: return { x: current.x, y: current.y + 1 }; // デフォルトは南向き
+    }
+  }
 
   ui.pushMessage(`Entered ${select.dungeon!.name}`);
   
@@ -587,6 +741,28 @@ async function start(): Promise<void> {
   
   // 初回レンダリング（メッセージは既にpushMessageで表示済み）
   render();
+  
+  // ゲームループ開始（30FPS固定 + requestAnimationFrame使用）
+  const FPS = 30;
+  const FRAME_INTERVAL = 1000 / FPS; // 約33.33ms
+  
+  let lastFrameTime = 0;
+  
+  const gameLoop = (currentTime: number) => {
+    const deltaTime = currentTime - lastFrameTime;
+    
+    if (deltaTime >= FRAME_INTERVAL) {
+      lastFrameTime = currentTime - (deltaTime % FRAME_INTERVAL);
+      
+      // ゲームの更新処理
+  render();
+    }
+    
+    requestAnimationFrame(gameLoop);
+  };
+  
+  console.log(`[DEBUG] ゲームループ開始: ${FPS}FPS (${FRAME_INTERVAL.toFixed(1)}ms間隔)`);
+  requestAnimationFrame(gameLoop);
 }
 
 if (document.readyState === 'loading') {

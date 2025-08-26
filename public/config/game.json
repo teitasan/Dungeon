@@ -365,7 +365,11 @@
         "up": ["ArrowUp", "w", "W"],
         "down": ["ArrowDown", "s", "S"],
         "left": ["ArrowLeft", "a", "A"],
-        "right": ["ArrowRight", "d", "D"]
+        "right": ["ArrowRight", "d", "D"],
+        "northeast": ["e", "E"],
+        "southeast": ["c", "C"],
+        "southwest": ["z", "Z"],
+        "northwest": ["q", "Q"]
       },
       "actions": {
         "confirm": ["z", "Z", "Enter"],

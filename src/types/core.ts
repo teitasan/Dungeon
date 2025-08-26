@@ -22,6 +22,7 @@ export interface GameState {
 export interface GameEntity {
   id: string;
   position: Position;
+  direction?: 'north' | 'northeast' | 'east' | 'southeast' | 'south' | 'southwest' | 'west' | 'northwest'; // 8方向（オプショナル）
   components: Component[];
   stats: EntityStats;
   flags: EntityFlags;

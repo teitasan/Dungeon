@@ -105,7 +105,7 @@ export class CanvasRenderer {
       const py = player.position.y;
       const room = this.findRoomAt(dungeon, px, py);
       
-      console.log(`Player at (${px}, ${py}), room: ${room ? `(${room.x},${room.y}) ${room.width}x${room.height}` : 'none'}`);
+      // console.log(`Player at (${px}, ${py}), room: ${room ? `(${room.x},${room.y}) ${room.width}x${room.height}` : 'none'}`);
       
       if (room) {
         // 部屋内なら部屋全体をマッピング
@@ -131,7 +131,7 @@ export class CanvasRenderer {
         
         const roomArea = room.width * room.height;
         const surroundingArea = (room.width + 2) * (room.height + 2) - roomArea;
-        console.log(`Room exploration: room=${roomArea}, surrounding=${surroundingArea}, total=${roomArea + surroundingArea}`);
+        // console.log(`Room exploration: room=${roomArea}, surrounding=${surroundingArea}, total=${roomArea + surroundingArea}`);
       } else {
         // 通路内：プレイヤー位置と周囲8マス
         this.explored[py][px] = true;
@@ -150,7 +150,7 @@ export class CanvasRenderer {
           }
         }
         
-        console.log(`Corridor exploration: player + 8 surrounding tiles = 9`);
+        // console.log(`Corridor exploration: player + 8 surrounding tiles = 9`);
       }
     }
 
@@ -369,7 +369,7 @@ export class CanvasRenderer {
         }
       }
       
-      console.log(`Room visibility: room=${roomVisibleCount}, surrounding=${surroundingVisibleCount}, total=${roomVisibleCount + surroundingVisibleCount}`);
+      // console.log(`Room visibility: room=${roomVisibleCount}, surrounding=${surroundingVisibleCount}, total=${roomVisibleCount + surroundingVisibleCount}`);
     } else {
       // 廊下内：プレイヤー位置と周囲8マス
       visible[py][px] = true;
@@ -391,7 +391,7 @@ export class CanvasRenderer {
       }
       
       // デバッグ：周囲8マスの可視化確認
-      console.log(`Corridor visibility: player at (${px}, ${py}), visible tiles: ${visibleCount}`);
+      // console.log(`Corridor visibility: player at (${px}, ${py}), visible tiles: ${visibleCount}`);
     }
 
     return visible;
@@ -446,9 +446,9 @@ export class CanvasRenderer {
         // レミーラ効果が有効な場合は全エリア表示
         if (this.remillaActive && !isExplored) {
           // デバッグ：レミーラ効果で表示されるセルをログ出力（最初のセルのみ）
-          if (x === 0 && y === 0) {
-            console.log(`[DEBUG] レミーラ効果: 未探索セル(${x}, ${y})を表示, セルタイプ: ${cell.type}`);
-          }
+          // if (x === 0 && y === 0) {
+          //   console.log(`[DEBUG] レミーラ効果: 未探索セル(${x}, ${y})を表示, セルタイプ: ${cell.type}`);
+          // }
         }
         
         // セルタイプの統計
