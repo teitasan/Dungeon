@@ -1,0 +1,144 @@
+{
+  "basic-dungeon": {
+    "id": "basic-dungeon",
+    "name": "Basic Dungeon",
+    "description": "A simple dungeon with progressive difficulty (4x3 grid)",
+    "floors": 10,
+            "generationParams": {
+          "width": 60,
+          "height": 45,
+          "minRooms": 4,
+          "maxRooms": 8,
+          "minRoomSize": 4,
+          "maxRoomSize": 10,
+          "corridorWidth": 1,
+          "roomDensity": 0.3,
+          "specialRoomChance": 0.1,
+          "trapDensity": 0.05,
+          "gridDivision": 12
+        },
+    "floorSpecificParams": [
+      {
+        "floor": 1,
+        "width": 60,
+        "height": 45,
+        "minRooms": 4,
+        "maxRooms": 6,
+        "minRoomSize": 4,
+        "maxRoomSize": 10,
+        "corridorWidth": 1,
+        "roomDensity": 0.3,
+        "specialRoomChance": 0.1,
+        "trapDensity": 0.05
+      },
+      {
+        "floor": 3,
+        "width": 60,
+        "height": 45,
+        "minRooms": 4,
+        "maxRooms": 8,
+        "minRoomSize": 4,
+        "maxRoomSize": 10,
+        "corridorWidth": 1,
+        "roomDensity": 0.3,
+        "specialRoomChance": 0.1,
+        "trapDensity": 0.05
+      }
+    ],
+    "tileSet": "basic",
+    "monsterTable": [],
+    "itemTable": [],
+    "specialRules": []
+  },
+  "large-dungeon": {
+    "id": "large-dungeon",
+    "name": "Large Dungeon",
+    "description": "A larger dungeon with progressive difficulty (4x3 grid)",
+    "floors": 20,
+            "generationParams": {
+          "width": 60,
+          "height": 45,
+          "minRooms": 4,
+          "maxRooms": 12,
+          "minRoomSize": 5,
+          "maxRoomSize": 12,
+          "corridorWidth": 1,
+          "roomDensity": 0.4,
+          "specialRoomChance": 0.15,
+          "trapDensity": 0.08,
+          "gridDivision": 12
+        },
+    "floorSpecificParams": [
+      {
+        "floor": 1,
+        "width": 60,
+        "height": 45,
+        "minRooms": 4,
+        "maxRooms": 12,
+        "minRoomSize": 5,
+        "maxRoomSize": 12,
+        "corridorWidth": 1,
+        "roomDensity": 0.4,
+        "specialRoomChance": 0.15,
+        "trapDensity": 0.08
+      }
+    ],
+    "tileSet": "stone",
+    "monsterTable": [],
+    "itemTable": [],
+    "specialRules": []
+  },
+  "beginner-cave": {
+    "id": "beginner-cave",
+    "name": "Beginner Cave",
+    "description": "A beginner-friendly cave dungeon with progressive grid complexity (3x3 → 4x3)",
+    "floors": 5,
+            "generationParams": {
+          "width": 60,
+          "height": 45,
+          "minRooms": 3,
+          "maxRooms": 6,
+          "minRoomSize": 5,
+          "maxRoomSize": 8,
+          "corridorWidth": 1,
+          "roomDensity": 0.25,
+          "specialRoomChance": 0.05,
+          "trapDensity": 0.02,
+          "gridDivision": 9
+        },
+    "floorRangeParams": [
+      {
+        "floorRange": "1-3",
+        "width": 45,
+        "height": 45,
+        "minRooms": 3,
+        "maxRooms": 6,
+        "minRoomSize": 5,
+        "maxRoomSize": 8,
+        "corridorWidth": 1,
+        "roomDensity": 0.25,
+        "specialRoomChance": 0.05,
+        "trapDensity": 0.02,
+        "gridDivision": 9
+      },
+      {
+        "floorRange": "4-5",
+        "width": 60,
+        "height": 45,
+        "minRooms": 6,
+        "maxRooms": 10,
+        "minRoomSize": 5,
+        "maxRoomSize": 8,
+        "corridorWidth": 1,
+        "roomDensity": 0.3,
+        "specialRoomChance": 0.1,
+        "trapDensity": 0.03,
+        "gridDivision": 12
+      }
+    ],
+    "tileSet": "beginner-cave",
+    "monsterTable": [],
+    "itemTable": [],
+    "specialRules": []
+  }
+}

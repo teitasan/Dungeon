@@ -1,6 +1,6 @@
 /**
  * Dungeon generation system
- * Implements grid-based dungeon generation with 9-division layout
+ * Implements grid-based dungeon generation with 12-division layout (4x3)
  */
 
 import { Position } from '../types/core';
@@ -29,7 +29,7 @@ export class DungeonGenerator {
   }
 
   /**
-   * Generate a complete dungeon using 9-division grid system
+   * Generate a complete dungeon using 12-division grid system (4x3)
    */
   generateDungeon(
     dungeonId: string,
@@ -105,18 +105,19 @@ export class DungeonGenerator {
   }
 
   /**
-   * Generate rooms using 9-division grid system
+   * Generate rooms using 12-division grid system (4x3)
    */
   private generateGridBasedRooms(dungeon: Dungeon, params: DungeonGenerationParams): void {
     try {
       console.log('[DEBUG] generateGridBasedRooms: 開始, サイズ:', dungeon.width, 'x', dungeon.height);
       
-      // Create 9-division grid (3x3)
-      const grid = this.create9DivisionGrid(dungeon.width, dungeon.height);
-      console.log('[DEBUG] 9分割グリッド作成完了, グリッド数:', grid.length);
+      // Create configurable division grid
+      const gridDivision = params.gridDivision || 12; // デフォルト値12
+      const grid = this.createDivisionGrid(dungeon.width, dungeon.height, gridDivision);
+      console.log(`[DEBUG] ${gridDivision}分割グリッド作成完了, グリッド数:`, grid.length);
 
-      // Randomly decide how many rooms to create (4-9)
-      const roomCount = this.randomInt(4, 9);
+      // Use floor-specific room count parameters
+      const roomCount = this.randomInt(params.minRooms, params.maxRooms);
       console.log('[DEBUG] 作成する部屋数:', roomCount);
 
       // Shuffle grid cells for random selection
@@ -147,18 +148,49 @@ export class DungeonGenerator {
     }
   }
 
+
+
   /**
-   * Create 9-division grid (3x3)
+   * Create configurable division grid
+   * 設定可能な分割数のグリッドを作成
    */
-  private create9DivisionGrid(dungeonWidth: number, dungeonHeight: number): GridCell[] {
+  private createDivisionGrid(dungeonWidth: number, dungeonHeight: number, gridDivision: number): GridCell[] {
     const grid: GridCell[] = [];
 
-    // 3x3 grid layout
-    const cols = 3;
-    const rows = 3;
+    // グリッド分割数を適切な行数・列数に変換
+    let cols: number, rows: number;
+    
+    if (gridDivision === 9) {
+      // 3x3 grid
+      cols = 3;
+      rows = 3;
+    } else if (gridDivision === 12) {
+      // 4x3 grid
+      cols = 4;
+      rows = 3;
+    } else if (gridDivision === 16) {
+      // 4x4 grid
+      cols = 4;
+      rows = 4;
+    } else if (gridDivision === 15) {
+      // 5x3 grid
+      cols = 5;
+      rows = 3;
+    } else if (gridDivision === 20) {
+      // 5x4 grid
+      cols = 5;
+      rows = 4;
+    } else {
+      // デフォルト: 4x3 grid (12分割)
+      cols = 4;
+      rows = 3;
+      console.log(`[DEBUG] 未対応のグリッド分割数: ${gridDivision}, デフォルト4x3を使用`);
+    }
 
     const cellWidth = Math.floor(dungeonWidth / cols);
     const cellHeight = Math.floor(dungeonHeight / rows);
+
+    console.log(`[DEBUG] グリッド作成: ${cols}x${rows} (${gridDivision}分割)`);
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
@@ -278,7 +310,7 @@ export class DungeonGenerator {
   }
 
   /**
-   * Connect all rooms with corridors
+   * Connect all rooms with corridors using hierarchical MST approach
    */
   private connectRooms(dungeon: Dungeon, params: DungeonGenerationParams): void {
     try {
@@ -289,69 +321,85 @@ export class DungeonGenerator {
         return;
       }
 
-      // Start with the first room
-      dungeon.rooms[0].connected = true;
-      const connectedRooms = [dungeon.rooms[0]];
-      const unconnectedRooms = dungeon.rooms.slice(1);
-      console.log('[DEBUG] 接続済み部屋:', connectedRooms.length, '未接続部屋:', unconnectedRooms.length);
-
-      // Connect each unconnected room to the nearest connected room
+      // Initialize: each room is its own group
+      const roomGroups: Room[][] = dungeon.rooms.map(room => [room]);
       let connectionCount = 0;
-      while (unconnectedRooms.length > 0) {
-        console.log(`[DEBUG] 接続処理${connectionCount + 1}回目, 未接続部屋数:`, unconnectedRooms.length);
+      
+      console.log('[DEBUG] 初期状態: 各部屋が独立したグループ, グループ数:', roomGroups.length);
+
+      // Continue until all rooms are connected (only one group remains)
+      while (roomGroups.length > 1) {
+        console.log(`[DEBUG] 接続処理${connectionCount + 1}回目, グループ数:`, roomGroups.length);
         
-        let bestConnection: { from: Room; to: Room; distance: number } | null = null;
+        let bestConnection: { 
+          fromGroup: Room[]; 
+          toGroup: Room[]; 
+          fromRoom: Room; 
+          toRoom: Room; 
+          distance: number 
+        } | null = null;
 
-        // Find the closest pair of connected/unconnected rooms
-        for (const connectedRoom of connectedRooms) {
-          for (const unconnectedRoom of unconnectedRooms) {
-            const distance = this.getRoomDistance(connectedRoom, unconnectedRoom);
-
-            if (!bestConnection || distance < bestConnection.distance) {
-              bestConnection = { from: connectedRoom, to: unconnectedRoom, distance };
+        // Find the closest pair of different groups
+        for (let i = 0; i < roomGroups.length; i++) {
+          for (let j = i + 1; j < roomGroups.length; j++) {
+            const group1 = roomGroups[i];
+            const group2 = roomGroups[j];
+            
+            // Find the closest pair of rooms between these groups
+            for (const room1 of group1) {
+              for (const room2 of group2) {
+                const distance = this.getRoomDistance(room1, room2);
+                
+                if (!bestConnection || distance < bestConnection.distance) {
+                  bestConnection = {
+                    fromGroup: group1,
+                    toGroup: group2,
+                    fromRoom: room1,
+                    toRoom: room2,
+                    distance
+                  };
+                }
+              }
             }
           }
         }
 
         if (bestConnection) {
-          console.log(`[DEBUG] 最適な接続を発見: ${bestConnection.from.id} → ${bestConnection.to.id}, 距離: ${bestConnection.distance}`);
+          console.log(`[DEBUG] 最適な接続を発見: グループ${roomGroups.indexOf(bestConnection.fromGroup)} → グループ${roomGroups.indexOf(bestConnection.toGroup)}, 部屋${bestConnection.fromRoom.id} → 部屋${bestConnection.toRoom.id}, 距離: ${bestConnection.distance}`);
           
           // Create corridor between rooms
-          const corridor = this.createCorridor(dungeon, bestConnection.from, bestConnection.to, params);
+          const corridor = this.createCorridor(dungeon, bestConnection.fromRoom, bestConnection.toRoom, params);
 
           // Add connection to both rooms
-          bestConnection.from.connections.push({
-            roomId: bestConnection.to.id,
+          bestConnection.fromRoom.connections.push({
+            roomId: bestConnection.toRoom.id,
             corridorPath: corridor
           });
 
-          bestConnection.to.connections.push({
-            roomId: bestConnection.from.id,
+          bestConnection.toRoom.connections.push({
+            roomId: bestConnection.fromRoom.id,
             corridorPath: corridor
           });
 
-          // Move room to connected list
-          bestConnection.to.connected = true;
-          connectedRooms.push(bestConnection.to);
-          const index = unconnectedRooms.indexOf(bestConnection.to);
-          unconnectedRooms.splice(index, 1);
+          // Mark both rooms as connected
+          bestConnection.fromRoom.connected = true;
+          bestConnection.toRoom.connected = true;
+
+          // Merge the two groups
+          const mergedGroup = [...bestConnection.fromGroup, ...bestConnection.toGroup];
+          roomGroups.splice(roomGroups.indexOf(bestConnection.fromGroup), 1);
+          roomGroups.splice(roomGroups.indexOf(bestConnection.toGroup), 1);
+          roomGroups.push(mergedGroup);
           
           connectionCount++;
-          console.log(`[DEBUG] 接続完了: ${bestConnection.to.id}, 接続済み部屋数:`, connectedRooms.length);
+          console.log(`[DEBUG] グループ統合完了: 新しいグループサイズ: ${mergedGroup.length}, 残りグループ数: ${roomGroups.length}`);
         } else {
           console.error('[ERROR] 最適な接続が見つかりません');
           break;
         }
       }
 
-      console.log('[DEBUG] 部屋接続完了, 総接続数:', connectionCount);
-
-      // Add corridors from empty grid cells to nearby rooms
-      console.log('[DEBUG] 空グリッドからの通路追加開始...');
-      console.log(`[DEBUG] 現在の部屋数: ${dungeon.rooms.length}`);
-      console.log(`[DEBUG] ダンジョンサイズ: ${dungeon.width}x${dungeon.height}`);
-      this.addCorridorsFromEmptyGrids(dungeon, params);
-      console.log('[DEBUG] 空グリッドからの通路追加完了');
+      console.log('[DEBUG] 部屋接続完了, 総接続数:', connectionCount, '最終グループ数:', roomGroups.length);
       
       console.log('[DEBUG] connectRooms: 完了');
     } catch (error) {
@@ -360,213 +408,7 @@ export class DungeonGenerator {
     }
   }
 
-  /**
-   * Add corridors from empty grid cells to nearby rooms
-   */
-  private addCorridorsFromEmptyGrids(dungeon: Dungeon, params: DungeonGenerationParams): void {
-    try {
-      console.log('[DEBUG] addCorridorsFromEmptyGrids: 開始');
-      
-      // Create 3x3 grid for reference
-      const gridSize = 3;
-      const cellWidth = Math.floor(dungeon.width / gridSize);
-      const cellHeight = Math.floor(dungeon.height / gridSize);
-      console.log('[DEBUG] グリッドサイズ:', cellWidth, 'x', cellHeight);
-      
-      // Find empty grid cells
-      const emptyGridCells: { row: number; col: number; x: number; y: number }[] = [];
-      
-      console.log('[DEBUG] 空グリッドセル検索中...');
-      console.log('[DEBUG] 部屋一覧:');
-      dungeon.rooms.forEach((room, idx) => {
-        console.log(`  [${idx}] 部屋${room.id}: (${room.x},${room.y}) ${room.width}x${room.height}`);
-      });
-      
-      for (let row = 0; row < gridSize; row++) {
-        for (let col = 0; col < gridSize; col++) {
-          const gridX = col * cellWidth;
-          const gridY = row * cellHeight;
-          
-          console.log(`[DEBUG] グリッド(${row},${col}) チェック中: 範囲(${gridX},${gridY}) - (${gridX + cellWidth - 1},${gridY + cellHeight - 1})`);
-          
-          // Check if this grid cell is truly empty (no rooms AND no existing corridors)
-          let isEmpty = true;
-          
-          // Check for rooms
-          for (const room of dungeon.rooms) {
-            if (room.x >= gridX && room.x < gridX + cellWidth &&
-                room.y >= gridY && room.y < gridY + cellHeight) {
-              console.log(`  [DEBUG] グリッド(${row},${col}) に部屋${room.id}が存在: (${room.x},${room.y}) ${room.width}x${room.height}`);
-              isEmpty = false;
-              break;
-            }
-          }
-          
-          // Check for existing corridors
-          if (isEmpty) {
-            for (let y = gridY; y < gridY + cellHeight && isEmpty; y++) {
-              for (let x = gridX; x < gridX + cellWidth; x++) {
-                // セルの存在チェックを追加
-                if (dungeon.cells[y] && dungeon.cells[y][x] && (dungeon.cells[y][x].type === 'floor' || dungeon.cells[y][x].type === 'room' || dungeon.cells[y][x].type === 'corridor')) {
-                  // Found existing corridor, mark as not empty
-                  isEmpty = false;
-                  break;
-                }
-              }
-            }
-          }
-          
-          if (isEmpty) {
-            emptyGridCells.push({ row, col, x: gridX, y: gridY });
-            console.log(`[DEBUG] 空グリッドセル発見: (${row},${col}) at (${gridX},${gridY})`);
-          }
-        }
-      }
-      
-      console.log('[DEBUG] 空グリッドセル数:', emptyGridCells.length);
-      
-      if (emptyGridCells.length === 0) {
-        console.log('[DEBUG] 空グリッドセルが検出されませんでした。すべてのグリッドに部屋または通路が存在します。');
-        return;
-      }
-      
-      // 空グリッドからランダムに1-3個を選択
-      let selectedGridCells: { row: number; col: number; x: number; y: number }[] = [];
-      if (emptyGridCells.length > 0) {
-        const maxSelection = Math.min(3, emptyGridCells.length);
-        const selectionCount = this.randomInt(1, maxSelection);
-        console.log(`[DEBUG] 空グリッドから${selectionCount}個をランダム選択`);
-        
-        // 配列をシャッフルしてから先頭から選択
-        const shuffled = this.shuffleArray([...emptyGridCells]);
-        selectedGridCells = shuffled.slice(0, selectionCount);
-        
-        console.log('[DEBUG] 選択された空グリッド:', selectedGridCells.map(c => `(${c.row},${c.col})`));
-      }
-      
-      // 選択された空グリッドから通路を作成
-      console.log('[DEBUG] 選択された空グリッドからの通路作成開始...');
-      
-      // 使用済み位置を管理（通路同士の重複を防ぐ）
-      const usedPositions = new Set<string>();
-      
-      for (let i = 0; i < selectedGridCells.length; i++) {
-        const gridCell = selectedGridCells[i];
-        console.log(`[DEBUG] 空グリッド${i}処理中: (${gridCell.row},${gridCell.col})`);
-        
-        // グリッドセルの中心位置を計算
-        const gridCenter = {
-          x: gridCell.x + Math.floor(cellWidth / 2),
-          y: gridCell.y + Math.floor(cellHeight / 2)
-        };
-        
-        // このグリッドセルに最も近い2つの部屋を見つける
-        const roomDistances = dungeon.rooms.map(room => {
-          const roomCenter = {
-            x: room.x + Math.floor(room.width / 2),
-            y: room.y + Math.floor(room.height / 2)
-          };
-          const distance = Math.abs(gridCenter.x - roomCenter.x) + Math.abs(gridCenter.y - roomCenter.y);
-          return { room, distance };
-        });
-        
-        // 距離でソートして最も近い部屋を選択（異なる部屋であることを保証）
-        roomDistances.sort((a, b) => a.distance - b.distance);
-        
-        console.log(`[DEBUG] 空グリッド${i}: 候補部屋一覧:`);
-        roomDistances.forEach((rd, idx) => {
-          console.log(`  [${idx}] 部屋${rd.room.id}: 距離=${rd.distance}, 位置=(${rd.room.x},${rd.room.y}), サイズ=${rd.room.width}x${rd.room.height}`);
-        });
-        
-        // 異なる部屋を選択する（最大2つ、部屋貫通を避ける）
-        const selectedRooms: typeof roomDistances = [];
-        const usedRoomIds = new Set<string>();
-        
-        for (const roomDistance of roomDistances) {
-          if (selectedRooms.length >= 2) break; // 最大2つまで
-          
-          const roomId = roomDistance.room.id;
-          if (!usedRoomIds.has(roomId)) {
-            console.log(`[DEBUG] 空グリッド${i}: 部屋${roomId}の貫通チェック開始`);
-            console.log(`[DEBUG] 空グリッド${i}: 部屋${roomId}の詳細: 位置(${roomDistance.room.x},${roomDistance.room.y}), サイズ${roomDistance.room.width}x${roomDistance.room.height}`);
-            
-            // 部屋貫通チェック: 他の選択済み部屋を貫通しないか確認
-            const otherRooms = selectedRooms.map(r => r.room);
-            console.log(`[DEBUG] 空グリッド${i}: 部屋${roomId}の貫通チェック対象部屋: ${otherRooms.map(r => r.id).join(', ') || 'なし'}`);
-            
-            if (otherRooms.length > 0) {
-              console.log(`[DEBUG] 空グリッド${i}: 貫通チェック対象部屋の詳細:`);
-              otherRooms.forEach((otherRoom, idx) => {
-                console.log(`  [${idx}] 部屋${otherRoom.id}: 位置(${otherRoom.x},${otherRoom.y}), サイズ${otherRoom.width}x${otherRoom.height}`);
-              });
-            }
-            
-            const canConnect = this.canConnectWithoutIntersectingRooms(
-              gridCenter, 
-              roomDistance.room, 
-              otherRooms
-            );
-            
-            if (canConnect) {
-              selectedRooms.push(roomDistance);
-              usedRoomIds.add(roomId);
-              console.log(`[DEBUG] 空グリッド${i}: 部屋${roomId}を選択 (距離: ${roomDistance.distance}) - 貫通なし`);
-            } else {
-              console.log(`[DEBUG] 空グリッド${i}: 部屋${roomId}をスキップ - 他の部屋を貫通する可能性`);
-            }
-          } else {
-            console.log(`[DEBUG] 空グリッド${i}: 部屋${roomId}は既に選択済みのためスキップ`);
-          }
-        }
-        
-        console.log(`[DEBUG] 空グリッド${i}: 選択された部屋: ${selectedRooms.map(r => r.room.id).join(', ')}`);
-        
-        // 選択された部屋に通路を作成
-        if (selectedRooms.length === 0) {
-          console.log(`[DEBUG] 空グリッド${i}: 接続可能な部屋が見つかりません（部屋貫通の制約により）`);
-        } else if (selectedRooms.length === 1) {
-          console.log(`[DEBUG] 空グリッド${i}: 部屋が1つしかないため、1方向の通路のみ作成（部屋貫通の制約により）`);
-        } else {
-          console.log(`[DEBUG] 空グリッド${i}: 2方向の通路を作成（部屋貫通なし）`);
-        }
-        
-        for (let j = 0; j < selectedRooms.length; j++) {
-          const { room } = selectedRooms[j];
-          
-          // 部屋の接続点を計算（使用済み位置を避ける）
-          const roomCenter = {
-            x: room.x + Math.floor(room.width / 2),
-            y: room.y + Math.floor(room.height / 2)
-          };
-          
-          // 部屋の境界で使用済みでない位置を見つける
-          const connectionPoint = this.findAvailableConnectionPoint(
-            room, 
-            gridCenter, 
-            usedPositions
-          );
-          
-          console.log(`[DEBUG] 空グリッド${i}から部屋${room.id}への通路${j + 1}を作成: (${gridCenter.x},${gridCenter.y}) → (${connectionPoint.x},${connectionPoint.y})`);
-          
-          // 使用済み位置に追加
-          usedPositions.add(`${connectionPoint.x},${connectionPoint.y}`);
-          
-          // グリッド中心から部屋の接続点への通路を作成
-          this.createCorridorPath(dungeon, gridCenter, connectionPoint, params);
-        }
-        
-        // 空グリッド基準点は各通路生成時に自動的に通路として設定される
-        
-        console.log(`[DEBUG] 空グリッド${i}処理完了`);
-      }
-      
-      console.log('[DEBUG] addCorridorsFromEmptyGrids: 完了');
-    } catch (error) {
-      console.error('[ERROR] addCorridorsFromEmptyGridsでエラーが発生:', error);
-      // エラーが発生しても処理を続行
-      console.log('[DEBUG] 空グリッド処理をスキップして続行');
-    }
-  }
+
 
   /**
    * Group adjacent empty grid cells
@@ -662,107 +504,7 @@ export class DungeonGenerator {
     };
   }
 
-  /**
-   * Create a corridor path using the new boundary-reaching algorithm
-   * 連結しようとした部屋の双方からグリッドの境界へむけて通路を伸ばして、
-   * yないしx軸が揃ったら間をむすんで通路とする
-   */
-  private createCorridorPath(dungeon: Dungeon, start: Position, end: Position, params: DungeonGenerationParams): void {
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    
-    // 決定: どちらの軸を先に揃えるか
-    // より距離が短い軸を先に揃えることで、効率的な通路を作成
-    const extendXFirst = Math.abs(dx) > Math.abs(dy);
-    
-    if (extendXFirst) {
-      // X軸を先に揃える場合
-      this.createCorridorPathXFirst(dungeon, start, end, params);
-    } else {
-      // Y軸を先に揃える場合
-      this.createCorridorPathYFirst(dungeon, start, end, params);
-    }
-  }
 
-  /**
-   * Create corridor path with X-axis alignment first
-   */
-  private createCorridorPathXFirst(dungeon: Dungeon, start: Position, end: Position, params: DungeonGenerationParams): void {
-    // 開始点自体を通路として確実に設定
-    this.carveCorridor(dungeon, start, params.corridorWidth);
-    
-    // 1. 開始点からX軸方向に境界まで伸ばす
-    let currentStart = { ...start };
-    const startXPath: Position[] = [];
-    
-    // X軸方向に伸ばす（目標のX座標まで）
-    while (currentStart.x !== end.x) {
-      currentStart.x += currentStart.x < end.x ? 1 : -1;
-      startXPath.push({ ...currentStart });
-      this.carveCorridor(dungeon, currentStart, params.corridorWidth);
-    }
-    
-    // 2. 終了点からY軸方向に境界まで伸ばす
-    let currentEnd = { ...end };
-    const endYPath: Position[] = [];
-    
-    // Y軸方向に伸ばす（開始点のY座標まで）
-    while (currentEnd.y !== start.y) {
-      currentEnd.y += currentEnd.y < start.y ? 1 : -1;
-      endYPath.push({ ...currentEnd });
-      this.carveCorridor(dungeon, currentEnd, params.corridorWidth);
-    }
-    
-    // 3. 2つの通路の間を接続（X軸が揃った状態でY軸方向に接続）
-    const connectionStart = { x: currentStart.x, y: Math.min(currentStart.y, currentEnd.y) };
-    const connectionEnd = { x: currentStart.x, y: Math.max(currentStart.y, currentEnd.y) };
-    
-    let currentConnection = { ...connectionStart };
-    while (currentConnection.y !== connectionEnd.y) {
-      currentConnection.y += 1;
-      this.carveCorridor(dungeon, currentConnection, params.corridorWidth);
-    }
-  }
-
-  /**
-   * Create corridor path with Y-axis alignment first
-   */
-  private createCorridorPathYFirst(dungeon: Dungeon, start: Position, end: Position, params: DungeonGenerationParams): void {
-    // 開始点自体を通路として確実に設定
-    this.carveCorridor(dungeon, start, params.corridorWidth);
-    
-    // 1. 開始点からY軸方向に境界まで伸ばす
-    let currentStart = { ...start };
-    const startYPath: Position[] = [];
-    
-    // Y軸方向に伸ばす（目標のY座標まで）
-    while (currentStart.y !== end.y) {
-      currentStart.y += currentStart.y < end.y ? 1 : -1;
-      startYPath.push({ ...currentStart });
-      this.carveCorridor(dungeon, currentStart, params.corridorWidth);
-    }
-    
-    // 2. 終了点からX軸方向に境界まで伸ばす
-    let currentEnd = { ...end };
-    const endXPath: Position[] = [];
-    
-    // X軸方向に伸ばす（開始点のX座標まで）
-    while (currentEnd.x !== start.x) {
-      currentEnd.x += currentEnd.x < start.x ? 1 : -1;
-      endXPath.push({ ...currentEnd });
-      this.carveCorridor(dungeon, currentEnd, params.corridorWidth);
-    }
-    
-    // 3. 2つの通路の間を接続（Y軸が揃った状態でX軸方向に接続）
-    const connectionStart = { x: Math.min(currentStart.x, currentEnd.x), y: currentStart.y };
-    const connectionEnd = { x: Math.max(currentStart.x, currentEnd.x), y: currentStart.y };
-    
-    let currentConnection = { ...connectionStart };
-    while (currentConnection.x !== connectionEnd.x) {
-      currentConnection.x += 1;
-      this.carveCorridor(dungeon, currentConnection, params.corridorWidth);
-    }
-  }
 
   /**
    * Calculate distance between two rooms (center to center)
@@ -1097,149 +839,7 @@ export class DungeonGenerator {
     }
   }
 
-  /**
-   * Check if connection from start to target room can be made without intersecting other rooms
-   * 開始点から目標部屋への接続が他の部屋を貫通せずに可能かチェック
-   */
-  private canConnectWithoutIntersectingRooms(
-    startPosition: Position,
-    targetRoom: Room,
-    otherRooms: Room[]
-  ): boolean {
-    // 目標部屋の接続点を計算
-    const targetCenter = {
-      x: targetRoom.x + Math.floor(targetRoom.width / 2),
-      y: targetRoom.y + Math.floor(targetRoom.height / 2)
-    };
-    
-    // 方向を計算
-    const dx = targetCenter.x - startPosition.x;
-    const dy = targetCenter.y - startPosition.y;
-    
-    // 境界到達アルゴリズムのパスをシミュレート
-    if (Math.abs(dx) > Math.abs(dy)) {
-      // X軸優先: 水平→垂直
-      const horizontalEnd = { x: targetCenter.x, y: startPosition.y };
-      const canConnectHorizontal = this.checkPathIntersection(startPosition, horizontalEnd, otherRooms);
-      const canConnectVertical = this.checkPathIntersection(horizontalEnd, targetCenter, otherRooms);
-      
-      console.log(`[DEBUG] 部屋貫通チェック: X軸優先, 水平部分(${startPosition.x},${startPosition.y})→(${horizontalEnd.x},${horizontalEnd.y}): ${canConnectHorizontal}`);
-      console.log(`[DEBUG] 部屋貫通チェック: X軸優先, 垂直部分(${horizontalEnd.x},${horizontalEnd.y})→(${targetCenter.x},${targetCenter.y}): ${canConnectVertical}`);
-      
-      return canConnectHorizontal && canConnectVertical;
-    } else {
-      // Y軸優先: 垂直→水平
-      const verticalEnd = { x: startPosition.x, y: targetCenter.y };
-      const canConnectVertical = this.checkPathIntersection(startPosition, verticalEnd, otherRooms);
-      const canConnectHorizontal = this.checkPathIntersection(verticalEnd, targetCenter, otherRooms);
-      
-      console.log(`[DEBUG] 部屋貫通チェック: Y軸優先, 垂直部分(${startPosition.x},${startPosition.y})→(${verticalEnd.x},${verticalEnd.y}): ${canConnectVertical}`);
-      console.log(`[DEBUG] 部屋貫通チェック: Y軸優先, 水平部分(${verticalEnd.x},${verticalEnd.y})→(${targetCenter.x},${targetCenter.y}): ${canConnectHorizontal}`);
-      
-      return canConnectVertical && canConnectHorizontal;
-    }
-  }
 
-  /**
-   * Check if a straight path between two points intersects with any rooms
-   * 2点間の直線パスが部屋と交差するかチェック
-   */
-  private checkPathIntersection(start: Position, end: Position, rooms: Room[]): boolean {
-    // 直線パスの各点をチェック
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const steps = Math.max(Math.abs(dx), Math.abs(dy));
-    
-    console.log(`[DEBUG] パス交差チェック: (${start.x},${start.y})→(${end.x},${end.y}), ステップ数: ${steps}, チェック対象部屋数: ${rooms.length}`);
-    
-    for (let i = 0; i <= steps; i++) {
-      const x = start.x + Math.round((dx * i) / steps);
-      const y = start.y + Math.round((dy * i) / steps);
-      
-      // 各部屋との交差チェック
-      for (const room of rooms) {
-        if (x >= room.x && x < room.x + room.width && 
-            y >= room.y && y < room.y + room.height) {
-          console.log(`[DEBUG] 部屋貫通検出: パス上の点(${x},${y})が部屋${room.id}(${room.x},${room.y},${room.width}x${room.height})内に存在`);
-          return false; // 部屋と交差
-        }
-      }
-    }
-    
-    console.log(`[DEBUG] パス交差なし: (${start.x},${start.y})→(${end.x},${end.y})`);
-    return true; // 交差なし
-  }
-
-  /**
-   * Find available connection point on room boundary avoiding used positions
-   * 部屋の境界で使用済みでない接続点を見つける
-   */
-  private findAvailableConnectionPoint(
-    room: Room, 
-    targetPosition: Position, 
-    usedPositions: Set<string>
-  ): Position {
-    const roomCenter = {
-      x: room.x + Math.floor(room.width / 2),
-      y: room.y + Math.floor(room.height / 2)
-    };
-    
-    // 目標位置への方向を計算
-    const dx = targetPosition.x - roomCenter.x;
-    const dy = targetPosition.y - roomCenter.y;
-    
-    let connectionPoint: Position;
-    
-    if (Math.abs(dx) > Math.abs(dy)) {
-      // 水平接続 - 左右の境界を使用
-      if (dx > 0) {
-        // 目標が右側、右境界を使用
-        const exitX = room.x + room.width - 1;
-        const exitY = this.adjustToEvenOddGridWithCollisionAvoidance(
-          roomCenter.y, 
-          room.y, 
-          room.y + room.height - 1, 
-          usedPositions
-        );
-        connectionPoint = { x: exitX, y: exitY };
-      } else {
-        // 目標が左側、左境界を使用
-        const exitX = room.x;
-        const exitY = this.adjustToEvenOddGridWithCollisionAvoidance(
-          roomCenter.y, 
-          room.y, 
-          room.y + room.height - 1, 
-          usedPositions
-        );
-        connectionPoint = { x: exitX, y: exitY };
-      }
-    } else {
-      // 垂直接続 - 上下の境界を使用
-      if (dy > 0) {
-        // 目標が下側、下境界を使用
-        const exitY = room.y + room.height - 1;
-        const exitX = this.adjustToEvenOddGridWithCollisionAvoidance(
-          roomCenter.x, 
-          room.x, 
-          room.x + room.width - 1, 
-          usedPositions
-        );
-        connectionPoint = { x: exitX, y: exitY };
-      } else {
-        // 目標が上側、上境界を使用
-        const exitY = room.y;
-        const exitX = this.adjustToEvenOddGridWithCollisionAvoidance(
-          roomCenter.x, 
-          room.x, 
-          room.x + room.width - 1, 
-          usedPositions
-        );
-        connectionPoint = { x: exitX, y: exitY };
-      }
-    }
-    
-    return connectionPoint;
-  }
 
   /**
    * Place stairs in the dungeon

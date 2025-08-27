@@ -1,7 +1,17 @@
 import { defineConfig } from 'vite';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
 export default defineConfig({
   root: '.',
+  define: {
+    // ビルド時にJSONファイルを文字列として埋め込み
+    __DUNGEON_TEMPLATES__: JSON.stringify(
+      JSON.parse(
+        readFileSync(resolve(__dirname, 'config/dungeonTemplates.json'), 'utf-8')
+      )
+    )
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

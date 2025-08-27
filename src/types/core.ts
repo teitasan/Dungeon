@@ -2,6 +2,8 @@
  * Core types for the mystery dungeon game
  */
 
+import type { DungeonTemplate } from './dungeon.js';
+
 export interface Position {
   x: number;
   y: number;
@@ -202,9 +204,16 @@ export interface RecoverySystemConfig {
 export type StatusEffectType = 'poison' | 'confusion' | 'paralysis' | 'bind';
 
 export interface DungeonConfig {
+  coordinateConstraints?: {
+    roomCenterEven?: boolean;
+    corridorOddOnly?: boolean;
+  };
   defaultTileset: DungeonTilesetConfig;
   dungeonSpecificTilesets: {
     [dungeonId: string]: DungeonTilesetConfig;
+  };
+  templates?: {
+    [templateId: string]: DungeonTemplate;
   };
 }
 

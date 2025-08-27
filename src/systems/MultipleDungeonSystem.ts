@@ -781,7 +781,8 @@ export class MultipleDungeonSystem {
       corridorWidth: 1,
       roomDensity: 0.3,
       specialRoomChance: 0.1,
-      trapDensity: 0.05
+      trapDensity: 0.05,
+      gridDivision: 12
     };
 
     const template: DungeonTemplate = {

@@ -13,6 +13,7 @@ import {
   CellType 
 } from '../types/dungeon';
 import { DungeonGenerator } from './DungeonGenerator.js';
+import { SyncConfigLoader, DungeonTemplateConfig } from '../core/SyncConfigLoader.js';
 
 export class DungeonManager {
   private currentDungeon: Dungeon | null = null;
@@ -22,7 +23,7 @@ export class DungeonManager {
 
   constructor() {
     this.generator = new DungeonGenerator();
-    this.initializeDefaultTemplates();
+    this.loadTemplatesFromSyncConfig();
   }
 
   /**
@@ -47,11 +48,15 @@ export class DungeonManager {
       }
 
       console.log('[DEBUG] ダンジョン生成中...');
+      // Get floor-specific generation parameters
+      const floorParams = this.getFloorGenerationParams(floor);
+      console.log('[DEBUG] 使用する生成パラメータ:', floorParams);
+      
       const dungeon = this.generator.generateDungeon(
         `${templateId}-floor-${floor}`,
         `${template.name} Floor ${floor}`,
         floor,
-        template.generationParams
+        floorParams
       );
       console.log('[DEBUG] ダンジョン生成完了, サイズ:', dungeon.width, 'x', dungeon.height);
 
@@ -291,16 +296,114 @@ export class DungeonManager {
   }
 
   /**
-   * Initialize default dungeon templates
+   * Load dungeon templates from synchronous configuration loader
    */
-  private initializeDefaultTemplates(): void {
-    // Basic dungeon template
-    const basicDungeon: DungeonTemplate = {
-      id: 'basic-dungeon',
-      name: 'Basic Dungeon',
-      description: 'A simple dungeon with rooms and corridors',
-      floors: 10,
-      generationParams: {
+  private loadTemplatesFromSyncConfig(): void {
+    try {
+      console.log('[DEBUG] 同期的な設定ローダーからダンジョンテンプレートを読み込み中...');
+      
+      const configLoader = SyncConfigLoader.getInstance();
+      const templates = configLoader.getDungeonTemplates();
+      
+      console.log('[DEBUG] 設定からテンプレートを読み込み:', Object.keys(templates));
+      
+      // Convert DungeonTemplateConfig to DungeonTemplate and register
+      for (const [templateId, templateConfig] of Object.entries(templates)) {
+        const template: DungeonTemplate = {
+          id: templateConfig.id,
+          name: templateConfig.name,
+          description: templateConfig.description,
+          floors: templateConfig.floors,
+          generationParams: {
+            width: templateConfig.generationParams.width,
+            height: templateConfig.generationParams.height,
+            minRooms: templateConfig.generationParams.minRooms,
+            maxRooms: templateConfig.generationParams.maxRooms,
+            minRoomSize: templateConfig.generationParams.minRoomSize,
+            maxRoomSize: templateConfig.generationParams.maxRoomSize,
+            corridorWidth: templateConfig.generationParams.corridorWidth,
+            roomDensity: templateConfig.generationParams.roomDensity,
+            specialRoomChance: templateConfig.generationParams.specialRoomChance,
+            trapDensity: templateConfig.generationParams.trapDensity,
+            gridDivision: templateConfig.generationParams.gridDivision
+          },
+          floorSpecificParams: templateConfig.floorSpecificParams?.map(fp => ({
+            floor: fp.floor,
+            width: fp.width,
+            height: fp.height,
+            minRooms: fp.minRooms,
+            maxRooms: fp.maxRooms,
+            minRoomSize: fp.minRoomSize,
+            maxRoomSize: fp.maxRoomSize,
+            corridorWidth: fp.corridorWidth,
+            roomDensity: fp.roomDensity,
+            specialRoomChance: fp.specialRoomChance,
+            trapDensity: fp.trapDensity,
+            gridDivision: fp.gridDivision
+          })),
+          floorRangeParams: templateConfig.floorRangeParams?.map(rp => ({
+            floorRange: rp.floorRange,
+            width: rp.width,
+            height: rp.height,
+            minRooms: rp.minRooms,
+            maxRooms: rp.maxRooms,
+            minRoomSize: rp.minRoomSize,
+            maxRoomSize: rp.maxRoomSize,
+            corridorWidth: rp.corridorWidth,
+            roomDensity: rp.roomDensity,
+            specialRoomChance: rp.specialRoomChance,
+            trapDensity: rp.trapDensity,
+            gridDivision: rp.gridDivision
+          })),
+          tileSet: templateConfig.tileSet,
+          monsterTable: templateConfig.monsterTable,
+          itemTable: templateConfig.itemTable,
+          specialRules: templateConfig.specialRules
+        };
+        
+        this.registerTemplate(template);
+        console.log(`[DEBUG] テンプレート登録完了: ${template.name}`);
+      }
+      
+      console.log('[DEBUG] 同期的な設定読み込み完了');
+    } catch (error) {
+      console.error('[ERROR] 同期的な設定読み込みに失敗:', error);
+      console.log('[DEBUG] デフォルトテンプレートを使用');
+      this.initializeDefaultTemplates();
+    }
+  }
+
+  /**
+   * Parse floor range string (e.g., "1-3", "4-5")
+   */
+  private parseFloorRange(rangeStr: string): { min: number; max: number } | null {
+    const match = rangeStr.match(/^(\d+)-(\d+)$/);
+    if (!match) return null;
+    
+    const min = parseInt(match[1], 10);
+    const max = parseInt(match[2], 10);
+    
+    if (min > max) return null;
+    return { min, max };
+  }
+
+  /**
+   * Check if a floor is within a range
+   */
+  private isFloorInRange(floor: number, rangeStr: string): boolean {
+    const range = this.parseFloorRange(rangeStr);
+    if (!range) return false;
+    
+    return floor >= range.min && floor <= range.max;
+  }
+
+  /**
+   * Get generation parameters for specific floor
+   */
+  getFloorGenerationParams(floor: number): DungeonGenerationParams {
+    if (!this.currentTemplateId) {
+      // Default parameters if no template
+      return {
         width: 45,
         height: 45,
         minRooms: 4,
@@ -310,40 +413,88 @@ export class DungeonManager {
         corridorWidth: 1,
         roomDensity: 0.3,
         specialRoomChance: 0.1,
-        trapDensity: 0.05
+        trapDensity: 0.05,
+        gridDivision: 12
+      };
+    }
+
+    const tpl = this.dungeonTemplates.get(this.currentTemplateId);
+    if (!tpl) {
+      throw new Error(`Template not found: ${this.currentTemplateId}`);
+    }
+
+    console.log(`[DEBUG] テンプレート ${this.currentTemplateId} のパラメータを確認:`, {
+      hasFloorRangeParams: !!tpl.floorRangeParams,
+      floorRangeParamsLength: tpl.floorRangeParams?.length || 0,
+      hasFloorSpecificParams: !!tpl.floorSpecificParams,
+      floorSpecificParamsLength: tpl.floorSpecificParams?.length || 0,
+      generationParams: tpl.generationParams
+    });
+
+    // Check for floor range parameters first (new system)
+    if (tpl.floorRangeParams) {
+      console.log(`[DEBUG] floorRangeParams をチェック:`, tpl.floorRangeParams);
+      const rangeParams = tpl.floorRangeParams.find(rp => {
+        const isInRange = this.isFloorInRange(floor, rp.floorRange);
+        console.log(`[DEBUG] 範囲チェック: ${rp.floorRange} for floor ${floor} = ${isInRange}`);
+        return isInRange;
+      });
+      if (rangeParams) {
+        console.log(`[DEBUG] 階層${floor}用の範囲設定を使用: ${rangeParams.floorRange}`, rangeParams);
+        return rangeParams;
+      }
+    } else {
+      console.log(`[DEBUG] floorRangeParams が存在しません`);
+    }
+
+    // Check for floor-specific parameters (legacy system)
+    if (tpl.floorSpecificParams) {
+      const floorParams = tpl.floorSpecificParams.find(fp => fp.floor === floor);
+      if (floorParams) {
+        console.log(`[DEBUG] 階層${floor}用の設定を使用:`, floorParams);
+        return floorParams;
+      }
+    }
+
+    // Fall back to default parameters
+    console.log(`[DEBUG] 階層${floor}用の設定が見つからないため、デフォルト設定を使用:`, tpl.generationParams);
+    return tpl.generationParams;
+  }
+
+  /**
+   * Initialize default dungeon templates (fallback)
+   */
+  private initializeDefaultTemplates(): void {
+    console.log('[DEBUG] デフォルトテンプレートを初期化中...');
+    
+    // Fallback to basic template if sync config fails
+    const basicDungeon: DungeonTemplate = {
+      id: 'basic-dungeon',
+      name: 'Basic Dungeon (Fallback)',
+      description: 'Fallback template for basic dungeon',
+      floors: 10,
+      generationParams: {
+        width: 60,
+        height: 45,
+        minRooms: 4,
+        maxRooms: 8,
+        minRoomSize: 4,
+        maxRoomSize: 10,
+        corridorWidth: 1,
+        roomDensity: 0.3,
+        specialRoomChance: 0.1,
+        trapDensity: 0.05,
+        gridDivision: 12
       },
+      floorSpecificParams: [],
       tileSet: 'basic',
       monsterTable: [],
       itemTable: [],
       specialRules: []
     };
 
-    // Large dungeon template
-    const largeDungeon: DungeonTemplate = {
-      id: 'large-dungeon',
-      name: 'Large Dungeon',
-      description: 'A larger dungeon with more rooms',
-      floors: 20,
-      generationParams: {
-        width: 60,
-        height: 45,
-        minRooms: 8,
-        maxRooms: 15,
-        minRoomSize: 5,
-        maxRoomSize: 12,
-        corridorWidth: 1,
-        roomDensity: 0.4,
-        specialRoomChance: 0.15,
-        trapDensity: 0.08
-      },
-      tileSet: 'stone',
-      monsterTable: [],
-      itemTable: [],
-      specialRules: []
-    };
-
     this.registerTemplate(basicDungeon);
-    this.registerTemplate(largeDungeon);
+    console.log('[DEBUG] デフォルトテンプレート初期化完了');
   }
 
   /**

@@ -87,6 +87,7 @@ export interface DungeonGenerationParams {
   roomDensity: number; // 0.0 - 1.0
   specialRoomChance: number; // 0.0 - 1.0
   trapDensity: number; // 0.0 - 1.0
+  gridDivision: number; // グリッド分割数（例: 12 = 4x3, 9 = 3x3）
   seed?: number;
   /**
    * 進行方向（デフォルト: 'down'）
@@ -96,13 +97,29 @@ export interface DungeonGenerationParams {
   progressionDirection?: 'down' | 'up';
 }
 
+// Floor-specific generation parameters (legacy)
+export interface FloorGenerationParams extends DungeonGenerationParams {
+  floor: number;
+  minRooms: number;
+  maxRooms: number;
+}
+
+// Floor range generation parameters (new)
+export interface FloorRangeGenerationParams extends DungeonGenerationParams {
+  floorRange: string; // "1-3", "4-5" などの範囲指定
+  minRooms: number;
+  maxRooms: number;
+}
+
 // Dungeon template for different dungeon types
 export interface DungeonTemplate {
   id: string;
   name: string;
   description: string;
   floors: number;
-  generationParams: DungeonGenerationParams;
+  generationParams: DungeonGenerationParams; // Default parameters
+  floorSpecificParams?: FloorGenerationParams[]; // Floor-specific overrides (legacy)
+  floorRangeParams?: FloorRangeGenerationParams[]; // Floor range overrides (new)
   tileSet: string;
   monsterTable: MonsterSpawnEntry[];
   itemTable: ItemSpawnEntry[];
