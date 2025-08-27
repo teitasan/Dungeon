@@ -1,0 +1,272 @@
+/* ========================================
+   ボックスモデル設定
+   ======================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* ========================================
+   フォント定義
+   ======================================== */
+@font-face {
+  font-family: 'PixelMplus';
+  src: url('/fonts/PixelMplus10-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'PixelMplus';
+  src: url('/fonts/PixelMplus10-Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'PixelMplus12';
+  src: url('/fonts/PixelMplus12-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'PixelMplus12';
+  src: url('/fonts/PixelMplus12-Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}
+
+/* ========================================
+   基本スタイル
+   ======================================== */
+html, body { 
+  height: 100%; 
+  margin: 0; 
+  background: blue; 
+  color: #eee; 
+  font-family: 'PixelMplus', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; 
+}
+
+a { 
+  color: #6cf; 
+}
+
+/* ========================================
+   メインレイアウト
+   ======================================== */
+#layout { 
+  display: grid; 
+  grid-template-columns: 1fr; 
+  gap: 6px; 
+  padding: 12px; 
+  box-sizing: border-box; 
+  height: 100%; 
+  position: relative;
+}
+
+/* ========================================
+   ゲームエリア
+   ======================================== */
+.map { 
+  background: #000; 
+  border-radius: 8px; 
+  overflow: auto; 
+  box-shadow: 0 0 0 1px #333 inset; 
+  line-height: 1.05; 
+  font-size: 12px; 
+}
+
+#game {
+  width: 100%;
+  image-rendering: pixelated;
+}
+
+/* ========================================
+   サイドバー
+   ======================================== */
+#sidebar { 
+  display: grid; 
+  grid-template-rows: auto 1fr auto; 
+  gap: 12px; 
+}
+
+.status, .messages, .help { 
+  background: #1a1a1a; 
+  padding: 10px; 
+  border-radius: 8px; 
+  box-shadow: 0 0 0 1px #333 inset; 
+}
+
+/* ========================================
+   ボトムエリア（ミニマップ + メッセージ）
+   ======================================== */
+#bottom {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px;
+  align-items: start;
+  height: 160px;
+}
+
+#minimap {
+  background: #000;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #333 inset;
+  width: 240px;
+  height: 100%;
+}
+
+#messages {
+  height: 100%;
+  white-space: pre-wrap;
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+/* タイプライター風アニメーション */
+.typing-message {
+  display: inline-block;
+  white-space: nowrap;
+  overflow: visible;
+  animation: typing calc(var(--char-count) * 0.03s) steps(var(--char-count)) forwards;
+}
+
+/* テキスト表示（clip-pathで左から右へ表示）のアニメーション */
+@keyframes typing {
+  from { 
+    clip-path: inset(0 100% 0 0);
+  }
+  to { 
+    clip-path: inset(0 0% 0 0);
+  }
+}
+
+/* ========================================
+   インベントリモーダル
+   ======================================== */
+#inventoryModal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  place-items: center;
+}
+
+#inventoryModal > div {
+  background: #1a1a1a;
+  color: #eee;
+  padding: 16px;
+  border-radius: 10px;
+  min-width: 280px;
+  box-shadow: 0 0 0 1px #333 inset;
+}
+
+#inventoryModal .title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+#inventoryList {
+  list-style: none;
+  padding-left: 0;
+  margin: 0 0 8px 0;
+  max-height: 40vh;
+  overflow: auto;
+}
+
+#inventoryList li {
+  padding: 4px 0;
+}
+
+#inventoryList li.empty {
+  opacity: 0.7;
+}
+
+#inventoryModal .controls {
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+/* ゲーム情報オーバーレイ */
+.game-info-overlay {
+  position: absolute;
+  top: 20px; /* #layoutのpaddingに合わせる */
+  left: 25px; /* #layoutのpaddingに合わせる */
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  z-index: 1000;
+  pointer-events: none; /* ゲーム操作を妨げない */
+  /* ゲームキャンバスエリア内に制限 */
+  max-width: calc(100vw - 344px); /* サイドバー幅(320px) + パディング(24px)を考慮 */
+}
+
+.info-item {
+  color: white;
+  font-family: 'PixelMplus';
+  font-size: 32px;
+  font-weight: bold;
+  letter-spacing: 2px; /* 文字間隔を増やす */
+  -webkit-font-smoothing: none; /* Webkit系ブラウザでスムージングオフ */
+  -moz-osx-font-smoothing: none; /* Firefoxでスムージングオフ */
+  font-smooth: never; /* 標準プロパティ（対応ブラウザのみ） */
+  white-space: nowrap;
+}
+
+.hp-bar-container {
+  display: flex;
+  align-items: center;
+}
+
+.hp-bar {
+  position: relative;
+  width: 120px;
+  height: 16px;
+  background-color: rgba(255, 0, 0, 0.3);
+  border: 2px solid white; /* 枠線を2pxに太くして目立たせる */
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5); /* 追加の枠線効果 */
+}
+
+.hp-fill {
+  height: 100%;
+  background-color: #00ff00;
+  transition: width 0.2s ease, background-color 0.2s ease;
+  border-radius: 1px;
+}
+
+.hp-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  font-family: 'PixelMplus';
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: none;
+  font-smooth: never;
+  text-shadow: 
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    1px 1px 0 #000;
+  white-space: nowrap;
+}
+
+/* ========================================
+   レスポンシブ対応
+   ======================================== */
+@media (max-width: 900px) { 
+  #layout { 
+    grid-template-columns: 1fr; 
+    grid-template-rows: auto auto auto; 
+  }
+  
+  /* 小画面ではオーバーレイの幅を調整 */
+  .game-info-overlay {
+    max-width: calc(100vw - 24px); /* パディングのみ考慮 */
+  }
+}

@@ -1,6 +1,6 @@
 /**
  * Dungeon generation system
- * Implements grid-based dungeon generation with 9-division layout
+ * Implements grid-based dungeon generation with 12-division layout (4x3)
  */
 
 import { Position } from '../types/core';
@@ -12,6 +12,8 @@ import {
 } from '../types/dungeon';
 
 interface GridCell {
+  row: number;
+  col: number;
   x: number;
   y: number;
   width: number;
@@ -22,6 +24,11 @@ interface GridCell {
 export class DungeonGenerator {
   private rng: () => number;
   private seed: number;
+  // 追加通路の判定を高速化するためのグリッド占有キャッシュ
+  private gridCols: number = 0;
+  private gridRows: number = 0;
+  // 部屋の占有キャッシュは現状未使用のため保持しない
+  private corridorInCell?: boolean[][];
 
   constructor(seed?: number) {
     this.seed = seed || Math.floor(Math.random() * 1000000);
@@ -29,7 +36,7 @@ export class DungeonGenerator {
   }
 
   /**
-   * Generate a complete dungeon using 9-division grid system
+   * Generate a complete dungeon using 12-division grid system (4x3)
    */
   generateDungeon(
     dungeonId: string,
@@ -57,6 +64,11 @@ export class DungeonGenerator {
 
       // Generate rooms using new grid-based algorithm
       console.log('[DEBUG] 部屋生成開始...');
+      // グリッド仕様と占有キャッシュを初期化
+      const { cols, rows } = this.getGridColsRows(params.gridDivision || 12);
+      this.gridCols = cols;
+      this.gridRows = rows;
+      this.corridorInCell = Array.from({ length: this.gridRows }, () => Array(this.gridCols).fill(false));
       this.generateGridBasedRooms(dungeon, params);
       console.log('[DEBUG] 部屋生成完了');
 
@@ -64,6 +76,16 @@ export class DungeonGenerator {
       console.log('[DEBUG] 部屋接続開始...');
       this.connectRooms(dungeon, params);
       console.log('[DEBUG] 部屋接続完了');
+
+      // Connect up to 0–2 cardinal-adjacent unconnected room pairs
+      console.log('[DEBUG] 隣接部屋追加接続開始...');
+      this.addAdjacentRoomCorridors(dungeon, params);
+      console.log('[DEBUG] 隣接部屋追加接続完了');
+
+      // Connect skip-neighbor rooms (same row/col with one empty grid between)
+      console.log('[DEBUG] スキップ隣接部屋追加接続開始...');
+      this.addSkipNeighborCorridors(dungeon, params);
+      console.log('[DEBUG] スキップ隣接部屋追加接続完了');
 
       // Place stairs
       console.log('[DEBUG] 階段配置開始...');
@@ -105,18 +127,19 @@ export class DungeonGenerator {
   }
 
   /**
-   * Generate rooms using 9-division grid system
+   * Generate rooms using 12-division grid system (4x3)
    */
   private generateGridBasedRooms(dungeon: Dungeon, params: DungeonGenerationParams): void {
     try {
       console.log('[DEBUG] generateGridBasedRooms: 開始, サイズ:', dungeon.width, 'x', dungeon.height);
       
-      // Create 9-division grid (3x3)
-      const grid = this.create9DivisionGrid(dungeon.width, dungeon.height);
-      console.log('[DEBUG] 9分割グリッド作成完了, グリッド数:', grid.length);
+      // Create configurable division grid
+      const gridDivision = params.gridDivision || 12; // デフォルト値12
+      const grid = this.createDivisionGrid(dungeon.width, dungeon.height, gridDivision);
+      console.log(`[DEBUG] ${gridDivision}分割グリッド作成完了, グリッド数:`, grid.length);
 
-      // Randomly decide how many rooms to create (4-9)
-      const roomCount = this.randomInt(4, 9);
+      // Use floor-specific room count parameters
+      const roomCount = this.randomInt(params.minRooms, params.maxRooms);
       console.log('[DEBUG] 作成する部屋数:', roomCount);
 
       // Shuffle grid cells for random selection
@@ -147,22 +170,55 @@ export class DungeonGenerator {
     }
   }
 
+
+
   /**
-   * Create 9-division grid (3x3)
+   * Create configurable division grid
+   * 設定可能な分割数のグリッドを作成
    */
-  private create9DivisionGrid(dungeonWidth: number, dungeonHeight: number): GridCell[] {
+  private createDivisionGrid(dungeonWidth: number, dungeonHeight: number, gridDivision: number): GridCell[] {
     const grid: GridCell[] = [];
 
-    // 3x3 grid layout
-    const cols = 3;
-    const rows = 3;
+    // グリッド分割数を適切な行数・列数に変換
+    let cols: number, rows: number;
+    
+    if (gridDivision === 9) {
+      // 3x3 grid
+      cols = 3;
+      rows = 3;
+    } else if (gridDivision === 12) {
+      // 4x3 grid
+      cols = 4;
+      rows = 3;
+    } else if (gridDivision === 16) {
+      // 4x4 grid
+      cols = 4;
+      rows = 4;
+    } else if (gridDivision === 15) {
+      // 5x3 grid
+      cols = 5;
+      rows = 3;
+    } else if (gridDivision === 20) {
+      // 5x4 grid
+      cols = 5;
+      rows = 4;
+    } else {
+      // デフォルト: 4x3 grid (12分割)
+      cols = 4;
+      rows = 3;
+      console.log(`[DEBUG] 未対応のグリッド分割数: ${gridDivision}, デフォルト4x3を使用`);
+    }
 
     const cellWidth = Math.floor(dungeonWidth / cols);
     const cellHeight = Math.floor(dungeonHeight / rows);
 
+    console.log(`[DEBUG] グリッド作成: ${cols}x${rows} (${gridDivision}分割)`);
+
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         grid.push({
+          row,
+          col,
           x: col * cellWidth,
           y: row * cellHeight,
           width: cellWidth,
@@ -225,7 +281,9 @@ export class DungeonGenerator {
         height: roomHeight,
         type: 'normal' as const,
         connected: false,
-        connections: []
+        connections: [],
+        gridRow: gridCell.row,
+        gridCol: gridCell.col
       };
       
       console.log(`[DEBUG] 部屋${roomIndex}生成完了:`, room);
@@ -268,17 +326,18 @@ export class DungeonGenerator {
     for (let y = room.y; y < room.y + room.height; y++) {
       for (let x = room.x; x < room.x + room.width; x++) {
         dungeon.cells[y][x] = {
-          type: 'floor',
+          type: 'room',  // ⭐ 部屋用に変更
           walkable: true,
           transparent: true,
           entities: []
         };
       }
     }
+    // 部屋占有のキャッシュ更新は現状不要のため省略
   }
 
   /**
-   * Connect all rooms with corridors
+   * Connect all rooms with corridors using hierarchical MST approach
    */
   private connectRooms(dungeon: Dungeon, params: DungeonGenerationParams): void {
     try {
@@ -289,67 +348,85 @@ export class DungeonGenerator {
         return;
       }
 
-      // Start with the first room
-      dungeon.rooms[0].connected = true;
-      const connectedRooms = [dungeon.rooms[0]];
-      const unconnectedRooms = dungeon.rooms.slice(1);
-      console.log('[DEBUG] 接続済み部屋:', connectedRooms.length, '未接続部屋:', unconnectedRooms.length);
-
-      // Connect each unconnected room to the nearest connected room
+      // Initialize: each room is its own group
+      const roomGroups: Room[][] = dungeon.rooms.map(room => [room]);
       let connectionCount = 0;
-      while (unconnectedRooms.length > 0) {
-        console.log(`[DEBUG] 接続処理${connectionCount + 1}回目, 未接続部屋数:`, unconnectedRooms.length);
+      
+      console.log('[DEBUG] 初期状態: 各部屋が独立したグループ, グループ数:', roomGroups.length);
+
+      // Continue until all rooms are connected (only one group remains)
+      while (roomGroups.length > 1) {
+        console.log(`[DEBUG] 接続処理${connectionCount + 1}回目, グループ数:`, roomGroups.length);
         
-        let bestConnection: { from: Room; to: Room; distance: number } | null = null;
+        let bestConnection: { 
+          fromGroup: Room[]; 
+          toGroup: Room[]; 
+          fromRoom: Room; 
+          toRoom: Room; 
+          distance: number 
+        } | null = null;
 
-        // Find the closest pair of connected/unconnected rooms
-        for (const connectedRoom of connectedRooms) {
-          for (const unconnectedRoom of unconnectedRooms) {
-            const distance = this.getRoomDistance(connectedRoom, unconnectedRoom);
-
-            if (!bestConnection || distance < bestConnection.distance) {
-              bestConnection = { from: connectedRoom, to: unconnectedRoom, distance };
+        // Find the closest pair of different groups
+        for (let i = 0; i < roomGroups.length; i++) {
+          for (let j = i + 1; j < roomGroups.length; j++) {
+            const group1 = roomGroups[i];
+            const group2 = roomGroups[j];
+            
+            // Find the closest pair of rooms between these groups
+            for (const room1 of group1) {
+              for (const room2 of group2) {
+                const distance = this.getRoomDistance(room1, room2);
+                
+                if (!bestConnection || distance < bestConnection.distance) {
+                  bestConnection = {
+                    fromGroup: group1,
+                    toGroup: group2,
+                    fromRoom: room1,
+                    toRoom: room2,
+                    distance
+                  };
+                }
+              }
             }
           }
         }
 
         if (bestConnection) {
-          console.log(`[DEBUG] 最適な接続を発見: ${bestConnection.from.id} → ${bestConnection.to.id}, 距離: ${bestConnection.distance}`);
+          console.log(`[DEBUG] 最適な接続を発見: グループ${roomGroups.indexOf(bestConnection.fromGroup)} → グループ${roomGroups.indexOf(bestConnection.toGroup)}, 部屋${bestConnection.fromRoom.id} → 部屋${bestConnection.toRoom.id}, 距離: ${bestConnection.distance}`);
           
           // Create corridor between rooms
-          const corridor = this.createCorridor(dungeon, bestConnection.from, bestConnection.to, params);
+          const corridor = this.createCorridor(dungeon, bestConnection.fromRoom, bestConnection.toRoom, params);
 
           // Add connection to both rooms
-          bestConnection.from.connections.push({
-            roomId: bestConnection.to.id,
+          bestConnection.fromRoom.connections.push({
+            roomId: bestConnection.toRoom.id,
             corridorPath: corridor
           });
 
-          bestConnection.to.connections.push({
-            roomId: bestConnection.from.id,
+          bestConnection.toRoom.connections.push({
+            roomId: bestConnection.fromRoom.id,
             corridorPath: corridor
           });
 
-          // Move room to connected list
-          bestConnection.to.connected = true;
-          connectedRooms.push(bestConnection.to);
-          const index = unconnectedRooms.indexOf(bestConnection.to);
-          unconnectedRooms.splice(index, 1);
+          // Mark both rooms as connected
+          bestConnection.fromRoom.connected = true;
+          bestConnection.toRoom.connected = true;
+
+          // Merge the two groups
+          const mergedGroup = [...bestConnection.fromGroup, ...bestConnection.toGroup];
+          roomGroups.splice(roomGroups.indexOf(bestConnection.fromGroup), 1);
+          roomGroups.splice(roomGroups.indexOf(bestConnection.toGroup), 1);
+          roomGroups.push(mergedGroup);
           
           connectionCount++;
-          console.log(`[DEBUG] 接続完了: ${bestConnection.to.id}, 接続済み部屋数:`, connectedRooms.length);
+          console.log(`[DEBUG] グループ統合完了: 新しいグループサイズ: ${mergedGroup.length}, 残りグループ数: ${roomGroups.length}`);
         } else {
           console.error('[ERROR] 最適な接続が見つかりません');
           break;
         }
       }
 
-      console.log('[DEBUG] 部屋接続完了, 総接続数:', connectionCount);
-
-      // Add corridors from empty grid cells to nearby rooms
-      console.log('[DEBUG] 空グリッドからの通路追加開始...');
-      this.addCorridorsFromEmptyGrids(dungeon, params);
-      console.log('[DEBUG] 空グリッドからの通路追加完了');
+      console.log('[DEBUG] 部屋接続完了, 総接続数:', connectionCount, '最終グループ数:', roomGroups.length);
       
       console.log('[DEBUG] connectRooms: 完了');
     } catch (error) {
@@ -358,127 +435,7 @@ export class DungeonGenerator {
     }
   }
 
-  /**
-   * Add corridors from empty grid cells to nearby rooms
-   */
-  private addCorridorsFromEmptyGrids(dungeon: Dungeon, params: DungeonGenerationParams): void {
-    try {
-      console.log('[DEBUG] addCorridorsFromEmptyGrids: 開始');
-      
-      // Create 3x3 grid for reference
-      const gridSize = 3;
-      const cellWidth = Math.floor(dungeon.width / gridSize);
-      const cellHeight = Math.floor(dungeon.height / gridSize);
-      console.log('[DEBUG] グリッドサイズ:', cellWidth, 'x', cellHeight);
-      
-      // Find empty grid cells
-      const emptyGridCells: { row: number; col: number; x: number; y: number }[] = [];
-      
-      console.log('[DEBUG] 空グリッドセル検索中...');
-      for (let row = 0; row < gridSize; row++) {
-        for (let col = 0; col < gridSize; col++) {
-          const gridX = col * cellWidth;
-          const gridY = row * cellHeight;
-          
-          // Check if this grid cell is truly empty (no rooms AND no existing corridors)
-          let isEmpty = true;
-          
-          // Check for rooms
-          for (const room of dungeon.rooms) {
-            if (room.x >= gridX && room.x < gridX + cellWidth &&
-                room.y >= gridY && room.y < gridY + cellHeight) {
-              isEmpty = false;
-              break;
-            }
-          }
-          
-          // Check for existing corridors
-          if (isEmpty) {
-            for (let y = gridY; y < gridY + cellHeight && isEmpty; y++) {
-              for (let x = gridX; x < gridX + cellWidth; x++) {
-                // セルの存在チェックを追加
-                if (dungeon.cells[y] && dungeon.cells[y][x] && dungeon.cells[y][x].type === 'floor') {
-                  // Found existing corridor, mark as not empty
-                  isEmpty = false;
-                  break;
-                }
-              }
-            }
-          }
-          
-          if (isEmpty) {
-            emptyGridCells.push({ row, col, x: gridX, y: gridY });
-            console.log(`[DEBUG] 空グリッドセル発見: (${row},${col}) at (${gridX},${gridY})`);
-          }
-        }
-      }
-      
-      console.log('[DEBUG] 空グリッドセル数:', emptyGridCells.length);
-      
-      // 空グリッドからランダムに1-3個を選択
-      let selectedGridCells: { row: number; col: number; x: number; y: number }[] = [];
-      if (emptyGridCells.length > 0) {
-        const maxSelection = Math.min(3, emptyGridCells.length);
-        const selectionCount = this.randomInt(1, maxSelection);
-        console.log(`[DEBUG] 空グリッドから${selectionCount}個をランダム選択`);
-        
-        // 配列をシャッフルしてから先頭から選択
-        const shuffled = this.shuffleArray([...emptyGridCells]);
-        selectedGridCells = shuffled.slice(0, selectionCount);
-        
-        console.log('[DEBUG] 選択された空グリッド:', selectedGridCells.map(c => `(${c.row},${c.col})`));
-      }
-      
-      // 選択された空グリッドから通路を作成
-      console.log('[DEBUG] 選択された空グリッドからの通路作成開始...');
-      for (let i = 0; i < selectedGridCells.length; i++) {
-        const gridCell = selectedGridCells[i];
-        console.log(`[DEBUG] 空グリッド${i}処理中: (${gridCell.row},${gridCell.col})`);
-        
-        // グリッドセルの中心位置を計算
-        const gridCenter = {
-          x: gridCell.x + Math.floor(cellWidth / 2),
-          y: gridCell.y + Math.floor(cellHeight / 2)
-        };
-        
-        // 中心に1タイルの通路を作成
-        this.carveCorridor(dungeon, gridCenter, params.corridorWidth);
-        
-        // このグリッドセルに最も近い2つの部屋を見つける
-        const roomDistances = dungeon.rooms.map(room => {
-          const roomCenter = {
-            x: room.x + Math.floor(room.width / 2),
-            y: room.y + Math.floor(room.height / 2)
-          };
-          const distance = Math.abs(gridCenter.x - roomCenter.x) + Math.abs(gridCenter.y - roomCenter.y);
-          return { room, distance };
-        });
-        
-        // 距離でソートして最も近い2つを選択
-        roomDistances.sort((a, b) => a.distance - b.distance);
-        const closestRooms = roomDistances.slice(0, 2);
-        
-        // グリッド中心から各近い部屋に通路を作成
-        for (const { room } of closestRooms) {
-          const roomCenter = {
-            x: room.x + Math.floor(room.width / 2),
-            y: room.y + Math.floor(room.height / 2)
-          };
-          
-          // グリッド中心から部屋中心への通路を作成
-          this.createCorridorPath(dungeon, gridCenter, roomCenter, params);
-        }
-        
-        console.log(`[DEBUG] 空グリッド${i}処理完了`);
-      }
-      
-      console.log('[DEBUG] addCorridorsFromEmptyGrids: 完了');
-    } catch (error) {
-      console.error('[ERROR] addCorridorsFromEmptyGridsでエラーが発生:', error);
-      // エラーが発生しても処理を続行
-      console.log('[DEBUG] 空グリッド処理をスキップして続行');
-    }
-  }
+
 
   /**
    * Group adjacent empty grid cells
@@ -574,41 +531,7 @@ export class DungeonGenerator {
     };
   }
 
-  /**
-   * Create a simple corridor path between two positions
-   */
-  private createCorridorPath(dungeon: Dungeon, start: Position, end: Position, params: DungeonGenerationParams): void {
-    let current = { ...start };
-    
-    // Simple L-shaped path
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    
-    // Move horizontally first, then vertically
-    if (Math.abs(dx) > Math.abs(dy)) {
-      // Horizontal first
-      while (current.x !== end.x) {
-        current.x += current.x < end.x ? 1 : -1;
-        this.carveCorridor(dungeon, current, params.corridorWidth);
-      }
-      // Then vertical
-      while (current.y !== end.y) {
-        current.y += current.y < end.y ? 1 : -1;
-        this.carveCorridor(dungeon, current, params.corridorWidth);
-      }
-    } else {
-      // Vertical first
-      while (current.y !== end.y) {
-        current.y += current.y < end.y ? 1 : -1;
-        this.carveCorridor(dungeon, current, params.corridorWidth);
-      }
-      // Then horizontal
-      while (current.x !== end.x) {
-        current.x += current.x < end.x ? 1 : -1;
-        this.carveCorridor(dungeon, current, params.corridorWidth);
-      }
-    }
-  }
+
 
   /**
    * Calculate distance between two rooms (center to center)
@@ -732,7 +655,182 @@ export class DungeonGenerator {
   }
 
   /**
+   * 上下左右で隣接していて未接続の部屋ペアから、ランダムで0〜2ペアを選び、
+   * 既存の通路生成アルゴリズム（createCorridor）で接続する。
+   */
+  private addAdjacentRoomCorridors(dungeon: Dungeon, params: DungeonGenerationParams): void {
+    const rooms = dungeon.rooms;
+    if (rooms.length < 2) return;
+
+    const connected = new Set<string>();
+    for (const r of rooms) {
+      for (const c of r.connections) {
+        connected.add(this.makePairKey(r.id, c.roomId));
+      }
+    }
+
+    const pairs: { a: Room; b: Room }[] = [];
+    for (let i = 0; i < rooms.length; i++) {
+      for (let j = i + 1; j < rooms.length; j++) {
+        const a = rooms[i], b = rooms[j];
+        if (connected.has(this.makePairKey(a.id, b.id))) continue;
+        if (this.areCardinalAdjacentByGrid(a, b)) {
+          pairs.push({ a, b });
+        }
+      }
+    }
+    if (pairs.length === 0) return;
+
+    // 最大本数（既定2）と確率（隣接は60%）
+    const maxPairs = params.extraAdjacentMaxPairs ?? 2;
+    const probability = 0.6;
+    let added = 0;
+    for (const { a, b } of this.shuffleArray(pairs)) {
+      if (added >= maxPairs) break;
+      if (this.rng() >= probability) continue;
+      const corridor = this.createCorridor(dungeon, a, b, params);
+      a.connections.push({ roomId: b.id, corridorPath: corridor });
+      b.connections.push({ roomId: a.id, corridorPath: corridor });
+      added++;
+    }
+  }
+
+  private makePairKey(aId: string, bId: string): string {
+    return aId < bId ? `${aId}::${bId}` : `${bId}::${aId}`;
+  }
+
+  // グリッド上でマンハッタン距離1（上下左右の隣）
+  private areCardinalAdjacentByGrid(a: Room, b: Room): boolean {
+    if (a.gridRow == null || a.gridCol == null || b.gridRow == null || b.gridCol == null) return false;
+    const dr = Math.abs(a.gridRow - b.gridRow);
+    const dc = Math.abs(a.gridCol - b.gridCol);
+    return dr + dc === 1;
+  }
+
+  // overlap1D は使用しないため削除
+
+  // 指定グリッドセル内に既存の通路が含まれるか判定
+  private gridCellHasCorridor(
+    dungeon: Dungeon,
+    row: number,
+    col: number,
+    cols: number,
+    rows: number
+  ): boolean {
+    // 占有キャッシュがある場合は高速判定
+    if (this.corridorInCell) {
+      if (row >= 0 && row < this.gridRows && col >= 0 && col < this.gridCols) {
+        return !!this.corridorInCell[row][col];
+      }
+      return false;
+    }
+    const { x0, x1, y0, y1 } = this.getGridCellBounds(dungeon, cols, rows, row, col);
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        const cell = dungeon.cells[y]?.[x];
+        if (cell && cell.type === 'corridor') return true;
+      }
+    }
+    return false;
+  }
+
+  // グリッドセルのタイル範囲を取得
+  private getGridCellBounds(
+    dungeon: Dungeon,
+    cols: number,
+    rows: number,
+    row: number,
+    col: number
+  ): { x0: number; x1: number; y0: number; y1: number } {
+    const x0 = Math.floor((col / cols) * dungeon.width);
+    const x1 = Math.floor(((col + 1) / cols) * dungeon.width);
+    const y0 = Math.floor((row / rows) * dungeon.height);
+    const y1 = Math.floor(((row + 1) / rows) * dungeon.height);
+    return { x0, x1, y0, y1 };
+  }
+
+  // gridDivision を(cols, rows)に変換するユーティリティ
+  private getGridColsRows(gridDivision: number): { cols: number; rows: number } {
+    if (gridDivision === 9) return { cols: 3, rows: 3 };
+    if (gridDivision === 12) return { cols: 4, rows: 3 };
+    if (gridDivision === 16) return { cols: 4, rows: 4 };
+    if (gridDivision === 15) return { cols: 5, rows: 3 };
+    if (gridDivision === 20) return { cols: 5, rows: 4 };
+    return { cols: 4, rows: 3 };
+  }
+
+  /**
+   * 隣の隣（同じ行または列で1セル空き）の部屋同士を、
+   * 中間グリッドに部屋がない場合のみ追加接続する（最大2ペア、テスト用に100%）。
+   */
+  private addSkipNeighborCorridors(dungeon: Dungeon, params: DungeonGenerationParams): void {
+    const rooms = dungeon.rooms;
+    if (rooms.length < 2) return;
+
+    const { cols, rows } = this.getGridColsRows(params.gridDivision || 12);
+    const gridRooms: (Room | null)[][] = Array.from({ length: rows }, () => Array(cols).fill(null));
+    for (const r of rooms) {
+      if (r.gridRow == null || r.gridCol == null) continue;
+      if (!gridRooms[r.gridRow][r.gridCol]) gridRooms[r.gridRow][r.gridCol] = r;
+    }
+
+    const connected = new Set<string>();
+    for (const r of rooms) {
+      for (const c of r.connections) connected.add(this.makePairKey(r.id, c.roomId));
+    }
+
+    type Pair = { a: Room; b: Room; midRow: number; midCol: number };
+    const pairs: Pair[] = [];
+    // 水平方向候補
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c + 2 < cols; c++) {
+        const a = gridRooms[r][c];
+        const mid = gridRooms[r][c + 1];
+        const b = gridRooms[r][c + 2];
+        if (a && b && !mid && !connected.has(this.makePairKey(a.id, b.id))) {
+          pairs.push({ a, b, midRow: r, midCol: c + 1 });
+        }
+      }
+    }
+    // 垂直方向候補
+    for (let r = 0; r + 2 < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const a = gridRooms[r][c];
+        const mid = gridRooms[r + 1][c];
+        const b = gridRooms[r + 2][c];
+        if (a && b && !mid && !connected.has(this.makePairKey(a.id, b.id))) {
+          pairs.push({ a, b, midRow: r + 1, midCol: c });
+        }
+      }
+    }
+
+    if (pairs.length === 0) return;
+    const usedMid = new Set<string>();
+    const shuffledPairs = this.shuffleArray(pairs);
+    const maxPairs = params.extraSkipNeighborMaxPairs ?? 2;
+    const probability = 0.8; // スキップ隣接は80%
+    let added = 0;
+    for (const p of shuffledPairs) {
+      if (added >= maxPairs) break; // 最大数
+      const midKey = `${p.midRow}:${p.midCol}`;
+      if (usedMid.has(midKey)) continue; // 同じ中間グリッドは一度だけ
+
+      // 現在の状態で中間グリッドに通路がないか再確認
+      if (this.gridCellHasCorridor(dungeon, p.midRow, p.midCol, cols, rows)) continue;
+      // 確率チェック
+      if (this.rng() >= probability) continue;
+
+      const corridor = this.createCorridor(dungeon, p.a, p.b, params);
+      p.a.connections.push({ roomId: p.b.id, corridorPath: corridor });
+      p.b.connections.push({ roomId: p.a.id, corridorPath: corridor });
+      usedMid.add(midKey);
+      added++;
+    }
+  }
+
+  /**
    * Find the best exit point on the edge of a room facing another room
+   * 通路の接続先を偶数または奇数マスに限定して、通路同士がくっつくことを防ぐ
    */
   private findRoomExitPoint(room: Room, targetRoom: Room): Position {
     const roomCenter = {
@@ -752,37 +850,34 @@ export class DungeonGenerator {
       // Horizontal connection - use left or right edge
       if (dx > 0) {
         // Target is to the right, use right edge
-        return {
-          x: room.x + room.width - 1,
-          y: roomCenter.y
-        };
+        const exitX = room.x + room.width - 1;
+        const exitY = this.adjustToEvenOddGrid(roomCenter.y, room.y, room.y + room.height - 1);
+        return { x: exitX, y: exitY };
       } else {
         // Target is to the left, use left edge
-        return {
-          x: room.x,
-          y: roomCenter.y
-        };
+        const exitX = room.x;
+        const exitY = this.adjustToEvenOddGrid(roomCenter.y, room.y, room.y + room.height - 1);
+        return { x: exitX, y: exitY };
       }
     } else {
       // Vertical connection - use top or bottom edge
       if (dy > 0) {
         // Target is below, use bottom edge
-        return {
-          x: roomCenter.x,
-          y: room.y + room.height - 1
-        };
+        const exitY = room.y + room.height - 1;
+        const exitX = this.adjustToEvenOddGrid(roomCenter.x, room.x, room.x + room.width - 1);
+        return { x: exitX, y: exitY };
       } else {
         // Target is above, use top edge
-        return {
-          x: roomCenter.x,
-          y: room.y
-        };
+        const exitY = room.y;
+        const exitX = this.adjustToEvenOddGrid(roomCenter.x, room.x, room.x + room.width - 1);
+        return { x: exitX, y: exitY };
       }
     }
   }
 
   /**
    * Find the best entrance point on the edge of a room from another room
+   * 通路の接続先を偶数または奇数マスに限定して、通路同士がくっつくことを防ぐ
    */
   private findRoomEntrancePoint(room: Room, sourceRoom: Room): Position {
     const roomCenter = {
@@ -802,34 +897,62 @@ export class DungeonGenerator {
       // Horizontal connection - use left or right edge
       if (dx > 0) {
         // Source is to the left, use left edge
-        return {
-          x: room.x,
-          y: roomCenter.y
-        };
+        const entranceX = room.x;
+        const entranceY = this.adjustToEvenOddGrid(roomCenter.y, room.y, room.y + room.height - 1);
+        return { x: entranceX, y: entranceY };
       } else {
         // Source is to the right, use right edge
-        return {
-          x: room.x + room.width - 1,
-          y: roomCenter.y
-        };
+        const entranceX = room.x + room.width - 1;
+        const entranceY = this.adjustToEvenOddGrid(roomCenter.y, room.y, room.y + room.height - 1);
+        return { x: entranceX, y: entranceY };
       }
     } else {
       // Vertical connection - use top or bottom edge
       if (dy > 0) {
         // Source is above, use top edge
-        return {
-          x: roomCenter.x,
-          y: room.y
-        };
+        const entranceY = room.y;
+        const entranceX = this.adjustToEvenOddGrid(roomCenter.x, room.x, room.x + room.width - 1);
+        return { x: entranceX, y: entranceY };
       } else {
         // Source is below, use bottom edge
-        return {
-          x: roomCenter.x,
-          y: room.y + room.height - 1
-        };
+        const entranceY = room.y + room.height - 1;
+        const entranceX = this.adjustToEvenOddGrid(roomCenter.x, room.x, room.x + room.width - 1);
+        return { x: entranceX, y: entranceY };
       }
     }
   }
+
+  /**
+   * Adjust position to even or odd grid to prevent corridors from touching
+   * 通路同士がくっつくことを防ぐため、偶数または奇数マスに位置を調整する
+   */
+  private adjustToEvenOddGrid(centerPos: number, minPos: number, maxPos: number): number {
+    // 中心位置を基準に、偶数または奇数マスに調整
+    // 偶数マスに調整する場合（0, 2, 4, 6...）
+    const adjustedPos = centerPos;
+    
+    // 範囲内で最も近い偶数マスを探す
+    let evenPos = Math.floor(adjustedPos / 2) * 2;
+    let oddPos = evenPos + 1;
+    
+    // 範囲外の場合は調整
+    if (evenPos < minPos) evenPos = minPos;
+    if (oddPos < minPos) oddPos = minPos;
+    if (evenPos > maxPos) evenPos = maxPos;
+    if (oddPos > maxPos) oddPos = maxPos;
+    
+    // 中心位置により近い方を選択
+    const evenDistance = Math.abs(adjustedPos - evenPos);
+    const oddDistance = Math.abs(adjustedPos - oddPos);
+    
+    return evenDistance <= oddDistance ? evenPos : oddPos;
+  }
+
+  /**
+   * Adjust position to even or odd grid with collision avoidance
+   * 通路同士が重ならないように、既に使用されているマスを避けて偶数または奇数マスに調整
+   */
+  // adjustToEvenOddGridWithCollisionAvoidance は未使用のため削除
 
   /**
    * Carve corridor at position
@@ -843,19 +966,27 @@ export class DungeonGenerator {
         const y = position.y + dy;
 
         if (x >= 0 && x < dungeon.width && y >= 0 && y < dungeon.height) {
-          // セルの存在チェックを追加
+          // セルの存在チェックを追加（壁以外は変更しない）
           if (dungeon.cells[y] && dungeon.cells[y][x] && dungeon.cells[y][x].type === 'wall') {
             dungeon.cells[y][x] = {
-              type: 'floor',
+              type: 'corridor',  // ⭐ 通路用に変更
               walkable: true,
               transparent: true,
               entities: []
             };
+            // 占有キャッシュ更新（通路が通ったグリッドをマーク）
+            if (this.corridorInCell && this.gridCols > 0 && this.gridRows > 0) {
+              const col = Math.max(0, Math.min(this.gridCols - 1, Math.floor((x * this.gridCols) / dungeon.width)));
+              const row = Math.max(0, Math.min(this.gridRows - 1, Math.floor((y * this.gridRows) / dungeon.height)));
+              this.corridorInCell[row][col] = true;
+            }
           }
         }
       }
     }
   }
+
+
 
   /**
    * Place stairs in the dungeon
@@ -864,36 +995,43 @@ export class DungeonGenerator {
     if (dungeon.rooms.length === 0) return;
 
     const direction = params.progressionDirection || 'down';
+    const firstRoom = dungeon.rooms[0];
+    const lastRoom = dungeon.rooms[dungeon.rooms.length - 1];
 
     if (direction === 'down') {
-      // Only stairs-down per floor
-      const lastRoom = dungeon.rooms[dungeon.rooms.length - 1];
-      const stairsDown = {
-        x: lastRoom.x + Math.floor(lastRoom.width / 2),
-        y: lastRoom.y + Math.floor(lastRoom.height / 2)
-      };
+      // 下り階段: 任意の部屋の床タイルならどこでも可（プレイヤー直下でも可）
+      const target = dungeon.rooms[this.randomInt(0, dungeon.rooms.length - 1)];
+      const stairsDown = this.pickRandomPointInRoom(target, 0);
       dungeon.stairsDown = stairsDown;
-      // セルの存在チェックを追加
       if (dungeon.cells[stairsDown.y] && dungeon.cells[stairsDown.y][stairsDown.x]) {
         dungeon.cells[stairsDown.y][stairsDown.x].type = 'stairs-down';
       }
-      // Ensure no stairs-up
       dungeon.stairsUp = undefined;
     } else {
-      // direction === 'up' → Only stairs-up per floor
-      const firstRoom = dungeon.rooms[0];
-      const stairsUp = {
-        x: firstRoom.x + Math.floor(firstRoom.width / 2),
-        y: firstRoom.y + Math.floor(firstRoom.height / 2)
-      };
+      // 上り階段: 任意の部屋の床タイル
+      const target = dungeon.rooms[this.randomInt(0, dungeon.rooms.length - 1)];
+      const stairsUp = this.pickRandomPointInRoom(target, 0);
       dungeon.stairsUp = stairsUp;
-      // セルの存在チェックを追加
       if (dungeon.cells[stairsUp.y] && dungeon.cells[stairsUp.y][stairsUp.x]) {
         dungeon.cells[stairsUp.y][stairsUp.x].type = 'stairs-up';
       }
-      // Ensure no stairs-down
       dungeon.stairsDown = undefined;
     }
+  }
+
+  // 以前の距離ベース配置は不要になったため削除（シンプルランダムに統一）
+
+  // 部屋内のランダムなタイルを返す（margin=0なら端含む）
+  private pickRandomPointInRoom(room: Room, margin = 0): Position {
+    const mX = Math.min(margin, Math.max(0, room.width - 1));
+    const mY = Math.min(margin, Math.max(0, room.height - 1));
+    const minX = room.x + mX;
+    const maxX = room.x + room.width - 1 - mX;
+    const minY = room.y + mY;
+    const maxY = room.y + room.height - 1 - mY;
+    const x = this.randomInt(minX, maxX);
+    const y = this.randomInt(minY, maxY);
+    return { x, y };
   }
 
   /**

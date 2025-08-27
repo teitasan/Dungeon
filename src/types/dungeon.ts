@@ -6,7 +6,7 @@ import { Position } from './core';
 import { GameEntity } from './entities';
 
 // Dungeon cell types
-export type CellType = 'wall' | 'floor' | 'door' | 'stairs-up' | 'stairs-down' | 'water' | 'void';
+export type CellType = 'wall' | 'floor' | 'room' | 'corridor' | 'door' | 'stairs-up' | 'stairs-down' | 'water' | 'void';
 
 // Dungeon cell structure
 export interface DungeonCell {
@@ -28,6 +28,9 @@ export interface Room {
   type: RoomType;
   connected: boolean;
   connections: Connection[];
+  // 生成時に割り当てられたグリッド位置（任意）
+  gridRow?: number;
+  gridCol?: number;
 }
 
 export type RoomType = 'normal' | 'monster-house' | 'shop' | 'treasure' | 'boss' | 'special';
@@ -87,6 +90,7 @@ export interface DungeonGenerationParams {
   roomDensity: number; // 0.0 - 1.0
   specialRoomChance: number; // 0.0 - 1.0
   trapDensity: number; // 0.0 - 1.0
+  gridDivision: number; // グリッド分割数（例: 12 = 4x3, 9 = 3x3）
   seed?: number;
   /**
    * 進行方向（デフォルト: 'down'）
@@ -94,6 +98,26 @@ export interface DungeonGenerationParams {
    * 'up':   各フロアに上り階段のみ生成
    */
   progressionDirection?: 'down' | 'up';
+  /** 直隣接ペアの最大追加数（既定2） */
+  extraAdjacentMaxPairs?: number;
+  /** スキップ隣接ペアの最大追加数（既定2） */
+  extraSkipNeighborMaxPairs?: number;
+  /** 追加通路の採用確率（0.0-1.0, 既定1.0） */
+  extraAddProbability?: number;
+}
+
+// Floor-specific generation parameters (legacy)
+export interface FloorGenerationParams extends DungeonGenerationParams {
+  floor: number;
+  minRooms: number;
+  maxRooms: number;
+}
+
+// Floor range generation parameters (new)
+export interface FloorRangeGenerationParams extends DungeonGenerationParams {
+  floorRange: string; // "1-3", "4-5" などの範囲指定
+  minRooms: number;
+  maxRooms: number;
 }
 
 // Dungeon template for different dungeon types
@@ -102,7 +126,9 @@ export interface DungeonTemplate {
   name: string;
   description: string;
   floors: number;
-  generationParams: DungeonGenerationParams;
+  generationParams: DungeonGenerationParams; // Default parameters
+  floorSpecificParams?: FloorGenerationParams[]; // Floor-specific overrides (legacy)
+  floorRangeParams?: FloorRangeGenerationParams[]; // Floor range overrides (new)
   tileSet: string;
   monsterTable: MonsterSpawnEntry[];
   itemTable: ItemSpawnEntry[];

@@ -16,6 +16,8 @@ export interface ItemUsageResult {
   effects: ItemUsageEffect[];
   message: string;
   consumed: boolean;
+  // 新しく追加：効果適用後の処理用
+  appliedEffects?: string[];
 }
 
 export interface ItemUsageEffect {
@@ -83,6 +85,7 @@ export class ItemSystem implements InventoryManager {
     const effects: ItemUsageEffect[] = [];
     let consumed = false;
     let success = false;
+    const appliedEffects: string[] = [];
 
     // Check if item is consumable
     if (!item.isConsumable()) {
@@ -92,7 +95,8 @@ export class ItemSystem implements InventoryManager {
         user,
         effects: [],
         message: `${item.name} cannot be used`,
-        consumed: false
+        consumed: false,
+        appliedEffects: []
       };
     }
 
@@ -103,6 +107,10 @@ export class ItemSystem implements InventoryManager {
       
       if (effectResult.success) {
         success = true;
+        // 特殊効果の場合は適用済みリストに追加
+        if (['reveal-items', 'reveal-map', 'reveal-traps', 'reveal-monsters'].includes(effect.type)) {
+          appliedEffects.push(effect.type);
+        }
       }
     }
 
@@ -123,7 +131,8 @@ export class ItemSystem implements InventoryManager {
       user,
       effects,
       message,
-      consumed
+      consumed,
+      appliedEffects
     };
   }
 
@@ -242,6 +251,34 @@ export class ItemSystem implements InventoryManager {
             `Identified ${identifiedCount} items` : 
             `All items are already identified`;
         }
+        break;
+
+      case 'reveal-items':
+        // 千里眼効果：フロア全体のアイテム位置を表示
+        success = true;
+        message = `${target.id} can see all items on this floor`;
+        // 注: 実際の効果はCanvasRendererで処理される
+        break;
+
+      case 'reveal-map':
+        // レミーラ効果：フロア全体の地形を表示
+        success = true;
+        message = `${target.id} can see the entire floor layout`;
+        // 注: 実際の効果はCanvasRendererで処理される
+        break;
+
+      case 'reveal-traps':
+        // 罠探知効果：フロア全体の罠の位置を表示
+        success = true;
+        message = `${target.id} can see all traps on this floor`;
+        // 注: 実際の効果はCanvasRendererで処理される
+        break;
+
+      case 'reveal-monsters':
+        // 透視効果：フロア全体のモンスターの位置を表示
+        success = true;
+        message = `${target.id} can see all monsters on this floor`;
+        // 注: 実際の効果はCanvasRendererで処理される
         break;
 
       case 'damage':

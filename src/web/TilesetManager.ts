@@ -72,7 +72,6 @@ export class TilesetManager {
       return;
     }
 
-    console.log(`Drawing tile: ${tileType} at (${x}, ${y}) with definition:`, tileDef);
     this.drawTileInternal(ctx, tileDef, x, y, tileSize);
   }
 

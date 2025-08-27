@@ -2,6 +2,8 @@
  * Core types for the mystery dungeon game
  */
 
+import type { DungeonTemplate } from './dungeon.js';
+
 export interface Position {
   x: number;
   y: number;
@@ -22,9 +24,15 @@ export interface GameState {
 export interface GameEntity {
   id: string;
   position: Position;
+  direction?: 'north' | 'northeast' | 'east' | 'southeast' | 'south' | 'southwest' | 'west' | 'northwest'; // 8方向（オプショナル）
   components: Component[];
   stats: EntityStats;
   flags: EntityFlags;
+  speedState?: 'normal' | 'fast' | 'slow';
+  customRules?: {
+    action1?: Partial<import('./movement.js').ActionConfig>;
+    action2?: Partial<import('./movement.js').ActionConfig>;
+  };
 }
 
 export interface EntityStats {
@@ -80,6 +88,7 @@ export interface GameConfig {
   items: ItemConfig;
   monsters: MonsterConfig;
   attributes: AttributeConfig;
+  turnSystem: any; // Will be properly typed when TurnSystemConfig is imported
   ui: UIConfig;
   input: InputConfig;
   messages: MessageConfig;
@@ -195,9 +204,16 @@ export interface RecoverySystemConfig {
 export type StatusEffectType = 'poison' | 'confusion' | 'paralysis' | 'bind';
 
 export interface DungeonConfig {
+  coordinateConstraints?: {
+    roomCenterEven?: boolean;
+    corridorOddOnly?: boolean;
+  };
   defaultTileset: DungeonTilesetConfig;
   dungeonSpecificTilesets: {
     [dungeonId: string]: DungeonTilesetConfig;
+  };
+  templates?: {
+    [templateId: string]: DungeonTemplate;
   };
 }
 
@@ -249,6 +265,12 @@ export interface ViewportConfig {
 export interface MinimapConfig {
   width: number;
   height: number;
+  playerSize?: number; // プレイヤーの表示サイズ（mmTileに対する比率）
+  playerColor?: string; // プレイヤーの色
+  colors?: {
+    'stairs-down'?: string;
+    'stairs-up'?: string;
+  };
 }
 
 export interface LayoutConfig {

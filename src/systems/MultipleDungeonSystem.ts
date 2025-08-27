@@ -5,6 +5,7 @@
 import { DungeonManager } from '../dungeon/DungeonManager';
 import { DungeonTemplate, DungeonGenerationParams } from '../types/dungeon';
 import { PlayerEntity } from '../entities/Player';
+import { CanvasRenderer } from '../web/CanvasRenderer';
 
 // Dungeon definition
 export interface DungeonDefinition {
@@ -81,10 +82,18 @@ export class MultipleDungeonSystem {
   private playerProgress: Map<string, DungeonProgress> = new Map();
   private currentDungeon?: DungeonDefinition;
   private currentFloor: number = 1;
+  private renderer?: CanvasRenderer;
 
   constructor(dungeonManager: DungeonManager) {
     this.dungeonManager = dungeonManager;
     this.initializeDefaultDungeons();
+  }
+
+  /**
+   * CanvasRendererを設定
+   */
+  setRenderer(renderer: CanvasRenderer): void {
+    this.renderer = renderer;
   }
 
   /**
@@ -249,6 +258,79 @@ export class MultipleDungeonSystem {
         success: false,
         newFloor: this.currentFloor,
         message: `Error: ${error}`,
+        isCompleted: false
+      };
+    }
+  }
+
+  /**
+   * Advance to next floor with full player management
+   */
+  async advanceFloorWithPlayer(player: PlayerEntity): Promise<{
+    success: boolean;
+    newFloor: number;
+    message: string;
+    isCompleted: boolean;
+  }> {
+    try {
+      console.log('[DEBUG] advanceFloorWithPlayer: 開始');
+      
+      // 古いダンジョンからプレイヤーを削除
+      this.dungeonManager.removeEntity(player);
+      console.log('[DEBUG] プレイヤーを古いダンジョンから削除完了');
+      
+      // フロア進行処理
+      const result = this.advanceFloor(player);
+      console.log('[DEBUG] advanceFloor結果:', result);
+      
+      if (!result.success) {
+        console.log('[DEBUG] advanceFloor失敗:', result);
+        return result;
+      }
+      
+      // ダンジョン完了の場合の処理
+      if (result.isCompleted) {
+        console.log('[DEBUG] ダンジョン完了:', result.message);
+        return result;
+      }
+      
+      // 新しいダンジョンにプレイヤーを追加
+      const newDungeon = this.dungeonManager.getCurrentDungeon();
+      if (newDungeon) {
+        const newSpawn = newDungeon.playerSpawn;
+        console.log('[DEBUG] 新しいスポーン位置:', newSpawn);
+        
+        // プレイヤーの位置を更新
+        player.setPosition(newSpawn);
+        console.log('[DEBUG] プレイヤー位置更新完了');
+        
+        // 新しいダンジョンにプレイヤーを追加
+        this.dungeonManager.addEntity(player, newSpawn);
+        console.log('[DEBUG] プレイヤーを新しいダンジョンに追加完了');
+        
+        // フロア変更時に効果をチェック（レンダラーが設定されている場合）
+        if (this.renderer) {
+          console.log(`[DEBUG] フロア変更: 新しいフロア = ${newDungeon.floor}`);
+          this.renderer.checkFloorChange(newDungeon.floor);
+        }
+      } else {
+        console.error('[ERROR] 新しいダンジョンが取得できません');
+        return {
+          success: false,
+          newFloor: result.newFloor,
+          message: '新しいダンジョンの生成に失敗しました',
+          isCompleted: false
+        };
+      }
+      
+      console.log('[DEBUG] advanceFloorWithPlayer: 完了');
+      return result;
+    } catch (error) {
+      console.error('[ERROR] advanceFloorWithPlayerでエラーが発生:', error);
+      return {
+        success: false,
+        newFloor: this.currentFloor,
+        message: `エラー: ${error}`,
         isCompleted: false
       };
     }
@@ -699,7 +781,8 @@ export class MultipleDungeonSystem {
       corridorWidth: 1,
       roomDensity: 0.3,
       specialRoomChance: 0.1,
-      trapDensity: 0.05
+      trapDensity: 0.05,
+      gridDivision: 12
     };
 
     const template: DungeonTemplate = {

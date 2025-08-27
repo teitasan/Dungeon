@@ -15,6 +15,7 @@ export interface MovementResult {
   blocked?: boolean;
   reason?: string;
   triggeredEvents?: MovementEvent[];
+  data?: any;
 }
 
 // Movement event (traps, interactions, etc.)
@@ -33,9 +34,23 @@ export interface TurnManager {
   turnOrder: GameEntity[];
   currentEntityIndex: number;
   turnPhase: TurnPhase;
+  currentPhaseIndex: number;
+  entitySpeedStates: Map<string, EntitySpeedState>;
+  phaseEntityStates: Map<string, {
+    hasMovedThisPhase: boolean;
+    hasActedThisPhase: boolean;
+    trapTriggered: boolean;
+  }>;
 }
 
-export type TurnPhase = 'player-action' | 'recovery' | 'ally-movement' | 'enemy-movement' | 'traps' | 'attacks' | 'end-turn';
+export type TurnPhase = 
+  | 'turn-start'
+  | 'player-action-1' | 'player-action-2'
+  | 'enemy-action-1' | 'enemy-action-2' 
+  | 'ally-action-1' | 'ally-action-2'
+  | 'trap-processing-1' | 'trap-processing-2'
+  | 'mid-turn-recovery' | 'end-turn-recovery'
+  | 'end-turn';
 
 // Turn action
 export interface TurnAction {
@@ -46,6 +61,82 @@ export interface TurnAction {
 }
 
 export type TurnActionType = 'move' | 'attack' | 'use-item' | 'wait' | 'special';
+
+// Speed system types
+export type SpeedState = 'normal' | 'fast' | 'slow';
+
+export interface ActionConfig {
+  enabled: boolean;
+  canMove: boolean;
+  canAttack: boolean;
+  canUseItem: boolean;
+  adjacentRule?: boolean;  // 隣接時のスキップルール
+  skipTurns?: number;      // スキップするターン数（鈍足用）
+}
+
+export interface SpeedSystemConfig {
+  normal: {
+    action1: ActionConfig;
+    action2: ActionConfig;
+    description: string;
+  };
+  fast: {
+    action1: ActionConfig;
+    action2: ActionConfig;
+    description: string;
+  };
+  slow: {
+    action1: ActionConfig;
+    action2: ActionConfig;
+    description: string;
+  };
+}
+
+// Turn phase configuration
+export interface TurnPhaseConfig {
+  phase: TurnPhase;
+  description: string;
+  conditions: string[];
+}
+
+// Turn system configuration
+export interface TurnSystemConfig {
+  phases: TurnPhaseConfig[];
+  speedSystem: SpeedSystemConfig;
+  endTurnProcessing: EndTurnProcess[];
+}
+
+export interface EndTurnProcess {
+  process: 'status-recovery' | 'slip-damage' | 'hunger-decrease';
+  order: number;
+  description: string;
+}
+
+// Entity speed state tracking
+export interface EntitySpeedState {
+  entityId: string;
+  speedState: SpeedState;
+  action1State: {
+    canAct: boolean;
+    hasActed: boolean;
+    hasMoved: boolean;
+    hasAttacked: boolean;
+    hasUsedItem: boolean;
+  };
+  action2State: {
+    canAct: boolean;
+    hasActed: boolean;
+    hasMoved: boolean;
+    hasAttacked: boolean;
+    hasUsedItem: boolean;
+    wasAdjacentAfterAction1: boolean;
+  };
+  turnsUntilNextAction: number; // For slow entities
+  customRules?: {
+    action1?: Partial<ActionConfig>;
+    action2?: Partial<ActionConfig>;
+  };
+}
 
 // Input handling
 export interface InputHandler {
@@ -88,3 +179,11 @@ export const KeyToDirection: Record<string, MovementDirection> = {
   'z': 'southwest',
   'c': 'southeast'
 };
+
+export interface ActionResult {
+  success: boolean;        // 行動が成功したか
+  actionType: 'move' | 'attack' | 'item' | 'equip' | 'wait';
+  consumedTurn: boolean;   // ターンを消費したか
+  message?: string;        // 結果メッセージ
+  data?: any;              // 追加データ
+}

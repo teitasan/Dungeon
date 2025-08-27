@@ -8,6 +8,7 @@ import { BaseGameEntity, createDefaultCharacterStats, createDefaultCharacterAttr
 
 export class PlayerEntity extends BaseGameEntity implements Player {
   public name: string;
+  public direction: 'north' | 'northeast' | 'east' | 'southeast' | 'south' | 'southwest' | 'west' | 'northwest'; // 8方向
   public stats: CharacterStats;
   public attributes: CharacterAttributes;
   public hunger: number;
@@ -33,6 +34,7 @@ export class PlayerEntity extends BaseGameEntity implements Player {
     super(id, position, playerStats, components, flags);
     
     this.name = name;
+    this.direction = 'south'; // 初期向きは南
     this.stats = playerStats;
     this.attributes = attributes || createDefaultCharacterAttributes('neutral');
     this.hunger = 100; // Start with full hunger
