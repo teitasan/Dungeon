@@ -17,6 +17,12 @@ export interface DungeonTilesetConfig {
   dungeonSpecificTilesets?: Record<string, TilesetConfig>;
 }
 
+// 静的にアセットURLを解決（Vite がビルド時にURLへ展開）
+// @ts-ignore
+import basePngUrl from '../assets/images/base.png';
+// @ts-ignore
+import morikabePngUrl from '../assets/images/morikabe.png';
+
 export class TilesetManager {
   private image: HTMLImageElement | null = null;
   private config: TilesetConfig;
@@ -43,12 +49,36 @@ export class TilesetManager {
         console.error('Failed to load tileset image:', error);
         reject(new Error(`Failed to load tileset image: ${this.config.imagePath}`));
       };
-      this.image.src = this.config.imagePath;
+      this.image.src = this.resolveImagePath(this.config.imagePath);
     });
   }
 
   isLoaded(): boolean {
     return this.loaded && this.image !== null;
+  }
+
+  /**
+   * 画像パスをGitHub Pagesなどのbase配下でも解決できるように補正
+   * また、ビルドに同梱したアセット（importした画像）へのフォールバックも提供
+   */
+  private resolveImagePath(path: string): string {
+    // 既に完全なURL/データURLならそのまま
+    if (/^(https?:)?\/\//.test(path) || path.startsWith('data:')) return path;
+
+    // ViteのベースURL
+    const base = (import.meta as any).env?.BASE_URL || '/';
+
+    // 既知のファイル名に対してはバンドル済みURLへフォールバック
+    const filename = path.split('/').pop() || path;
+    if (/^base\.png$/i.test(filename)) return basePngUrl as string;
+    if (/^morikabe\.png$/i.test(filename)) return morikabePngUrl as string;
+
+    // 先頭スラッシュの場合は base を前置
+    if (path.startsWith('/')) {
+      return base.replace(/\/$/, '') + path;
+    }
+    // 相対パスの場合は base 配下に解決
+    return base.replace(/\/$/, '') + '/' + path.replace(/^\//, '');
   }
 
   drawTile(
