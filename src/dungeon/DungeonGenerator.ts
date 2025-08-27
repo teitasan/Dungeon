@@ -27,7 +27,7 @@ export class DungeonGenerator {
   // 追加通路の判定を高速化するためのグリッド占有キャッシュ
   private gridCols: number = 0;
   private gridRows: number = 0;
-  private roomInCell?: boolean[][];
+  // 部屋の占有キャッシュは現状未使用のため保持しない
   private corridorInCell?: boolean[][];
 
   constructor(seed?: number) {
@@ -68,7 +68,6 @@ export class DungeonGenerator {
       const { cols, rows } = this.getGridColsRows(params.gridDivision || 12);
       this.gridCols = cols;
       this.gridRows = rows;
-      this.roomInCell = Array.from({ length: this.gridRows }, () => Array(this.gridCols).fill(false));
       this.corridorInCell = Array.from({ length: this.gridRows }, () => Array(this.gridCols).fill(false));
       this.generateGridBasedRooms(dungeon, params);
       console.log('[DEBUG] 部屋生成完了');
@@ -334,12 +333,7 @@ export class DungeonGenerator {
         };
       }
     }
-    // 占有キャッシュ更新（部屋は単一グリッド内に収まる）
-    if (this.roomInCell && room.gridRow != null && room.gridCol != null) {
-      if (room.gridRow >= 0 && room.gridRow < this.gridRows && room.gridCol >= 0 && room.gridCol < this.gridCols) {
-        this.roomInCell[room.gridRow][room.gridCol] = true;
-      }
-    }
+    // 部屋占有のキャッシュ更新は現状不要のため省略
   }
 
   /**
@@ -958,67 +952,7 @@ export class DungeonGenerator {
    * Adjust position to even or odd grid with collision avoidance
    * 通路同士が重ならないように、既に使用されているマスを避けて偶数または奇数マスに調整
    */
-  private adjustToEvenOddGridWithCollisionAvoidance(
-    centerPos: number, 
-    minPos: number, 
-    maxPos: number, 
-    usedPositions: Set<string>
-  ): number {
-    // 中心位置を基準に、偶数または奇数マスに調整
-    const adjustedPos = centerPos;
-    
-    // 範囲内で最も近い偶数マスと奇数マスを探す
-    let evenPos = Math.floor(adjustedPos / 2) * 2;
-    let oddPos = evenPos + 1;
-    
-    // 範囲外の場合は調整
-    if (evenPos < minPos) evenPos = minPos;
-    if (oddPos < minPos) oddPos = minPos;
-    if (evenPos > maxPos) evenPos = maxPos;
-    if (oddPos > maxPos) oddPos = maxPos;
-    
-    // 使用されていない位置を優先的に選択
-    const evenKey = `${evenPos}`;
-    const oddKey = `${oddPos}`;
-    
-    const evenAvailable = !usedPositions.has(evenKey);
-    const oddAvailable = !usedPositions.has(oddKey);
-    
-    // 両方利用可能な場合
-    if (evenAvailable && oddAvailable) {
-      // 中心位置により近い方を選択
-      const evenDistance = Math.abs(adjustedPos - evenPos);
-      const oddDistance = Math.abs(adjustedPos - oddPos);
-      return evenDistance <= oddDistance ? evenPos : oddPos;
-    }
-    
-    // 偶数マスのみ利用可能
-    if (evenAvailable && !oddAvailable) {
-      return evenPos;
-    }
-    
-    // 奇数マスのみ利用可能
-    if (!evenAvailable && oddAvailable) {
-      return oddPos;
-    }
-    
-    // 両方使用済みの場合、最も近い未使用マスを探す
-    let bestPos = evenPos;
-    let bestDistance = Math.abs(adjustedPos - evenPos);
-    
-    for (let pos = minPos; pos <= maxPos; pos++) {
-      const key = `${pos}`;
-      if (!usedPositions.has(key)) {
-        const distance = Math.abs(adjustedPos - pos);
-        if (distance < bestDistance) {
-          bestPos = pos;
-          bestDistance = distance;
-        }
-      }
-    }
-    
-    return bestPos;
-  }
+  // adjustToEvenOddGridWithCollisionAvoidance は未使用のため削除
 
   /**
    * Carve corridor at position
@@ -1061,36 +995,43 @@ export class DungeonGenerator {
     if (dungeon.rooms.length === 0) return;
 
     const direction = params.progressionDirection || 'down';
+    const firstRoom = dungeon.rooms[0];
+    const lastRoom = dungeon.rooms[dungeon.rooms.length - 1];
 
     if (direction === 'down') {
-      // Only stairs-down per floor
-      const lastRoom = dungeon.rooms[dungeon.rooms.length - 1];
-      const stairsDown = {
-        x: lastRoom.x + Math.floor(lastRoom.width / 2),
-        y: lastRoom.y + Math.floor(lastRoom.height / 2)
-      };
+      // 下り階段: 任意の部屋の床タイルならどこでも可（プレイヤー直下でも可）
+      const target = dungeon.rooms[this.randomInt(0, dungeon.rooms.length - 1)];
+      const stairsDown = this.pickRandomPointInRoom(target, 0);
       dungeon.stairsDown = stairsDown;
-      // セルの存在チェックを追加
       if (dungeon.cells[stairsDown.y] && dungeon.cells[stairsDown.y][stairsDown.x]) {
         dungeon.cells[stairsDown.y][stairsDown.x].type = 'stairs-down';
       }
-      // Ensure no stairs-up
       dungeon.stairsUp = undefined;
     } else {
-      // direction === 'up' → Only stairs-up per floor
-      const firstRoom = dungeon.rooms[0];
-      const stairsUp = {
-        x: firstRoom.x + Math.floor(firstRoom.width / 2),
-        y: firstRoom.y + Math.floor(firstRoom.height / 2)
-      };
+      // 上り階段: 任意の部屋の床タイル
+      const target = dungeon.rooms[this.randomInt(0, dungeon.rooms.length - 1)];
+      const stairsUp = this.pickRandomPointInRoom(target, 0);
       dungeon.stairsUp = stairsUp;
-      // セルの存在チェックを追加
       if (dungeon.cells[stairsUp.y] && dungeon.cells[stairsUp.y][stairsUp.x]) {
         dungeon.cells[stairsUp.y][stairsUp.x].type = 'stairs-up';
       }
-      // Ensure no stairs-down
       dungeon.stairsDown = undefined;
     }
+  }
+
+  // 以前の距離ベース配置は不要になったため削除（シンプルランダムに統一）
+
+  // 部屋内のランダムなタイルを返す（margin=0なら端含む）
+  private pickRandomPointInRoom(room: Room, margin = 0): Position {
+    const mX = Math.min(margin, Math.max(0, room.width - 1));
+    const mY = Math.min(margin, Math.max(0, room.height - 1));
+    const minX = room.x + mX;
+    const maxX = room.x + room.width - 1 - mX;
+    const minY = room.y + mY;
+    const maxY = room.y + room.height - 1 - mY;
+    const x = this.randomInt(minX, maxX);
+    const y = this.randomInt(minY, maxY);
+    return { x, y };
   }
 
   /**
