@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="0; url=./web/" />
+    <title>Redirecting…</title>
+    <script>
+      // Fallback redirect that preserves repo path
+      (function () {
+        var p = location.pathname.replace(/\/?$/, '/');
+        if (!/\/web\//.test(p)) location.replace(p + 'web/');
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Redirecting to <a href="./web/">web/</a>…</p>
+  </body>
+  </html>
+

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="0; url=./web/" />
+    <title>Not Found – Redirecting…</title>
+    <script>
+      (function () {
+        var base = location.pathname.replace(/\/?$/, '/');
+        // Redirect unknown paths to the app root under web/
+        // This helps when deep-linking to routes (if any) or when opening the repo root.
+        if (!/\/web\//.test(base)) location.replace(base.replace(/[^/]*$/, '') + 'web/');
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Page not found. Redirecting to <a href="./web/">web/</a>…</p>
+  </body>
+  </html>
+
