@@ -28,6 +28,9 @@ export interface Room {
   type: RoomType;
   connected: boolean;
   connections: Connection[];
+  // 生成時に割り当てられたグリッド位置（任意）
+  gridRow?: number;
+  gridCol?: number;
 }
 
 export type RoomType = 'normal' | 'monster-house' | 'shop' | 'treasure' | 'boss' | 'special';
@@ -95,6 +98,12 @@ export interface DungeonGenerationParams {
    * 'up':   各フロアに上り階段のみ生成
    */
   progressionDirection?: 'down' | 'up';
+  /** 直隣接ペアの最大追加数（既定2） */
+  extraAdjacentMaxPairs?: number;
+  /** スキップ隣接ペアの最大追加数（既定2） */
+  extraSkipNeighborMaxPairs?: number;
+  /** 追加通路の採用確率（0.0-1.0, 既定1.0） */
+  extraAddProbability?: number;
 }
 
 // Floor-specific generation parameters (legacy)

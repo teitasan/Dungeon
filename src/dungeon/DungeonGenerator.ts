@@ -12,6 +12,8 @@ import {
 } from '../types/dungeon';
 
 interface GridCell {
+  row: number;
+  col: number;
   x: number;
   y: number;
   width: number;
@@ -22,6 +24,11 @@ interface GridCell {
 export class DungeonGenerator {
   private rng: () => number;
   private seed: number;
+  // 追加通路の判定を高速化するためのグリッド占有キャッシュ
+  private gridCols: number = 0;
+  private gridRows: number = 0;
+  private roomInCell?: boolean[][];
+  private corridorInCell?: boolean[][];
 
   constructor(seed?: number) {
     this.seed = seed || Math.floor(Math.random() * 1000000);
@@ -57,6 +64,12 @@ export class DungeonGenerator {
 
       // Generate rooms using new grid-based algorithm
       console.log('[DEBUG] 部屋生成開始...');
+      // グリッド仕様と占有キャッシュを初期化
+      const { cols, rows } = this.getGridColsRows(params.gridDivision || 12);
+      this.gridCols = cols;
+      this.gridRows = rows;
+      this.roomInCell = Array.from({ length: this.gridRows }, () => Array(this.gridCols).fill(false));
+      this.corridorInCell = Array.from({ length: this.gridRows }, () => Array(this.gridCols).fill(false));
       this.generateGridBasedRooms(dungeon, params);
       console.log('[DEBUG] 部屋生成完了');
 
@@ -64,6 +77,16 @@ export class DungeonGenerator {
       console.log('[DEBUG] 部屋接続開始...');
       this.connectRooms(dungeon, params);
       console.log('[DEBUG] 部屋接続完了');
+
+      // Connect up to 0–2 cardinal-adjacent unconnected room pairs
+      console.log('[DEBUG] 隣接部屋追加接続開始...');
+      this.addAdjacentRoomCorridors(dungeon, params);
+      console.log('[DEBUG] 隣接部屋追加接続完了');
+
+      // Connect skip-neighbor rooms (same row/col with one empty grid between)
+      console.log('[DEBUG] スキップ隣接部屋追加接続開始...');
+      this.addSkipNeighborCorridors(dungeon, params);
+      console.log('[DEBUG] スキップ隣接部屋追加接続完了');
 
       // Place stairs
       console.log('[DEBUG] 階段配置開始...');
@@ -195,6 +218,8 @@ export class DungeonGenerator {
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         grid.push({
+          row,
+          col,
           x: col * cellWidth,
           y: row * cellHeight,
           width: cellWidth,
@@ -257,7 +282,9 @@ export class DungeonGenerator {
         height: roomHeight,
         type: 'normal' as const,
         connected: false,
-        connections: []
+        connections: [],
+        gridRow: gridCell.row,
+        gridCol: gridCell.col
       };
       
       console.log(`[DEBUG] 部屋${roomIndex}生成完了:`, room);
@@ -305,6 +332,12 @@ export class DungeonGenerator {
           transparent: true,
           entities: []
         };
+      }
+    }
+    // 占有キャッシュ更新（部屋は単一グリッド内に収まる）
+    if (this.roomInCell && room.gridRow != null && room.gridCol != null) {
+      if (room.gridRow >= 0 && room.gridRow < this.gridRows && room.gridCol >= 0 && room.gridCol < this.gridCols) {
+        this.roomInCell[room.gridRow][room.gridCol] = true;
       }
     }
   }
@@ -628,6 +661,180 @@ export class DungeonGenerator {
   }
 
   /**
+   * 上下左右で隣接していて未接続の部屋ペアから、ランダムで0〜2ペアを選び、
+   * 既存の通路生成アルゴリズム（createCorridor）で接続する。
+   */
+  private addAdjacentRoomCorridors(dungeon: Dungeon, params: DungeonGenerationParams): void {
+    const rooms = dungeon.rooms;
+    if (rooms.length < 2) return;
+
+    const connected = new Set<string>();
+    for (const r of rooms) {
+      for (const c of r.connections) {
+        connected.add(this.makePairKey(r.id, c.roomId));
+      }
+    }
+
+    const pairs: { a: Room; b: Room }[] = [];
+    for (let i = 0; i < rooms.length; i++) {
+      for (let j = i + 1; j < rooms.length; j++) {
+        const a = rooms[i], b = rooms[j];
+        if (connected.has(this.makePairKey(a.id, b.id))) continue;
+        if (this.areCardinalAdjacentByGrid(a, b)) {
+          pairs.push({ a, b });
+        }
+      }
+    }
+    if (pairs.length === 0) return;
+
+    // 最大本数（既定2）と確率（隣接は60%）
+    const maxPairs = params.extraAdjacentMaxPairs ?? 2;
+    const probability = 0.6;
+    let added = 0;
+    for (const { a, b } of this.shuffleArray(pairs)) {
+      if (added >= maxPairs) break;
+      if (this.rng() >= probability) continue;
+      const corridor = this.createCorridor(dungeon, a, b, params);
+      a.connections.push({ roomId: b.id, corridorPath: corridor });
+      b.connections.push({ roomId: a.id, corridorPath: corridor });
+      added++;
+    }
+  }
+
+  private makePairKey(aId: string, bId: string): string {
+    return aId < bId ? `${aId}::${bId}` : `${bId}::${aId}`;
+  }
+
+  // グリッド上でマンハッタン距離1（上下左右の隣）
+  private areCardinalAdjacentByGrid(a: Room, b: Room): boolean {
+    if (a.gridRow == null || a.gridCol == null || b.gridRow == null || b.gridCol == null) return false;
+    const dr = Math.abs(a.gridRow - b.gridRow);
+    const dc = Math.abs(a.gridCol - b.gridCol);
+    return dr + dc === 1;
+  }
+
+  // overlap1D は使用しないため削除
+
+  // 指定グリッドセル内に既存の通路が含まれるか判定
+  private gridCellHasCorridor(
+    dungeon: Dungeon,
+    row: number,
+    col: number,
+    cols: number,
+    rows: number
+  ): boolean {
+    // 占有キャッシュがある場合は高速判定
+    if (this.corridorInCell) {
+      if (row >= 0 && row < this.gridRows && col >= 0 && col < this.gridCols) {
+        return !!this.corridorInCell[row][col];
+      }
+      return false;
+    }
+    const { x0, x1, y0, y1 } = this.getGridCellBounds(dungeon, cols, rows, row, col);
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        const cell = dungeon.cells[y]?.[x];
+        if (cell && cell.type === 'corridor') return true;
+      }
+    }
+    return false;
+  }
+
+  // グリッドセルのタイル範囲を取得
+  private getGridCellBounds(
+    dungeon: Dungeon,
+    cols: number,
+    rows: number,
+    row: number,
+    col: number
+  ): { x0: number; x1: number; y0: number; y1: number } {
+    const x0 = Math.floor((col / cols) * dungeon.width);
+    const x1 = Math.floor(((col + 1) / cols) * dungeon.width);
+    const y0 = Math.floor((row / rows) * dungeon.height);
+    const y1 = Math.floor(((row + 1) / rows) * dungeon.height);
+    return { x0, x1, y0, y1 };
+  }
+
+  // gridDivision を(cols, rows)に変換するユーティリティ
+  private getGridColsRows(gridDivision: number): { cols: number; rows: number } {
+    if (gridDivision === 9) return { cols: 3, rows: 3 };
+    if (gridDivision === 12) return { cols: 4, rows: 3 };
+    if (gridDivision === 16) return { cols: 4, rows: 4 };
+    if (gridDivision === 15) return { cols: 5, rows: 3 };
+    if (gridDivision === 20) return { cols: 5, rows: 4 };
+    return { cols: 4, rows: 3 };
+  }
+
+  /**
+   * 隣の隣（同じ行または列で1セル空き）の部屋同士を、
+   * 中間グリッドに部屋がない場合のみ追加接続する（最大2ペア、テスト用に100%）。
+   */
+  private addSkipNeighborCorridors(dungeon: Dungeon, params: DungeonGenerationParams): void {
+    const rooms = dungeon.rooms;
+    if (rooms.length < 2) return;
+
+    const { cols, rows } = this.getGridColsRows(params.gridDivision || 12);
+    const gridRooms: (Room | null)[][] = Array.from({ length: rows }, () => Array(cols).fill(null));
+    for (const r of rooms) {
+      if (r.gridRow == null || r.gridCol == null) continue;
+      if (!gridRooms[r.gridRow][r.gridCol]) gridRooms[r.gridRow][r.gridCol] = r;
+    }
+
+    const connected = new Set<string>();
+    for (const r of rooms) {
+      for (const c of r.connections) connected.add(this.makePairKey(r.id, c.roomId));
+    }
+
+    type Pair = { a: Room; b: Room; midRow: number; midCol: number };
+    const pairs: Pair[] = [];
+    // 水平方向候補
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c + 2 < cols; c++) {
+        const a = gridRooms[r][c];
+        const mid = gridRooms[r][c + 1];
+        const b = gridRooms[r][c + 2];
+        if (a && b && !mid && !connected.has(this.makePairKey(a.id, b.id))) {
+          pairs.push({ a, b, midRow: r, midCol: c + 1 });
+        }
+      }
+    }
+    // 垂直方向候補
+    for (let r = 0; r + 2 < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const a = gridRooms[r][c];
+        const mid = gridRooms[r + 1][c];
+        const b = gridRooms[r + 2][c];
+        if (a && b && !mid && !connected.has(this.makePairKey(a.id, b.id))) {
+          pairs.push({ a, b, midRow: r + 1, midCol: c });
+        }
+      }
+    }
+
+    if (pairs.length === 0) return;
+    const usedMid = new Set<string>();
+    const shuffledPairs = this.shuffleArray(pairs);
+    const maxPairs = params.extraSkipNeighborMaxPairs ?? 2;
+    const probability = 0.8; // スキップ隣接は80%
+    let added = 0;
+    for (const p of shuffledPairs) {
+      if (added >= maxPairs) break; // 最大数
+      const midKey = `${p.midRow}:${p.midCol}`;
+      if (usedMid.has(midKey)) continue; // 同じ中間グリッドは一度だけ
+
+      // 現在の状態で中間グリッドに通路がないか再確認
+      if (this.gridCellHasCorridor(dungeon, p.midRow, p.midCol, cols, rows)) continue;
+      // 確率チェック
+      if (this.rng() >= probability) continue;
+
+      const corridor = this.createCorridor(dungeon, p.a, p.b, params);
+      p.a.connections.push({ roomId: p.b.id, corridorPath: corridor });
+      p.b.connections.push({ roomId: p.a.id, corridorPath: corridor });
+      usedMid.add(midKey);
+      added++;
+    }
+  }
+
+  /**
    * Find the best exit point on the edge of a room facing another room
    * 通路の接続先を偶数または奇数マスに限定して、通路同士がくっつくことを防ぐ
    */
@@ -833,6 +1040,12 @@ export class DungeonGenerator {
               transparent: true,
               entities: []
             };
+            // 占有キャッシュ更新（通路が通ったグリッドをマーク）
+            if (this.corridorInCell && this.gridCols > 0 && this.gridRows > 0) {
+              const col = Math.max(0, Math.min(this.gridCols - 1, Math.floor((x * this.gridCols) / dungeon.width)));
+              const row = Math.max(0, Math.min(this.gridRows - 1, Math.floor((y * this.gridRows) / dungeon.height)));
+              this.corridorInCell[row][col] = true;
+            }
           }
         }
       }
