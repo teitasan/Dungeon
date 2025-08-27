@@ -8,8 +8,10 @@ export class WebConfigLoader {
   private configCache: Map<string, any> = new Map();
   private basePath: string;
 
-  constructor(basePath: string = '/public/config') {
-    this.basePath = basePath;
+  constructor(basePath?: string) {
+    // Use Vite's base to resolve the correct root on GitHub Pages
+    const viteBase = (import.meta as any).env?.BASE_URL || '/';
+    this.basePath = basePath ?? (viteBase.replace(/\/$/, '') + '/config');
   }
 
   /**
