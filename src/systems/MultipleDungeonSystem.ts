@@ -331,6 +331,12 @@ export class MultipleDungeonSystem {
         if (this.renderer) {
           console.log(`[DEBUG] フロア変更: 新しいフロア = ${newDungeon.floor}`);
           this.renderer.checkFloorChange(newDungeon.floor);
+          // アイキャッチ演出（暗転＋ダンジョン名・フロア表示）
+          try {
+            await this.renderer.playFloorTransition(newDungeon.name, newDungeon.floor);
+          } catch (e) {
+            console.warn('Floor transition effect failed:', e);
+          }
         }
       } else {
         console.error('[ERROR] 新しいダンジョンが取得できません');

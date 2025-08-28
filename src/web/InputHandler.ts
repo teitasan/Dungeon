@@ -35,6 +35,12 @@ export class InputHandler {
     private onRender: () => void
   ) {
     this.bindKeys();
+    // モーダルの開閉時にキー状態をリセット（押しっぱなしビットの取り残し防止）
+    window.addEventListener('ui-modal-opened', () => this.resetKeyState());
+    window.addEventListener('ui-modal-closed', () => this.resetKeyState());
+    // アイキャッチ開始/終了時にもキー状態をリセット
+    window.addEventListener('ui-transition-start', () => this.resetKeyState());
+    window.addEventListener('ui-transition-end', () => this.resetKeyState());
   }
 
   private bindKeys(): void {
@@ -55,8 +61,18 @@ export class InputHandler {
 
   private handleKeyEvent(key: string, type: 'keydown' | 'keyup'): void {
     console.log(`[DEBUG] キーイベント受信: key=${key}, type=${type}`);
-    // モーダルが開いている間はキー入力をモーダルに専有させる
-    if (isModalOpen()) {
+    // モーダル/アイキャッチ中はキー入力をUIに専有させる
+    const isBlockedByUI = isModalOpen() || (this.systems.renderer && this.systems.renderer.isInTransition());
+    if (isBlockedByUI) {
+      // ただし keyup は押下ビットを確実にクリアする
+      if (type === 'keyup') {
+        switch (key) {
+          case 'ArrowUp': this.keyPress &= ~this.KEY_UP; break;
+          case 'ArrowDown': this.keyPress &= ~this.KEY_DOWN; break;
+          case 'ArrowLeft': this.keyPress &= ~this.KEY_LEFT; break;
+          case 'ArrowRight': this.keyPress &= ~this.KEY_RIGHT; break;
+        }
+      }
       return;
     }
     
@@ -189,6 +205,8 @@ export class InputHandler {
   private handleInventoryInput(key: string, type: 'keydown' | 'keyup'): void {
     // モーダル表示中はインベントリ内のキー処理を行わない
     if (isModalOpen()) return;
+    // アイキャッチ演出中は無効
+    if (this.systems.renderer && this.systems.renderer.isInTransition()) return;
     // インベントリ内での移動処理（keydownのみ）
     if ((key === 'ArrowUp' || key === 'ArrowDown') && type === 'keydown') {
       const direction = key === 'ArrowUp' ? 'up' : 'down';
@@ -331,6 +349,10 @@ export class InputHandler {
   public processMovement(): void {
     // 移動可能フラグチェック
     if (!this.canMove) {
+      return;
+    }
+    // アイキャッチ演出中は移動処理を停止
+    if (this.systems.renderer && this.systems.renderer.isInTransition()) {
       return;
     }
 
@@ -498,6 +520,10 @@ export class InputHandler {
             } else {
               this.uiManager.addMessageWithAnimation(dir === 'down' ? this.config.messages.ui.stairsConfirmDown : this.config.messages.ui.stairsAdvanceUp);
             }
+            // フロア移動直後にキー状態をリセット（押しっぱなし誤検知対策）
+            this.resetKeyState();
+            this.canMove = true;
+            this.canAttack = true;
           } else {
             this.uiManager.addMessageWithAnimation('フロア進行に失敗しました');
           }

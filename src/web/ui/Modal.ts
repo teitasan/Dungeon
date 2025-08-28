@@ -29,6 +29,10 @@ function cleanup(): void {
   if (!currentState) return;
   window.removeEventListener('keydown', currentState.keyHandler);
   currentState.overlay.remove();
+  // 通知: モーダルが閉じられた（OK/キャンセル問わず）
+  try {
+    window.dispatchEvent(new CustomEvent('ui-modal-closed'));
+  } catch {}
   currentState = null;
 }
 
@@ -142,6 +146,10 @@ export function openChoiceModal(params: {
 
     window.addEventListener('keydown', keyHandler);
     renderSelection();
+    // 通知: モーダルが開かれた
+    try {
+      window.dispatchEvent(new CustomEvent('ui-modal-opened'));
+    } catch {}
   });
 
   return promise;

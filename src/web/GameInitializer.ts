@@ -323,6 +323,16 @@ export class GameInitializer {
     // システムにレンダラーを設定
     systems.renderer = renderer;
     systems.tilesetManager = tilesetManager;
+
+    // 初回入場時のアイキャッチ演出
+    try {
+      const currentDungeon = dungeonManager.getCurrentDungeon();
+      if (currentDungeon) {
+        await renderer.playFloorTransition(currentDungeon.name, currentDungeon.floor);
+      }
+    } catch (e) {
+      console.warn('Initial floor transition effect failed:', e);
+    }
   }
 
   private setupMinimap(systems: GameSystems, uiManager: UIManager): void {

@@ -21,6 +21,7 @@ export class CanvasRenderer {
   private monsterVisionActive: boolean = false;
   private dungeonManager: DungeonManager | null = null;
   private activeEffectsFloor: number | null = null;
+  private transitionInProgress: boolean = false;
 
   constructor(private canvas: HTMLCanvasElement, tileSize: number = 20) {
     const ctx = canvas.getContext('2d');
@@ -28,6 +29,11 @@ export class CanvasRenderer {
     this.ctx = ctx;
     this.tileSize = tileSize;
     this.ctx.imageSmoothingEnabled = false;
+  }
+
+  /** 現在アイキャッチ演出中かどうか */
+  public isInTransition(): boolean {
+    return this.transitionInProgress;
   }
 
   /**
@@ -38,6 +44,100 @@ export class CanvasRenderer {
     this.viewportTilesY = Math.max(1, Math.floor(tilesY));
     this.canvas.width = this.viewportTilesX * this.tileSize;
     this.canvas.height = this.viewportTilesY * this.tileSize;
+  }
+
+  /**
+   * フロア移動時のアイキャッチ演出（暗転＋ダンジョン名とフロアを表示）
+   */
+  public async playFloorTransition(dungeonName: string, floor: number): Promise<void> {
+    if (this.transitionInProgress) return;
+    this.transitionInProgress = true;
+    try { window.dispatchEvent(new CustomEvent('ui-transition-start')); } catch {}
+
+    const ctx = this.ctx;
+    const W = this.canvas.width;
+    const H = this.canvas.height;
+    const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
+
+    const title = dungeonName;
+    // 階層表記は BnF 形式（例: B3F）
+    const subtitle = `B${floor}F`;
+
+    const fadeIn = 350;   // ms
+    const hold = 700;     // ms
+    const fadeOut = 450;  // ms
+    const total = fadeIn + hold + fadeOut;
+    const start = performance.now();
+
+    const drawFrame = (alpha: number) => {
+      // 黒フェード
+      ctx.save();
+      ctx.fillStyle = `rgba(0,0,0,${alpha.toFixed(3)})`;
+      ctx.fillRect(0, 0, W, H);
+
+      // テキスト（白・中央）
+      ctx.fillStyle = `rgba(255,255,255,${Math.min(1, alpha * 1.2).toFixed(3)})`;
+      ctx.textBaseline = 'middle';
+
+      // 文字間隔を少し広げて描画するユーティリティ
+      const drawTextWithTracking = (text: string, centerX: number, y: number, spacing: number) => {
+        ctx.textAlign = 'left';
+        // 文字ごとの幅を計測
+        const widths: number[] = [];
+        let total = 0;
+        for (const ch of text) {
+          const w = ctx.measureText(ch).width;
+          widths.push(w);
+          total += w;
+        }
+        total += spacing * Math.max(0, text.length - 1);
+        let x = centerX - total / 2;
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i];
+          ctx.fillText(ch, x, y);
+          x += widths[i] + spacing;
+        }
+      };
+
+      // タイトル（文字サイズの8分の1のトラッキング）
+      const titleFontSize = Math.floor(this.tileSize * 1.2);
+      ctx.font = `bold ${titleFontSize}px '${fontFamily}', ui-monospace, Menlo, monospace`;
+      drawTextWithTracking(title, W / 2, H / 2 - this.tileSize * 0.8, Math.max(1, Math.floor(titleFontSize / 8)));
+
+      // サブタイトル（B●F、同様に文字サイズの8分の1）
+      const subFontSize = Math.floor(this.tileSize * 0.9);
+      ctx.font = `${subFontSize}px '${fontFamily}', ui-monospace, Menlo, monospace`;
+      drawTextWithTracking(subtitle, W / 2, H / 2 + this.tileSize * 0.2, Math.max(1, Math.floor(subFontSize / 8)));
+      ctx.restore();
+    };
+
+    return await new Promise<void>((resolve) => {
+      const tick = () => {
+        const t = performance.now() - start;
+        if (t >= total) {
+          // 最終フレーム（透明）
+          drawFrame(0);
+          this.transitionInProgress = false;
+          try { window.dispatchEvent(new CustomEvent('ui-transition-end')); } catch {}
+          resolve();
+          return;
+        }
+
+        let alpha = 0;
+        if (t < fadeIn) {
+          alpha = t / fadeIn;
+        } else if (t < fadeIn + hold) {
+          alpha = 1;
+        } else {
+          const u = (t - fadeIn - hold) / fadeOut;
+          alpha = 1 - u;
+        }
+
+        drawFrame(alpha);
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
   }
 
   /** タイルピクセルサイズを変更（ビューポートに合わせてキャンバスも再設定） */
