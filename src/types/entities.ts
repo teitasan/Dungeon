@@ -115,10 +115,30 @@ export interface Item extends GameEntity {
     defenseAttributes?: string[];
   };
   equipmentStats?: EquipmentStats;
+  /**
+   * アイテム固有のフラグ（全アイテムに付与）
+   * onThrow: 投擲時の基本挙動
+   */
+  itemFlags: ItemFlags;
 }
 
 // Supporting types
 export type ItemType = 'weapon-melee' | 'weapon-ranged' | 'armor' | 'accessory' | 'consumable' | 'misc';
+
+/**
+ * アイテム共通フラグ
+ */
+export interface ItemFlags {
+  /**
+   * 投擲時の基本挙動
+   * - 'effect-then-disappear': 効果適用後に消滅（デフォルト: 効果あり）
+   * - 'damage-then-disappear': ダメージ付与後に消滅（デフォルト: 効果なし）
+   * - 'special': 特殊アイテム（後続の特別処理; 現状は空）
+   */
+  onThrow: 'effect-then-disappear' | 'damage-then-disappear' | 'special';
+  /** 任意: 特殊識別子（将来拡張用） */
+  specialId?: string;
+}
 
 export interface DropTableEntry {
   itemId: string;

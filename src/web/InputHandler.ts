@@ -3,6 +3,7 @@ import type { Position } from '../types/core.js';
 import type { GameSystems } from './GameInitializer.js';
 import type { PlayerEntity } from '../entities/Player.js';
 import type { UIManager } from './ui/UIManager.js';
+import { ItemEntity } from '../entities/Item.js';
 
 export class InputHandler {
   private keyPress = 0;
@@ -54,6 +55,10 @@ export class InputHandler {
 
   private handleKeyEvent(key: string, type: 'keydown' | 'keyup'): void {
     console.log(`[DEBUG] キーイベント受信: key=${key}, type=${type}`);
+    // モーダルが開いている間はキー入力をモーダルに専有させる
+    if (isModalOpen()) {
+      return;
+    }
     
     // ビット演算によるキー状態管理
     if (type === 'keydown') {
@@ -104,16 +109,16 @@ export class InputHandler {
     
     // インベントリ内でのキー操作を優先処理
     if (this.inventoryOpen) {
+      // インベントリキー（A）でトグル閉じる
+      if (type === 'keydown' && (key === 'a' || key === 'A')) {
+        this.setInventoryOpen(false);
+        this.onRender();
+        return;
+      }
       this.handleInventoryInput(key, type);
       return;
     }
     
-    // アクションキーの処理
-    if (key === 'i' || key === 'I') {
-      this.setInventoryOpen(!this.inventoryOpen);
-      return;
-    }
-
     // Xキーによる高速モード切り替え
     if (key === 'x' || key === 'X') {
       if (type === 'keydown') {
@@ -126,15 +131,66 @@ export class InputHandler {
       return;
     }
     
+    // ここから下の操作は全て keydown のみで発火
+    if (type !== 'keydown') {
+      return;
+    }
+
+    // インベントリ開閉（keydownのみ）: デフォルトを I から A に変更
+    if (key === 'a' || key === 'A') {
+      this.setInventoryOpen(!this.inventoryOpen);
+      return;
+    }
+    
     if (key === 'Enter' || key === 'z' || key === 'Z') {
       this.handleAttack();
       return;
     }
+
+    // 投擲（T）: keydown のみで処理
+    if (key === 't' || key === 'T') {
+      this.handleThrow();
+      return;
+    }
+  }
+
+  private handleThrow(): void {
+    // 行動可否チェック（攻撃と同じ扱い）
+    if (!this.canAttack || this.turnInProgress) {
+      return;
+    }
+    // 所持品がなければ何もしない
+    if (!this.player.inventory || this.player.inventory.length === 0) {
+      this.uiManager.addMessageWithAnimation('投げるアイテムがない');
+      return;
+    }
+
+    // 投げる対象：インベントリが開いていたら選択中、でなければ先頭
+    const selected = this.inventoryOpen ? this.systems.uiSystem['uiManager']?.getSelectedInventoryItem?.() : undefined;
+    const targetItem = selected || this.player.inventory[0];
+    if (!targetItem) {
+      this.uiManager.addMessageWithAnimation('投げるアイテムがない');
+      return;
+    }
+
+    // プレイヤーの向きから方向を取得
+    const dir = this.player.direction || 'south';
+    const result = this.systems.itemSystem.throwItem(this.player, targetItem.id, dir as any);
+    
+    if (result.success) {
+      // ターンを消費し、連打での多重実行を防ぐ
+      this.canAttack = false;
+      this.onPlayerAction('item', true, result);
+    } else {
+      this.uiManager.addMessageWithAnimation(result.message);
+    }
   }
 
   private handleInventoryInput(key: string, type: 'keydown' | 'keyup'): void {
-    // インベントリ内での移動処理（簡易版）
-    if (key === 'ArrowUp' || key === 'ArrowDown') {
+    // モーダル表示中はインベントリ内のキー処理を行わない
+    if (isModalOpen()) return;
+    // インベントリ内での移動処理（keydownのみ）
+    if ((key === 'ArrowUp' || key === 'ArrowDown') && type === 'keydown') {
       const direction = key === 'ArrowUp' ? 'up' : 'down';
       const result = this.systems.uiSystem.handleInventoryAction('move-selection', direction);
       if (result.success) {
@@ -143,31 +199,77 @@ export class InputHandler {
       return;
     }
     
-    if (key === 'Enter' || key === 'z' || key === 'Z') {
-      // アイテム使用処理
-      const result = this.systems.uiSystem.handleInventoryAction('use-item');
-      this.uiManager.addMessageWithAnimation(result.message);
-      
-      // アイテム使用後に即座にレンダリングを更新（ミニマップ反映のため）
-      this.onRender();
-      
-      if (result.shouldClose) {
-        this.setInventoryOpen(false);
-        this.renderInventory();
-      }
-      
-      // アイテム使用成功時はプレイヤー行動ハンドラーでターン処理
-      if (result.success) {
-        this.onPlayerAction('item', true);
-      }
-      
+    if ((key === 'Enter' || key === 'z' || key === 'Z') && type === 'keydown') {
+      // アイテム操作メニューを表示: 使う/投げる/捨てる
+      this.presentInventoryActionMenu();
       return;
     }
     
-    if (key === 'x' || key === 'X') {
+    if ((key === 'x' || key === 'X') && type === 'keydown') {
       this.setInventoryOpen(false);
       this.onRender();
       return;
+    }
+  }
+
+  // インベントリ選択アイテムに対する操作メニュー
+  private async presentInventoryActionMenu(): Promise<void> {
+    const selected = this.uiManager.getSelectedInventoryItem();
+    if (!selected) {
+      this.uiManager.addMessageWithAnimation('アイテムが選択されていません');
+      return;
+    }
+
+    try {
+      const res = await openChoiceModal({
+        title: `${selected.name || selected.id} をどうする？`,
+        options: [
+          { id: 'use', label: '使う' },
+          { id: 'throw', label: '投げる' },
+          { id: 'drop', label: '捨てる' }
+        ],
+        defaultIndex: 0,
+      });
+
+      if (res.type !== 'ok') {
+        this.uiManager.addMessageWithAnimation('キャンセルしました');
+        return;
+      }
+
+      const choice = res.selectedId;
+      if (choice === 'use') {
+        const result = this.systems.uiSystem.handleInventoryAction('use-item');
+        if (result.message) this.uiManager.addMessageWithAnimation(result.message);
+        this.onRender();
+        if (result.success) {
+          this.setInventoryOpen(false);
+          this.renderInventory();
+          this.onPlayerAction('item', true);
+        }
+      } else if (choice === 'throw') {
+        // 投擲: 選択中アイテムをプレイヤーの向きに投げる
+        const dir = this.player.direction || 'south';
+        const throwResult = this.systems.itemSystem.throwItem(this.player, selected.id, dir as any);
+        if (throwResult.message) this.uiManager.addMessageWithAnimation(throwResult.message);
+        this.onRender();
+        if (throwResult.success) {
+          this.setInventoryOpen(false);
+          this.renderInventory();
+          this.onPlayerAction('item', true, throwResult);
+        }
+      } else if (choice === 'drop') {
+        // 捨てる: 足元に落とす
+        const dropResult = this.systems.itemSystem.dropItem(this.player, selected.id, { ...this.player.position });
+        if (dropResult.message) this.uiManager.addMessageWithAnimation(dropResult.message);
+        this.onRender();
+        if (dropResult.success) {
+          this.setInventoryOpen(false);
+          this.renderInventory();
+          this.onPlayerAction('item', true, dropResult);
+        }
+      }
+    } catch (error) {
+      console.error('[ERROR] インベントリアクションメニューでエラー:', error);
     }
   }
 
@@ -190,12 +292,13 @@ export class InputHandler {
     console.log(`[DEBUG] 正面セル情報:`, frontCell);
     
     if (frontCell && frontCell.entities.length > 0) {
-      // 正面に敵がいる場合：通常の攻撃
+      // 正面に敵がいる場合：通常の攻撃（アイテムは対象外）
       console.log(`[DEBUG] 正面エンティティ数: ${frontCell.entities.length}`);
-      const target = frontCell.entities[0];
+      const nonItems = frontCell.entities.filter(e => !(e instanceof ItemEntity));
+      const target = nonItems[0];
       console.log(`[DEBUG] ターゲット:`, target);
       
-      if (target.id !== this.player.id) {
+      if (target && target.id !== this.player.id) {
         console.log(`[DEBUG] 攻撃試行: プレイヤー(${this.player.id}) -> ターゲット(${target.id})`);
         const attackResult = this.systems.combatSystem.executeAttack({
           attacker: this.player,

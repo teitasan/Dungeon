@@ -52,10 +52,12 @@ export class DropSystem {
    * Spawn floor items after dungeon generation using the template's item table
    * Places a small number of items in random walkable positions
    */
-  spawnFloorItems(template: DungeonTemplate, floor: number, minItems: number = 3, maxItems: number = 6): ItemEntity[] {
+  spawnFloorItems(template: DungeonTemplate, floor: number): ItemEntity[] {
     const dungeon = this.dungeonManager.getCurrentDungeon();
     if (!dungeon || template.itemTable.length === 0) return [];
 
+    // 個数はテンプレートの itemSpawnRanges / itemSpawnDefault から決定（なければ 3-5）
+    const [minItems, maxItems] = this.resolveSpawnCount(template, floor);
     const numItems = this.randomInt(minItems, maxItems);
     const spawned: ItemEntity[] = [];
 
@@ -66,14 +68,18 @@ export class DropSystem {
       const entry = this.pickWeighted(candidates);
       if (!entry) continue;
 
-      // Find random walkable position
+      // 部屋タイル内に限定してランダム配置（タイルで判定）
       let attempts = 0;
       let placed = false;
       while (attempts < 50 && !placed) {
-        const x = this.randomInt(0, dungeon.width - 1);
-        const y = this.randomInt(0, dungeon.height - 1);
-        const pos = { x, y };
-        if (this.dungeonManager.isWalkable(pos)) {
+        // ランダムな部屋を選び、その中のランダムタイルを選ぶ
+        if (dungeon.rooms.length === 0) break;
+        const room = dungeon.rooms[this.randomInt(0, dungeon.rooms.length - 1)];
+        const rx = this.randomInt(room.x, room.x + room.width - 1);
+        const ry = this.randomInt(room.y, room.y + room.height - 1);
+        const pos = { x: rx, y: ry };
+        const cell = dungeon.cells[ry]?.[rx];
+        if (cell && cell.walkable && cell.type === 'room' && cell.entities.length === 0) {
           const item = this.itemSystem.createItem(entry.itemId, pos);
           if (item && this.dungeonManager.addEntity(item, pos)) {
             spawned.push(item);
@@ -100,5 +106,31 @@ export class DropSystem {
 
   private randomInt(min: number, max: number): number {
     return Math.floor(this.rng() * (max - min + 1)) + min;
+  }
+
+  /** テンプレートの設定からスポーン個数(min,max)を解決 */
+  private resolveSpawnCount(template: DungeonTemplate, floor: number): [number, number] {
+    // 範囲設定があれば優先
+    if (template.itemSpawnRanges && template.itemSpawnRanges.length > 0) {
+      const found = template.itemSpawnRanges.find(r => this.isInRange(floor, r.floorRange));
+      if (found) return [Math.max(0, found.min), Math.max(found.min, found.max)];
+    }
+    // デフォルト
+    if (template.itemSpawnDefault) {
+      const d = template.itemSpawnDefault;
+      return [Math.max(0, d.min), Math.max(d.min, d.max)];
+    }
+    // フォールバック
+    return [3, 5];
+  }
+
+  private isInRange(floor: number, range: string): boolean {
+    const m = range.match(/^(\d+)-(\d+)$/);
+    if (!m) return false;
+    const a = parseInt(m[1], 10);
+    const b = parseInt(m[2], 10);
+    const min = Math.min(a, b);
+    const max = Math.max(a, b);
+    return floor >= min && floor <= max;
   }
 }

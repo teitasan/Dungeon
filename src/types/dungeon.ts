@@ -133,6 +133,11 @@ export interface DungeonTemplate {
   monsterTable: MonsterSpawnEntry[];
   itemTable: ItemSpawnEntry[];
   specialRules: DungeonRule[];
+  /**
+   * フロア初期スポーンの個数設定（デフォルトと範囲ごとの上書き）
+   */
+  itemSpawnDefault?: { min: number; max: number };
+  itemSpawnRanges?: Array<{ floorRange: string; min: number; max: number }>;
 }
 
 // Monster spawn entry

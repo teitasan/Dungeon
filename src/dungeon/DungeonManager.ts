@@ -62,12 +62,14 @@ export class DungeonManager {
 
       this.currentDungeon = dungeon;
       console.log('[DEBUG] currentDungeon設定完了');
+
       return dungeon;
     } catch (error) {
       console.error('[ERROR] generateDungeonでエラーが発生:', error);
       throw error;
     }
   }
+
 
   /**
    * Get current dungeon
@@ -358,7 +360,9 @@ export class DungeonManager {
           tileSet: templateConfig.tileSet,
           monsterTable: templateConfig.monsterTable,
           itemTable: templateConfig.itemTable,
-          specialRules: templateConfig.specialRules
+          specialRules: templateConfig.specialRules,
+          itemSpawnDefault: templateConfig.itemSpawnDefault,
+          itemSpawnRanges: templateConfig.itemSpawnRanges
         };
         
         this.registerTemplate(template);

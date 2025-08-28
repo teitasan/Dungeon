@@ -208,11 +208,10 @@ export class UIManager {
     } else {
       items.forEach((item, index) => {
         const li = document.createElement('li');
-        li.textContent = item.name || item.id;
-        if (index === this.selectedInventoryIndex) {
-          li.style.backgroundColor = '#333';
-          li.style.color = '#fff';
-        }
+        const label = item.name || item.id;
+        li.textContent = `${index === this.selectedInventoryIndex ? '▶ ' : '  '}${label}`;
+        li.style.fontFamily = 'PixelMplus, ui-monospace, Menlo, monospace';
+        // 反転ハイライトは行わず、カーソル（▶）のみで選択を示す
         list.appendChild(li);
       });
     }

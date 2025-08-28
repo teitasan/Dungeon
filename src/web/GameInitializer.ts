@@ -88,7 +88,9 @@ export class GameInitializer {
     const uiSystem = new UISystem(dungeonManager);
     const combatSystem = new CombatSystem();
     const inputSystem = new InputSystem(config);
-    const movementSystem = new MovementSystem(dungeonManager);
+    // 先に ItemSystem を生成してから MovementSystem に渡す
+    const itemSystem = new ItemSystem(dungeonManager);
+    const movementSystem = new MovementSystem(dungeonManager, itemSystem);
     const turnSystem = new TurnSystem(
       config.turnSystem,
       dungeonManager,
@@ -96,10 +98,19 @@ export class GameInitializer {
       undefined, // hungerSystem - 後で追加
       undefined  // statusSystem - 後で追加
     );
-    const itemSystem = new ItemSystem(dungeonManager);
 
     // システム間の依存関係を設定
     uiSystem.setItemSystem(itemSystem);
+    // アイテム取得時などのメッセージをUIログへ
+    itemSystem.setMessageSink((msg: string) => uiSystem.pushMessage(msg));
+    // 戦闘結果のメッセージや撃破時の取り除きに必要な参照を設定
+    combatSystem.setDungeonManager(dungeonManager);
+    combatSystem.setMessageSink((msg: string) => uiSystem.pushMessage(msg));
+
+    // DropSystem を MultipleDungeonSystem に登録（フロア生成時の床アイテムスポーン用）
+    const { DropSystem } = await import('../systems/DropSystem.js');
+    const dropSystem = new DropSystem(dungeonManager, itemSystem);
+    multipleDungeonSystem.setDropSystem(dropSystem);
 
     return {
       dungeonManager,

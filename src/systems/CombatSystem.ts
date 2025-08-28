@@ -4,6 +4,8 @@
  */
 
 import { GameEntity, CharacterStats } from '../types/entities';
+import { DungeonManager } from '../dungeon/DungeonManager.js';
+import { ItemEntity } from '../entities/Item.js';
 import { 
   CombatResult, 
   CombatEffect, 
@@ -22,6 +24,8 @@ export class CombatSystem {
   private combatState: CombatState;
   private rng: () => number;
   private attributeSystem: AttributeSystem;
+  private dungeonManager?: DungeonManager;
+  private messageSink?: (message: string) => void;
 
   constructor(config?: Partial<CombatConfig>) {
     this.config = {
@@ -48,6 +52,20 @@ export class CombatSystem {
     // Use a deterministic RNG by default for stable tests; can be overridden via setRNG
     this.rng = () => 0.5;
     this.attributeSystem = new AttributeSystem();
+  }
+
+  /**
+   * DungeonManager を設定（撃破時の取り除きなど副作用用）
+   */
+  setDungeonManager(dm: DungeonManager): void {
+    this.dungeonManager = dm;
+  }
+
+  /**
+   * メッセージ出力先を設定（UI ログ等）
+   */
+  setMessageSink(sink: (message: string) => void): void {
+    this.messageSink = sink;
   }
 
   /**
@@ -333,6 +351,8 @@ export class CombatSystem {
   canAttack(attacker: GameEntity, target: GameEntity): boolean {
     // Basic checks
     if (attacker === target) return false;
+    // Items are not valid targets
+    if (target instanceof ItemEntity) return false;
     
     const attackerStats = attacker.stats as CharacterStats;
     const targetStats = target.stats as CharacterStats;

@@ -7,6 +7,7 @@ import { ItemEntity } from '../entities/Item';
 import { PlayerEntity } from '../entities/Player';
 import { Position } from '../types/core';
 import { DungeonManager } from '../dungeon/DungeonManager';
+import { MonsterEntity } from '../entities/Monster';
 
 // Item usage result
 export interface ItemUsageResult {
@@ -71,10 +72,18 @@ export interface InventoryManager {
 export class ItemSystem implements InventoryManager {
   private dungeonManager: DungeonManager;
   private itemTemplates: Map<string, ItemTemplate> = new Map();
+  private messageSink?: (message: string) => void;
 
   constructor(dungeonManager: DungeonManager) {
     this.dungeonManager = dungeonManager;
     this.initializeDefaultItems();
+  }
+
+  /**
+   * メッセージ出力先を設定（UI ログなど）
+   */
+  setMessageSink(sink: (message: string) => void): void {
+    this.messageSink = sink;
   }
 
   /**
@@ -364,6 +373,9 @@ export class ItemSystem implements InventoryManager {
     
     if (added) {
       const entityName = (entity as any).name || entity.id;
+      // ピックアップメッセージ（ログ）
+      const pickupMessage = `${item.getDisplayName()} を ひろった！`;
+      if (this.messageSink) this.messageSink(pickupMessage);
       return {
         success: true,
         item,
@@ -384,6 +396,116 @@ export class ItemSystem implements InventoryManager {
   }
 
   /**
+   * 投擲: 所持アイテムをプレイヤーの向きに直線で最長10マス飛ばす。
+   * 壁（非walkable）で手前に落下。敵（MonsterEntity）に当たったらそのマスに落下。
+   * 何にも当たらなければ10マス先に着地。
+   */
+  throwItem(user: GameEntity, itemId: string, direction: 'north'|'south'|'east'|'west'|'northeast'|'southeast'|'southwest'|'northwest'): {
+    success: boolean;
+    message: string;
+    landingPosition?: Position;
+  } {
+    // インベントリから取り出し
+    const item = this.removeItem(user, itemId);
+    if (!item) {
+      return { success: false, message: '投げるアイテムが見つかりません' };
+    }
+
+    const dirMap: Record<string, Position> = {
+      north: { x: 0, y: -1 },
+      south: { x: 0, y: 1 },
+      west: { x: -1, y: 0 },
+      east: { x: 1, y: 0 },
+      northeast: { x: 1, y: -1 },
+      southeast: { x: 1, y: 1 },
+      southwest: { x: -1, y: 1 },
+      northwest: { x: -1, y: -1 }
+    };
+
+    const v = dirMap[direction] || { x: 0, y: 1 };
+    const start = { ...user.position };
+    let lastValid = { ...start };
+    let landing: Position | null = null;
+
+    for (let step = 1; step <= 10; step++) {
+      const pos = { x: start.x + v.x * step, y: start.y + v.y * step };
+      const cell = this.dungeonManager.getCellAt(pos);
+      if (!cell) {
+        // 範囲外 → 直前で落下
+        landing = { ...lastValid };
+        break;
+      }
+      // 壁
+      if (!cell.walkable) {
+        landing = { ...lastValid };
+        break;
+      }
+
+      // キャラクター（敵・味方・自分を含む）に命中
+      const hitEntity = cell.entities.find(e => !(e instanceof ItemEntity));
+      if (hitEntity) {
+        // 投擲挙動フラグに従って処理（全アイテムが保持）
+        const behavior = item.itemFlags?.onThrow || ((item.effects && item.effects.length > 0) ? 'effect-then-disappear' : 'damage-then-disappear');
+        if (behavior === 'effect-then-disappear') {
+          // 効果あり: 使用時と同様の効果を発動し、原則として消滅（落下しない）
+          const useResult = this.useItem(user, item, hitEntity);
+          if (this.messageSink && useResult.message) this.messageSink(useResult.message);
+          return { success: true, message: useResult.message || '投擲効果を適用', landingPosition: undefined };
+        } else if (behavior === 'damage-then-disappear') {
+          // 効果がないアイテムは適当なダメージを与えて消滅
+          const defaultThrowDamage = 5;
+          const targetStats = (hitEntity as any).stats;
+          if (targetStats && typeof targetStats.hp === 'number') {
+            const dealt = Math.min(defaultThrowDamage, targetStats.hp);
+            targetStats.hp = Math.max(0, targetStats.hp - defaultThrowDamage);
+            if (this.messageSink) {
+              const targetName = (hitEntity as any).name || hitEntity.id;
+              const msg = `${targetName} に ${dealt} ダメージ（投擲）` + (targetStats.hp <= 0 ? ' たおした！' : '');
+              this.messageSink(msg);
+            }
+          }
+          // 消滅（インベントリから取り出したまま地面には置かない）
+          return { success: true, message: '投擲ダメージ適用（アイテム消滅）', landingPosition: undefined };
+        } else {
+          // special: 現状は空（将来拡張用）→ ひとまず消滅にしておく
+          return { success: true, message: '特殊投擲（未実装）', landingPosition: undefined };
+        }
+      }
+
+      // ここまで来れたら通過、最後に更新
+      lastValid = { ...pos };
+      if (step === 10) {
+        landing = { ...pos };
+        break;
+      }
+    }
+
+    if (!landing) landing = { ...lastValid };
+
+    const finalLanding = this.resolveItemLanding(landing);
+    if (!finalLanding) {
+      if (this.messageSink) {
+        this.messageSink(`${item.getDisplayName()} は きえてしまった…`);
+      }
+      return { success: true, message: '着地点が混雑していたため消滅', landingPosition: undefined };
+    }
+
+    // 地面に配置（失敗したらインベントリに戻す）
+    const placed = this.dungeonManager.addEntity(item, finalLanding);
+    if (!placed) {
+      this.addItem(user, item); // 戻す
+      return { success: false, message: 'その方向には投げられない', landingPosition: undefined };
+    }
+
+    // メッセージ
+    if (this.messageSink) {
+      this.messageSink(`${item.getDisplayName()} を なげた！`);
+    }
+
+    return { success: true, message: '投擲完了', landingPosition: finalLanding };
+  }
+
+  /**
    * Drop item at position
    */
   dropItem(entity: GameEntity, itemId: string, position: Position): ItemDropResult {
@@ -400,34 +522,34 @@ export class ItemSystem implements InventoryManager {
       };
     }
 
-    // Check if position is valid for dropping
-    if (!this.dungeonManager.isWalkable(position)) {
-      // Put back in inventory
-      this.addItem(entity, item);
+    // ドロップ着地判定（投擲と同じルール）
+    const finalLanding = this.resolveItemLanding(position);
+    if (!finalLanding) {
+      if (this.messageSink) {
+        this.messageSink(`${item.getDisplayName()} は きえてしまった…`);
+      }
       return {
-        success: false,
+        success: true,
         item,
         entity,
         position,
-        message: 'Cannot drop item here',
-        reason: 'invalid-position'
+        message: '着地点が混雑していたため消滅'
       };
     }
 
-    // Place item on ground
-    const placed = this.dungeonManager.addEntity(item, position);
-    
+    // 最終着地点に配置
+    const placed = this.dungeonManager.addEntity(item, finalLanding);
     if (placed) {
       const entityName = (entity as any).name || entity.id;
       return {
         success: true,
         item,
         entity,
-        position,
+        position: finalLanding,
         message: `${entityName} drops ${item.getDisplayName()}`
       };
     } else {
-      // Put back in inventory if couldn't place
+      // 配置に失敗 → インベントリへ戻す
       this.addItem(entity, item);
       return {
         success: false,
@@ -438,6 +560,45 @@ export class ItemSystem implements InventoryManager {
         reason: 'place-failed'
       };
     }
+  }
+
+  /**
+   * アイテム着地位置の解決: 指定位置が不可 or アイテム重なりなら周囲8マスをランダム探索し、
+   * 'floor' | 'room' | 'corridor' かつアイテムがないマスへ。それも無ければ null。
+   */
+  private resolveItemLanding(desired: Position): Position | null {
+    const isAllowedCell = (cell: any): boolean => {
+      if (!cell) return false;
+      return cell.type === 'floor' || cell.type === 'room' || cell.type === 'corridor';
+    };
+    const hasItem = (cell: any): boolean => !!cell?.entities.some((e: any) => e instanceof ItemEntity);
+
+    const cell = this.dungeonManager.getCellAt(desired);
+    if (cell && isAllowedCell(cell) && !hasItem(cell)) {
+      return { ...desired };
+    }
+
+    const neighbors: Position[] = [];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        neighbors.push({ x: desired.x + dx, y: desired.y + dy });
+      }
+    }
+    // シャッフル
+    for (let i = neighbors.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [neighbors[i], neighbors[j]] = [neighbors[j], neighbors[i]];
+    }
+
+    for (const pos of neighbors) {
+      const c = this.dungeonManager.getCellAt(pos);
+      if (!c) continue;
+      if (!isAllowedCell(c)) continue;
+      if (hasItem(c)) continue;
+      return pos;
+    }
+    return null;
   }
 
   /**
@@ -569,6 +730,16 @@ export class ItemSystem implements InventoryManager {
 
     if (template.durability !== undefined) {
       item.setDurability(template.durability);
+    }
+
+    // アイテムフラグの初期化（テンプレ依存。指定がなければ効果有無でデフォルト）
+    if ((template as any).throwBehavior) {
+      const beh = (template as any).throwBehavior as 'effect-then-disappear' | 'damage-then-disappear' | 'special';
+      item.itemFlags.onThrow = beh;
+    } else {
+      item.itemFlags.onThrow = (item.effects && item.effects.length > 0)
+        ? 'effect-then-disappear'
+        : 'damage-then-disappear';
     }
 
     return item;

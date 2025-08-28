@@ -58,6 +58,9 @@ export interface DungeonTemplateConfig {
   monsterTable: any[];
   itemTable: any[];
   specialRules: any[];
+  // 追加: フロア初期アイテム個数設定
+  itemSpawnDefault?: { min: number; max: number };
+  itemSpawnRanges?: Array<{ floorRange: string; min: number; max: number }>;
 }
 
 export interface DungeonTemplatesConfig {

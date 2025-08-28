@@ -34,10 +34,12 @@ function cleanup(): void {
 
 function renderSelection(): void {
   if (!currentState) return;
-  const selectedStyle = '0 0 0 2px #58a6ff inset';
   const items = Array.from(currentState.yesNoContainer.children) as HTMLElement[];
   items.forEach((el, idx) => {
-    el.style.boxShadow = idx === currentState!.selectedIndex ? selectedStyle : '0 0 0 1px #333 inset';
+    const isSel = idx === currentState!.selectedIndex;
+    // 先頭にカーソル用の▶を表示（フォントにあればそのまま表示）
+    const label = currentState!.options[idx].label;
+    el.textContent = `${isSel ? '▶ ' : '  '}${label}`;
   });
 }
 
@@ -66,7 +68,7 @@ export function openChoiceModal(params: {
   panel.style.padding = '16px';
   panel.style.borderRadius = '10px';
   panel.style.minWidth = '320px';
-  panel.style.boxShadow = '0 0 0 1px #333 inset';
+  // 枠線は付けない
 
   const header = document.createElement('div');
   header.textContent = title;
@@ -75,21 +77,23 @@ export function openChoiceModal(params: {
   header.style.marginBottom = '8px';
 
   const opts = document.createElement('div');
+  // 縦並びの選択肢
   opts.style.display = 'flex';
-  opts.style.gap = '12px';
+  opts.style.flexDirection = 'column';
+  opts.style.gap = '10px';
 
   options.forEach(opt => {
     const item = document.createElement('div');
     item.textContent = opt.label;
     item.style.fontFamily = 'PixelMplus';
-    item.style.padding = '6px 12px';
+    item.style.padding = '8px 12px';
     item.style.borderRadius = '8px';
-    item.style.boxShadow = '0 0 0 1px #333 inset';
+    item.style.width = '100%';
     opts.appendChild(item);
   });
 
   const hint = document.createElement('div');
-  hint.textContent = '左右キーで選択 / Z:決定 / X:キャンセル';
+  hint.textContent = '上下キーで選択 / Z:決定 / X:キャンセル';
   hint.style.fontFamily = 'PixelMplus';
   hint.style.opacity = '0.8';
   hint.style.fontSize = '12px';
@@ -105,9 +109,12 @@ export function openChoiceModal(params: {
     const keyHandler = (e: KeyboardEvent) => {
       const key = e.key;
       if (!currentState) return;
-      if (key === 'ArrowLeft' || key === 'ArrowRight') {
+      if (key === 'ArrowUp' || key === 'ArrowDown' || key === 'ArrowLeft' || key === 'ArrowRight') {
         const max = currentState.options.length;
-        const delta = key === 'ArrowLeft' ? -1 : 1;
+        // 縦並びに合わせて上下キーを採用（左右も互換で対応）
+        let delta = 0;
+        if (key === 'ArrowUp' || key === 'ArrowLeft') delta = -1;
+        if (key === 'ArrowDown' || key === 'ArrowRight') delta = 1;
         currentState.selectedIndex = (currentState.selectedIndex + delta + max) % max;
         renderSelection();
         e.preventDefault();
@@ -139,5 +146,3 @@ export function openChoiceModal(params: {
 
   return promise;
 }
-
-

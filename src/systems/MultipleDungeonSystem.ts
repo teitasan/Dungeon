@@ -6,6 +6,7 @@ import { DungeonManager } from '../dungeon/DungeonManager';
 import { DungeonTemplate, DungeonGenerationParams } from '../types/dungeon';
 import { PlayerEntity } from '../entities/Player';
 import { CanvasRenderer } from '../web/CanvasRenderer';
+import { DropSystem } from './DropSystem.js';
 
 // Dungeon definition
 export interface DungeonDefinition {
@@ -83,6 +84,7 @@ export class MultipleDungeonSystem {
   private currentDungeon?: DungeonDefinition;
   private currentFloor: number = 1;
   private renderer?: CanvasRenderer;
+  private dropSystem?: DropSystem;
 
   constructor(dungeonManager: DungeonManager) {
     this.dungeonManager = dungeonManager;
@@ -94,6 +96,13 @@ export class MultipleDungeonSystem {
    */
   setRenderer(renderer: CanvasRenderer): void {
     this.renderer = renderer;
+  }
+
+  /**
+   * DropSystem を設定（フロア生成時の床アイテムスポーンに利用）
+   */
+  setDropSystem(dropSystem: DropSystem): void {
+    this.dropSystem = dropSystem;
   }
 
   /**
@@ -182,6 +191,11 @@ export class MultipleDungeonSystem {
     
     // Generate first floor
     this.dungeonManager.generateDungeon(dungeonId, 1);
+    // Spawn floor items based on template itemTable
+    if (this.dropSystem) {
+      const tpl = this.dungeonManager.getTemplate(dungeonId);
+      if (tpl) this.dropSystem.spawnFloorItems(tpl, 1);
+    }
     
     // Update progress
     const progress = this.getPlayerProgress(dungeonId);
@@ -238,6 +252,11 @@ export class MultipleDungeonSystem {
       // Generate next floor
       this.ensureTemplateForDungeon(this.currentDungeon);
       this.dungeonManager.generateDungeon(this.currentDungeon.id, this.currentFloor);
+      // Spawn floor items for the new floor
+      if (this.dropSystem) {
+        const tpl = this.dungeonManager.getTemplate(this.currentDungeon.id);
+        if (tpl) this.dropSystem.spawnFloorItems(tpl, this.currentFloor);
+      }
       console.log('[DEBUG] 次のフロア生成完了');
       
       // Update progress

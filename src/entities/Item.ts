@@ -3,7 +3,7 @@
  */
 
 import { Position, Component, EntityFlags, EntityStats } from '../types/core';
-import { Item, ItemType, ItemEffect, EquipmentStats } from '../types/entities';
+import { Item, ItemType, ItemEffect, EquipmentStats, ItemFlags } from '../types/entities';
 import { BaseGameEntity } from './GameEntity.js';
 
 export class ItemEntity extends BaseGameEntity implements Item {
@@ -18,6 +18,7 @@ export class ItemEntity extends BaseGameEntity implements Item {
     defenseAttributes?: string[];
   };
   public equipmentStats?: EquipmentStats;
+  public itemFlags: ItemFlags;
 
   constructor(
     id: string,
@@ -45,6 +46,8 @@ export class ItemEntity extends BaseGameEntity implements Item {
     this.identified = identified;
     this.cursed = cursed;
     this.effects = [];
+    // 既定のフラグ（効果の有無によりデフォルトを決定、初期は効果なし想定）
+    this.itemFlags = { onThrow: 'damage-then-disappear' };
   }
 
   /**
@@ -52,6 +55,10 @@ export class ItemEntity extends BaseGameEntity implements Item {
    */
   addEffect(effect: ItemEffect): void {
     this.effects.push(effect);
+    // 効果が付与された場合、デフォルトの投擲挙動を効果適用→消滅に設定
+    if (this.effects.length > 0 && this.itemFlags.onThrow === 'damage-then-disappear') {
+      this.itemFlags.onThrow = 'effect-then-disappear';
+    }
   }
 
   /**

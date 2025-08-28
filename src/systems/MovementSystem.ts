@@ -13,13 +13,17 @@ import {
   ActionResult
 } from '../types/movement';
 import { DungeonManager } from '../dungeon/DungeonManager';
+import { ItemEntity } from '../entities/Item.js';
+import { ItemSystem } from './ItemSystem.js';
 
 export class MovementSystem {
   private dungeonManager: DungeonManager;
   private defaultConstraints: MovementConstraints;
+  private itemSystem?: ItemSystem;
 
-  constructor(dungeonManager: DungeonManager) {
+  constructor(dungeonManager: DungeonManager, itemSystem?: ItemSystem) {
     this.dungeonManager = dungeonManager;
+    this.itemSystem = itemSystem;
     this.defaultConstraints = {
       canMoveDiagonally: true,
       canMoveIntoOccupiedSpace: false,
@@ -93,7 +97,8 @@ export class MovementSystem {
 
     // Check for other entities
     const entitiesAtTarget = this.dungeonManager.getEntitiesAt(newPosition);
-    if (!finalConstraints.canMoveIntoOccupiedSpace && entitiesAtTarget.length > 0) {
+    const blockingAtTarget = entitiesAtTarget.filter(e => !(e instanceof ItemEntity));
+    if (!finalConstraints.canMoveIntoOccupiedSpace && blockingAtTarget.length > 0) {
       return {
         success: false,
         blocked: true,
@@ -102,7 +107,7 @@ export class MovementSystem {
           type: 'collision',
           entity,
           position: newPosition,
-          data: { collidedWith: entitiesAtTarget }
+          data: { collidedWith: blockingAtTarget }
         }]
       };
     }
@@ -118,6 +123,18 @@ export class MovementSystem {
 
     // Check for movement events
     const events = this.checkMovementEvents(entity, newPosition);
+
+    // 自動拾得（アイテムは非ブロッキングのため、移動後に拾う）
+    if (this.itemSystem && 'inventory' in entity) {
+      while (true) {
+        const itemsHere = this.dungeonManager
+          .getEntitiesAt(newPosition)
+          .filter(e => e instanceof ItemEntity);
+        if (itemsHere.length === 0) break;
+        const picked = this.itemSystem.pickupItem(entity, newPosition);
+        if (!picked.success) break; // 満杯など
+      }
+    }
 
     return {
       success: true,
@@ -195,7 +212,8 @@ export class MovementSystem {
 
     // Check for other entities
     const entitiesAtTarget = this.dungeonManager.getEntitiesAt(targetPosition);
-    if (!finalConstraints.canMoveIntoOccupiedSpace && entitiesAtTarget.length > 0) {
+    const blockingAtTarget = entitiesAtTarget.filter(e => !(e instanceof ItemEntity));
+    if (!finalConstraints.canMoveIntoOccupiedSpace && blockingAtTarget.length > 0) {
       return {
         success: false,
         blocked: true,
@@ -204,7 +222,7 @@ export class MovementSystem {
           type: 'collision',
           entity,
           position: targetPosition,
-          data: { collidedWith: entitiesAtTarget }
+          data: { collidedWith: blockingAtTarget }
         }]
       };
     }
@@ -220,6 +238,18 @@ export class MovementSystem {
 
     // Check for movement events
     const events = this.checkMovementEvents(entity, targetPosition);
+
+    // 自動拾得（ターゲット位置版）
+    if (this.itemSystem && 'inventory' in entity) {
+      while (true) {
+        const itemsHere = this.dungeonManager
+          .getEntitiesAt(targetPosition)
+          .filter(e => e instanceof ItemEntity);
+        if (itemsHere.length === 0) break;
+        const picked = this.itemSystem.pickupItem(entity, targetPosition);
+        if (!picked.success) break;
+      }
+    }
 
     return {
       success: true,
@@ -279,8 +309,11 @@ export class MovementSystem {
     // Check walkability
     if (!constraints.canMoveIntoWalls && !cell.walkable) return false;
 
-    // Check for entities
-    if (!constraints.canMoveIntoOccupiedSpace && cell.entities.length > 0) return false;
+    // Check for entities（アイテムはブロックしない）
+    if (!constraints.canMoveIntoOccupiedSpace) {
+      const blocking = cell.entities.filter(e => !(e instanceof ItemEntity));
+      if (blocking.length > 0) return false;
+    }
 
     return true;
   }

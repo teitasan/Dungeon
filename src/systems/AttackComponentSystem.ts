@@ -5,6 +5,7 @@
 import { Position } from '../types/core';
 import { GameEntity } from '../types/entities';
 import { DungeonManager } from '../dungeon/DungeonManager';
+import { ItemEntity } from '../entities/Item';
 
 // Attack range types
 export type AttackRangeType = 'adjacent' | 'line' | 'area' | 'custom';
@@ -391,6 +392,8 @@ export class AttackComponentSystem {
   private isValidTarget(attacker: GameEntity, target: GameEntity, config: AttackTargetConfig): boolean {
     // Can't attack self
     if (attacker === target) return false;
+    // アイテムは攻撃対象外
+    if (target instanceof ItemEntity) return false;
     
     // Check if target is alive
     const targetStats = (target as any).stats;
