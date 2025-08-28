@@ -64,8 +64,9 @@ export class GameLoop {
     });
     
     // 移動処理を実行（ゲームループ内）
-    // ターン制御中は移動処理をスキップ
-    if (this.inputHandler && !this.inputHandler.getTurnInProgress()) {
+    // 方向転換（Cキー）を許可するため、ターン制御中でも呼び出す。
+    // 実際の移動は InputHandler 側で turnInProgress 等を見て抑止される。
+    if (this.inputHandler) {
       this.inputHandler.processMovement();
     }
     

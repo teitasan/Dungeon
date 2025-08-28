@@ -22,6 +22,7 @@ export class CanvasRenderer {
   private dungeonManager: DungeonManager | null = null;
   private activeEffectsFloor: number | null = null;
   private transitionInProgress: boolean = false;
+  private turnCursorActive: boolean = false; // Cキー方向転換中のカーソル表示フラグ
 
   constructor(private canvas: HTMLCanvasElement, tileSize: number = 20) {
     const ctx = canvas.getContext('2d');
@@ -34,6 +35,11 @@ export class CanvasRenderer {
   /** 現在アイキャッチ演出中かどうか */
   public isInTransition(): boolean {
     return this.transitionInProgress;
+  }
+
+  /** 方向転換中カーソルの表示切替（Cキー押下中にON） */
+  public setTurnCursorActive(active: boolean): void {
+    this.turnCursorActive = active;
   }
 
   /**
@@ -463,6 +469,51 @@ export class CanvasRenderer {
     ctx.arc(rightEyeX, rightEyeY, eyeSize * 0.6, 0, Math.PI * 2);
     ctx.fillStyle = '#000000';
     ctx.fill();
+
+    // 向きカーソル（三角アイコン）: Cキー押下中のみ表示
+    if (this.turnCursorActive) {
+      const dirVec: Record<string, { x: number; y: number }> = {
+        north: { x: 0, y: -1 },
+        northeast: { x: 1, y: -1 },
+        east: { x: 1, y: 0 },
+        southeast: { x: 1, y: 1 },
+        south: { x: 0, y: 1 },
+        southwest: { x: -1, y: 1 },
+        west: { x: -1, y: 0 },
+        northwest: { x: -1, y: -1 }
+      };
+      const v = dirVec[playerDirection] || { x: 0, y: 1 };
+      const tx = player.position.x + v.x;
+      const ty = player.position.y + v.y;
+    if (tx >= 0 && tx < dungeon.width && ty >= 0 && ty < dungeon.height) {
+      const baseX = (tx - camX - 0.5) * tileSize;
+      const baseY = (ty - camY - 0.5) * tileSize;
+      const cx2 = baseX + tileSize / 2;
+      const cy2 = baseY + tileSize / 2;
+      const len = Math.hypot(v.x, v.y) || 1;
+      const nx = v.x / len;
+      const ny = v.y / len;
+      const size = tileSize * 0.16; // 三角のサイズ（リクエストにより半分に）
+      // 正三角形の3頂点（向きベクトルを±120度回転）
+      const rot = (x: number, y: number, ang: number) => ({
+        x: x * Math.cos(ang) - y * Math.sin(ang),
+        y: x * Math.sin(ang) + y * Math.cos(ang)
+      });
+      const v1 = { x: nx, y: ny };
+      const v2 = rot(nx, ny, (2 * Math.PI) / 3);
+      const v3 = rot(nx, ny, -(2 * Math.PI) / 3);
+      const p1 = { x: cx2 + v1.x * size, y: cy2 + v1.y * size };
+      const p2 = { x: cx2 + v2.x * size, y: cy2 + v2.y * size };
+      const p3 = { x: cx2 + v3.x * size, y: cy2 + v3.y * size };
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.lineTo(p3.x, p3.y);
+      ctx.closePath();
+      ctx.fillStyle = '#ffffff'; // 白一色のシンプルな三角
+      ctx.fill();
+    }
+    }
 
     // ミニマップ描画
     this.renderMinimap(dungeon, visible, camX, camY, viewW, viewH, player);

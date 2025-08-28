@@ -16,6 +16,27 @@ export class InputHandler {
   private turnStartTime = 0;
   private movementInProgress = false;
   private lastMovementTime = 0;
+  private turnMode = false; // Cキー押下中は方向転換モード
+
+  // 方向転換用に、現在の矢印ビットから向きを更新する
+  private updateDirectionFromBits(): void {
+    const up = (this.keyPress & this.KEY_UP) !== 0;
+    const down = (this.keyPress & this.KEY_DOWN) !== 0;
+    const left = (this.keyPress & this.KEY_LEFT) !== 0;
+    const right = (this.keyPress & this.KEY_RIGHT) !== 0;
+    let dir: 'north' | 'northeast' | 'east' | 'southeast' | 'south' | 'southwest' | 'west' | 'northwest' | null = null;
+    if (up && right) dir = 'northeast';
+    else if (up && left) dir = 'northwest';
+    else if (down && right) dir = 'southeast';
+    else if (down && left) dir = 'southwest';
+    else if (up) dir = 'north';
+    else if (down) dir = 'south';
+    else if (left) dir = 'west';
+    else if (right) dir = 'east';
+    if (dir) {
+      this.player.direction = dir;
+    }
+  }
 
   // 定数
   private readonly KEY_UP = 1;      // 0001
@@ -84,23 +105,34 @@ export class InputHandler {
             this.keyPress |= this.KEY_UP;
             this.keyTrg |= this.KEY_UP;
           }
+          if (this.turnMode) this.updateDirectionFromBits();
           break;
         case 'ArrowDown':
           if ((this.keyPress & this.KEY_DOWN) === 0) {
             this.keyPress |= this.KEY_DOWN;
             this.keyTrg |= this.KEY_DOWN;
           }
+          if (this.turnMode) this.updateDirectionFromBits();
           break;
         case 'ArrowLeft':
           if ((this.keyPress & this.KEY_LEFT) === 0) {
             this.keyPress |= this.KEY_LEFT;
             this.keyTrg |= this.KEY_LEFT;
           }
+          if (this.turnMode) this.updateDirectionFromBits();
           break;
         case 'ArrowRight':
           if ((this.keyPress & this.KEY_RIGHT) === 0) {
             this.keyPress |= this.KEY_RIGHT;
             this.keyTrg |= this.KEY_RIGHT;
+          }
+          if (this.turnMode) this.updateDirectionFromBits();
+          break;
+        case 'c':
+        case 'C':
+          this.turnMode = true; // 方向転換モードON
+          if (this.systems.renderer && this.systems.renderer.setTurnCursorActive) {
+            this.systems.renderer.setTurnCursorActive(true);
           }
           break;
       }
@@ -117,6 +149,13 @@ export class InputHandler {
           break;
         case 'ArrowRight':
           this.keyPress &= ~this.KEY_RIGHT;
+          break;
+        case 'c':
+        case 'C':
+          this.turnMode = false; // 方向転換モードOFF
+          if (this.systems.renderer && this.systems.renderer.setTurnCursorActive) {
+            this.systems.renderer.setTurnCursorActive(false);
+          }
           break;
       }
     }
@@ -347,37 +386,11 @@ export class InputHandler {
   }
 
   public processMovement(): void {
-    // 移動可能フラグチェック
-    if (!this.canMove) {
-      return;
-    }
-    // アイキャッチ演出中は移動処理を停止
-    if (this.systems.renderer && this.systems.renderer.isInTransition()) {
-      return;
-    }
+    // UIブロック中は処理しない
+    if (this.systems.renderer && this.systems.renderer.isInTransition()) return;
+    if (isModalOpen()) return;
 
-    // ターン制御中は移動処理をスキップ
-    if (this.turnInProgress) {
-      return;
-    }
-
-    // 移動処理中は重複実行を防ぐ
-    if (this.movementInProgress) {
-      return;
-    }
-    
-    // クールダウン時間内は移動処理をスキップ
-    const currentTime = Date.now();
-    if (currentTime - this.lastMovementTime < this.MOVEMENT_COOLDOWN) {
-      return;
-    }
-
-    // モーダルが開いている場合は移動を無効化（インベントリと同様）
-    if (isModalOpen()) {
-      return;
-    }
-    
-    // ビット演算によるキー状態から移動方向を決定
+    // まずは方向キーの状態から向きを決定（方向転換モードではここまでで終了）
     const up = (this.keyPress & this.KEY_UP) !== 0;
     const down = (this.keyPress & this.KEY_DOWN) !== 0;
     const left = (this.keyPress & this.KEY_LEFT) !== 0;
@@ -427,18 +440,34 @@ export class InputHandler {
     
     console.log(`[DEBUG] 最終移動方向決定: ${direction}`);
     
-    // 移動実行
+    // 移動実行（Cキー押下中は移動せず、向きだけ変更）
     const current = this.player.position;
     const next = this.get8DirectionPosition(current, direction);
     
     console.log(`[DEBUG] 移動実行: 現在(${current.x}, ${current.y}) -> 目標(${next.x}, ${next.y})`);
     
-    // プレイヤーの向きを更新
+    // プレイヤーの向きを更新（方向転換モードでも向きは更新する）
     const directionMap: Record<string, 'north' | 'northeast' | 'east' | 'southeast' | 'south' | 'southwest' | 'west' | 'northwest'> = {
       'up': 'north', 'down': 'south', 'left': 'west', 'right': 'east',
       'northeast': 'northeast', 'southeast': 'southeast', 'southwest': 'southwest', 'northwest': 'northwest'
     };
     this.player.direction = directionMap[direction] || 'south';
+
+    // 方向転換モード：移動せず終了（ターンは消費しない）
+    if (this.turnMode) {
+      return;
+    }
+
+    // ここからは実際の移動を行う（通常モードのみ）。以下のブロックは移動時にのみ適用。
+    // 移動可能フラグチェック
+    if (!this.canMove) return;
+    // ターン制御中は移動処理をスキップ
+    if (this.turnInProgress) return;
+    // 移動処理中は重複実行を防ぐ
+    if (this.movementInProgress) return;
+    // クールダウン時間内は移動処理をスキップ
+    const currentTime = Date.now();
+    if (currentTime - this.lastMovementTime < this.MOVEMENT_COOLDOWN) return;
     
     // MovementSystem用の方向変換
     const movementDirectionMap: Record<string, string> = {
