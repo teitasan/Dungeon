@@ -553,15 +553,19 @@ export class CanvasRenderer {
           color = this.mix(color, '#000000', 0.4);
         }
         
-        // 階段は□の形（枠線のみ）で描画
+        // 階段は視認性向上のため、床色で塗った上に枠線を重ねる
         if (cell.type === 'stairs-down' || cell.type === 'stairs-up') {
+          // まず床色で塗る（黒ベタに見えないように）
+          const floorColor = '#4a4a55';
+          mm.fillStyle = floorColor;
+          mm.fillRect(offsetX + x * mmTile, offsetY + y * mmTile, mmTile, mmTile);
+          // その上に階段色の枠を描く
           mm.strokeStyle = color;
           mm.lineWidth = 1;
-          // ピクセル境界を正確に合わせるために0.5pxオフセット
           mm.strokeRect(
-            offsetX + x * mmTile + 0.5, 
-            offsetY + y * mmTile + 0.5, 
-            mmTile - 1, 
+            offsetX + x * mmTile + 0.5,
+            offsetY + y * mmTile + 0.5,
+            mmTile - 1,
             mmTile - 1
           );
         } else {
@@ -574,6 +578,58 @@ export class CanvasRenderer {
         if (x === 0 && y === 0) { // 最初のセルのみログ出力
           console.log(`Minimap colors: wall=${cell.type === 'wall' ? 'used' : 'not used'}, floor=${cell.type === 'floor' ? 'used' : 'not used'}, stairs-down=${cell.type === 'stairs-down' ? 'used' : 'not used'}, stairs-up=${cell.type === 'stairs-up' ? 'used' : 'not used'}`);
         }
+      }
+    }
+
+    // アイテムを表示（視界内のみ、4x4pxの水色の●）
+    if (this.dungeonManager) {
+      const all = this.dungeonManager.getAllEntities();
+      const items = all.filter(e => (e as any).constructor?.name === 'ItemEntity');
+      mm.fillStyle = '#87CEEB'; // 水色
+      for (const it of items) {
+        const ix = it.position.x;
+        const iy = it.position.y;
+        if (ix < 0 || ix >= dungeon.width || iy < 0 || iy >= dungeon.height) continue;
+        if (!visible[iy][ix]) continue; // 視界内のみ
+
+        const cx = offsetX + ix * mmTile + Math.floor((mmTile - 4) / 2);
+        const cy = offsetY + iy * mmTile + Math.floor((mmTile - 4) / 2);
+        // 4x4の円（角丸矩形で代用するとドット感が出る）
+        const r = 2; // 角丸半径
+        mm.beginPath();
+        mm.moveTo(cx + r, cy);
+        mm.arcTo(cx + 4, cy, cx + 4, cy + 4, r);
+        mm.arcTo(cx + 4, cy + 4, cx, cy + 4, r);
+        mm.arcTo(cx, cy + 4, cx, cy, r);
+        mm.arcTo(cx, cy, cx + 4, cy, r);
+        mm.closePath();
+        mm.fill();
+      }
+      // 敵を表示（視界内のみ、4x4pxの赤い●）
+      // Note:
+      //   ここでは正式な MonsterEntity のみを対象として描画しています。
+      //   テスト用の簡易オブジェクトや別クラス名の敵は対象外になります。
+      //   将来、検出範囲を緩めたい場合は id/name に 'enemy' や 'monster' を含むか等の
+      //   ヘルパー関数（isMonsterLike など）を導入して判定を拡張してください。
+      const monsters = all.filter(e => (e as any).constructor?.name === 'MonsterEntity');
+      mm.fillStyle = '#ff4444'; // 赤
+      for (const m of monsters) {
+        const mx = m.position.x;
+        const my = m.position.y;
+        if (mx < 0 || mx >= dungeon.width || my < 0 || my >= dungeon.height) continue;
+        if (!visible[my][mx]) continue; // 視界内のみ
+
+        const cx = offsetX + mx * mmTile + Math.floor((mmTile - 4) / 2);
+        const cy = offsetY + my * mmTile + Math.floor((mmTile - 4) / 2);
+        const r = 2;
+        mm.beginPath();
+        mm.moveTo(cx + r, cy);
+        mm.arcTo(cx + 4, cy, cx + 4, cy + 4, r);
+        mm.arcTo(cx + 4, cy + 4, cx, cy + 4, r);
+        mm.arcTo(cx, cy + 4, cx, cy, r);
+        mm.arcTo(cx, cy, cx + 4, cy, r);
+        mm.closePath();
+        mm.fill();
       }
     }
 
