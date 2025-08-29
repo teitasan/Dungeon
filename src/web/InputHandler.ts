@@ -17,6 +17,7 @@ export class InputHandler {
   private movementInProgress = false;
   private lastMovementTime = 0;
   private turnMode = false; // Cキー押下中は方向転換モード
+  private shiftDiagonalOnly = false; // Shift押下中は斜め移動のみ許可
 
   // 方向転換用に、現在の矢印ビットから向きを更新する
   private updateDirectionFromBits(): void {
@@ -135,6 +136,9 @@ export class InputHandler {
             this.systems.renderer.setTurnCursorActive(true);
           }
           break;
+        case 'Shift':
+          this.shiftDiagonalOnly = true; // 斜め移動のみ
+          break;
       }
     } else if (type === 'keyup') {
       switch (key) {
@@ -156,6 +160,9 @@ export class InputHandler {
           if (this.systems.renderer && this.systems.renderer.setTurnCursorActive) {
             this.systems.renderer.setTurnCursorActive(false);
           }
+          break;
+        case 'Shift':
+          this.shiftDiagonalOnly = false;
           break;
       }
     }
@@ -446,6 +453,15 @@ export class InputHandler {
     
     console.log(`[DEBUG] 移動実行: 現在(${current.x}, ${current.y}) -> 目標(${next.x}, ${next.y})`);
     
+    // Shift押下中は斜め移動のみ許可（Cによる方向転換は例外で許可）
+    if (!this.turnMode && this.shiftDiagonalOnly) {
+      const isCardinal = direction === 'up' || direction === 'down' || direction === 'left' || direction === 'right';
+      if (isCardinal) {
+        // 方向も変えず、移動もしない（誤爆防止）
+        return;
+      }
+    }
+
     // プレイヤーの向きを更新（方向転換モードでも向きは更新する）
     const directionMap: Record<string, 'north' | 'northeast' | 'east' | 'southeast' | 'south' | 'southwest' | 'west' | 'northwest'> = {
       'up': 'north', 'down': 'south', 'left': 'west', 'right': 'east',
