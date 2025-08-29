@@ -1,6 +1,7 @@
 /**
  * UI System (headless stub)
  * Provides basic text rendering for dungeon and simple message/status hooks.
+ * Extended for ECS integration and direct data display.
  */
 
 import { DungeonManager } from '../dungeon/DungeonManager';
@@ -10,12 +11,22 @@ import { UIManager } from '../web/ui/UIManager';
 import { ItemSystem } from './ItemSystem';
 import { CanvasRenderer } from '../web/CanvasRenderer';
 
+export interface ECSDataProvider {
+  getPlayerHealth(): { current: number; max: number } | null;
+  getPlayerHunger(): { current: number; max: number } | null;
+  getPlayerPosition(): { x: number; y: number } | null;
+  getPlayerInventory(): Array<{ id: string; name: string; identified: boolean; cursed: boolean }> | null;
+  getMonstersAtPosition(position: { x: number; y: number }): Array<{ id: string; health: number; maxHealth: number }> | null;
+  getItemsAtPosition(position: { x: number; y: number }): Array<{ id: string; name: string; identified: boolean }> | null;
+}
+
 export class UISystem {
   private dungeonManager: DungeonManager;
   private messages: string[] = [];
   private uiManager?: UIManager;
   private itemSystem?: ItemSystem;
   private renderer?: CanvasRenderer;
+  private ecsDataProvider?: ECSDataProvider;
 
   constructor(dungeonManager: DungeonManager) {
     this.dungeonManager = dungeonManager;
@@ -43,6 +54,86 @@ export class UISystem {
   }
 
   /**
+   * ECSデータプロバイダーを設定
+   */
+  setECSDataProvider(provider: ECSDataProvider): void {
+    this.ecsDataProvider = provider;
+  }
+
+  /**
+   * ECSデータを使用してUIを更新
+   */
+  updateUIWithECSData(): void {
+    if (!this.uiManager || !this.ecsDataProvider) return;
+
+    // プレイヤー情報を更新
+    this.updatePlayerStatus();
+    
+    // インベントリ情報を更新
+    this.updateInventoryDisplay();
+    
+    // 周辺情報を更新
+    this.updateSurroundingInfo();
+  }
+
+  /**
+   * プレイヤーステータスを更新
+   */
+  private updatePlayerStatus(): void {
+    if (!this.uiManager || !this.ecsDataProvider) return;
+
+    const health = this.ecsDataProvider.getPlayerHealth();
+    const hunger = this.ecsDataProvider.getPlayerHunger();
+    const position = this.ecsDataProvider.getPlayerPosition();
+
+    if (health) {
+      this.uiManager.updatePlayerHealth(health.current, health.max);
+    }
+
+    if (hunger) {
+      this.uiManager.updatePlayerHunger(hunger.current, hunger.max);
+    }
+
+    if (position) {
+      this.uiManager.updatePlayerPosition(position.x, position.y);
+    }
+  }
+
+  /**
+   * インベントリ表示を更新
+   */
+  private updateInventoryDisplay(): void {
+    if (!this.uiManager || !this.ecsDataProvider) return;
+
+    const inventory = this.ecsDataProvider.getPlayerInventory();
+    if (inventory) {
+      this.uiManager.updateInventoryList(inventory);
+    }
+  }
+
+  /**
+   * 周辺情報を更新
+   */
+  private updateSurroundingInfo(): void {
+    if (!this.uiManager || !this.ecsDataProvider) return;
+
+    const position = this.ecsDataProvider.getPlayerPosition();
+    if (!position) return;
+
+    // 周辺のモンスター情報
+    const monsters = this.ecsDataProvider.getMonstersAtPosition(position);
+    if (monsters && monsters.length > 0) {
+      this.uiManager.updateMonsterInfo(monsters);
+    }
+
+    // 周辺のアイテム情報
+    const items = this.ecsDataProvider.getItemsAtPosition(position);
+    if (items && items.length > 0) {
+      this.uiManager.updateGroundItemsInfo(items);
+    }
+  }
+
+  /**
    * インベントリ操作を処理
    */
   handleInventoryAction(action: 'open' | 'close' | 'use-item' | 'move-selection', direction?: 'up' | 'down'): {
@@ -57,6 +148,8 @@ export class UISystem {
     switch (action) {
       case 'open':
         this.uiManager.setInventoryModalOpen(true);
+        // ECSデータでインベントリを更新
+        this.updateInventoryDisplay();
         return { success: true, message: '' };
       
       case 'close':

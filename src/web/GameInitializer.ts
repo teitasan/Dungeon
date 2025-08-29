@@ -100,6 +100,9 @@ export class GameInitializer {
     // ECSゲームループを開始
     ecsGameManager.startGameLoop();
 
+    // ECSシステムの定期更新を設定
+    this.setupECSUpdateLoop(ecsGameManager, player);
+
     return { systems, player, uiManager, config, ecsPlayerId };
   }
 
@@ -387,5 +390,13 @@ export class GameInitializer {
     if (minimap) {
       renderer.attachMinimap(minimap);
     }
+  }
+
+  private setupECSUpdateLoop(ecsGameManager: ECSGameManager, player: PlayerEntity): void {
+    const updateInterval = 1000 / 60; // 60FPS
+    setInterval(() => {
+      ecsGameManager.update();
+
+    }, updateInterval);
   }
 }

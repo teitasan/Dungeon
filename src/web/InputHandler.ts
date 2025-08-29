@@ -373,11 +373,30 @@ export class InputHandler {
       
       if (target && target.id !== this.player.id) {
         console.log(`[DEBUG] 攻撃試行: プレイヤー(${this.player.id}) -> ターゲット(${target.id})`);
-        const attackResult = this.systems.combatSystem.executeAttack({
-          attacker: this.player,
-          defender: target,
-          attackType: 'melee'
-        });
+        
+        // ECS CombatSystemを使用
+        let attackResult;
+        if (this.systems.ecsGameManager) {
+          const ecsCombatSystem = this.systems.ecsGameManager.getSystem('combat');
+          if (ecsCombatSystem) {
+            attackResult = (ecsCombatSystem as any).executePlayerAttack(this.player.id, target.position);
+          } else {
+            // フォールバック：非ECS CombatSystemを使用
+            attackResult = this.systems.combatSystem.executeAttack({
+              attacker: this.player,
+              defender: target,
+              attackType: 'melee'
+            });
+          }
+        } else {
+          // フォールバック：非ECS CombatSystemを使用
+          attackResult = this.systems.combatSystem.executeAttack({
+            attacker: this.player,
+            defender: target,
+            attackType: 'melee'
+          });
+        }
+        
         console.log(`[DEBUG] 攻撃結果:`, attackResult);
         
         if (attackResult.success) {
@@ -529,6 +548,11 @@ export class InputHandler {
       // 移動成功時の処理
       if (moveResult.success) {
         console.log(`[DEBUG] 移動成功: プレイヤー位置更新`);
+        
+        // ECSシステムにプレイヤー位置を同期
+        if (this.systems.ecsGameManager && this.player.position) {
+          this.systems.ecsGameManager.updatePlayerPosition(this.player.position);
+        }
         
         // 移動フラグをリセット
         this.canMove = false;

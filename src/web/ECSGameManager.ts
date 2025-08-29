@@ -110,6 +110,19 @@ export class ECSGameManager {
   setGameState(gameState: ECSGameState): void {
     this.gameState = gameState;
     
+    // MovementSystemにDungeonManagerを設定
+    const movementSystem = this.getSystem('movement');
+    if (movementSystem && gameState.dungeonManager) {
+      (movementSystem as any).setDungeonManager?.(gameState.dungeonManager);
+    }
+
+    // CombatSystemにDungeonManagerとMessageSinkを設定
+    const combatSystem = this.getSystem('combat');
+    if (combatSystem && gameState.dungeonManager) {
+      (combatSystem as any).setDungeonManager?.(gameState.dungeonManager);
+      // MessageSinkは後で設定（UISystemが利用可能になった後）
+    }
+    
     console.log('[ECS GameManager] Game state set:', {
       playerId: gameState.ecsPlayerId,
       monsterCount: gameState.ecsMonsterIds.length,
@@ -217,6 +230,36 @@ export class ECSGameManager {
   }
 
   /**
+   * ECSシステムを更新
+   */
+  update(deltaTime: number = 16): void {
+    if (!this.gameState) return;
+
+    // プレイヤー位置をAIシステムに同期
+    const aiSystem = this.getSystem('ai');
+    if (aiSystem && this.gameState.player.position) {
+      // AIシステムの型を確認してから呼び出し
+      (aiSystem as any).setPlayerPosition?.(this.gameState.player.position);
+    }
+
+    // ECS Worldを更新（正しい形式）
+    this.world.update(deltaTime);
+  }
+
+  /**
+   * プレイヤー位置をECSに同期
+   */
+  updatePlayerPosition(position: { x: number; y: number }): void {
+    if (!this.gameState) return;
+
+    // AIシステムにプレイヤー位置を通知
+    const aiSystem = this.getSystem('ai');
+    if (aiSystem) {
+      (aiSystem as any).setPlayerPosition?.(position);
+    }
+  }
+
+  /**
    * 非ECSプレイヤーの状態をECSプレイヤーに同期
    */
   syncNonECSPlayerToECS(nonECSPlayer: PlayerEntity, ecsPlayerId: string): void {
@@ -298,5 +341,101 @@ export class ECSGameManager {
    */
   getAllEntityIds(): string[] {
     return this.world.getEntityIds();
+  }
+
+  // ECSDataProvider インターフェースの実装
+  getPlayerHealth(): { current: number; max: number } | null {
+    if (!this.gameState) return null;
+    
+    const health = this.world.getComponent(this.gameState.ecsPlayerId, 'health');
+    if (health) {
+      return {
+        current: (health as any).currentHp,
+        max: (health as any).maxHp
+      };
+    }
+    return null;
+  }
+
+  getPlayerHunger(): { current: number; max: number } | null {
+    if (!this.gameState) return null;
+    
+    const hunger = this.world.getComponent(this.gameState.ecsPlayerId, 'hunger');
+    if (hunger) {
+      return {
+        current: (hunger as any).currentValue,
+        max: (hunger as any).maxValue
+      };
+    }
+    return null;
+  }
+
+  getPlayerPosition(): { x: number; y: number } | null {
+    if (!this.gameState) return null;
+    
+    const position = this.world.getComponent(this.gameState.ecsPlayerId, 'position');
+    if (position) {
+      return {
+        x: (position as any).x,
+        y: (position as any).y
+      };
+    }
+    return null;
+  }
+
+  getPlayerInventory(): Array<{ id: string; name: string; identified: boolean; cursed: boolean }> | null {
+    if (!this.gameState) return null;
+    
+    const inventory = this.world.getComponent(this.gameState.ecsPlayerId, 'inventory');
+    if (inventory) {
+      return (inventory as any).items.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        identified: item.identified,
+        cursed: item.cursed
+      }));
+    }
+    return null;
+  }
+
+  getMonstersAtPosition(position: { x: number; y: number }): Array<{ id: string; health: number; maxHealth: number }> | null {
+    if (!this.gameState) return null;
+    
+    const monsters: Array<{ id: string; health: number; maxHealth: number }> = [];
+    
+    // 位置コンポーネントを持つエンティティを検索
+    const entitiesWithPosition = this.world.getComponentManager().getEntitiesWithComponent('position');
+    
+    for (const entityId of entitiesWithPosition) {
+      if (entityId === this.gameState.ecsPlayerId) continue; // プレイヤーは除外
+      
+      const pos = this.world.getComponent(entityId, 'position');
+      const health = this.world.getComponent(entityId, 'health');
+      
+      if (pos && health && (pos as any).x === position.x && (pos as any).y === position.y) {
+        monsters.push({
+          id: entityId,
+          health: (health as any).currentHp,
+          maxHealth: (health as any).maxHp
+        });
+      }
+    }
+    
+    return monsters.length > 0 ? monsters : null;
+  }
+
+  getItemsAtPosition(position: { x: number; y: number }): Array<{ id: string; name: string; identified: boolean }> | null {
+    if (!this.gameState) return null;
+    
+    const itemSystem = this.getSystem('item');
+    if (itemSystem) {
+      return (itemSystem as any).getItemsAtPosition({ x: position.x, y: position.y })
+        .map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          identified: item.identified
+        }));
+    }
+    return null;
   }
 }

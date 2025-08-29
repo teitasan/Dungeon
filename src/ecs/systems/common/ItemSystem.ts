@@ -194,7 +194,14 @@ export class ECSItemSystem extends System {
 
     const item = inventory.items[itemIndex];
     inventory.items.splice(itemIndex, 1);
-    inventory.currentCapacity = Math.max(0, inventory.currentCapacity - 1);
+    
+    // 新しいインベントリを作成して更新
+    const newInventory = {
+      ...inventory,
+      currentCapacity: Math.max(0, inventory.currentCapacity - 1)
+    };
+    this.componentManager.removeComponent(userId, 'inventory');
+    this.componentManager.addComponent(userId, newInventory);
 
     // Direction vector mapping
     const dirMap: Record<string, { x: number; y: number }> = {
@@ -554,6 +561,210 @@ export class ECSItemSystem extends System {
    */
   getAllGroundItems(): Array<{ item: ItemComponent; position: PositionComponent }> {
     return Array.from(this.groundItems.values());
+  }
+
+  /**
+   * 地面にアイテムを作成・配置
+   */
+  createGroundItem(itemTemplateId: string, position: { x: number; y: number }, itemId?: string): string {
+    const template = this.itemTemplates.get(itemTemplateId);
+    if (!template) {
+      throw new Error(`Item template not found: ${itemTemplateId}`);
+    }
+
+    const entityId = itemId || `ground-item-${Date.now()}-${Math.random()}`;
+    
+    // アイテムコンポーネントを作成
+    const itemComponent = ItemComponentFactory.create(
+      entityId,
+      template.name,
+      template.itemType,
+      template.identified,
+      template.cursed,
+      template.quantity || 1
+    );
+
+    // 効果と装備ステータスをコピー
+    if (template.effects) {
+      (itemComponent as any).effects = [...template.effects];
+    }
+    if (template.equipmentStats) {
+      (itemComponent as any).equipmentStats = { ...template.equipmentStats };
+    }
+
+    // 位置コンポーネントを作成（正しい型で）
+    const positionComponent: PositionComponent = {
+      id: `position-${entityId}`,
+      type: 'position',
+      x: position.x,
+      y: position.y
+    };
+
+    // エンティティにコンポーネントを追加
+    this.componentManager.addComponent(entityId, itemComponent);
+    this.componentManager.addComponent(entityId, positionComponent);
+
+    // 地面アイテムマップに登録
+    this.groundItems.set(entityId, { item: itemComponent, position: positionComponent });
+
+    console.log(`[ECSItemSystem] Ground item created: ${entityId} at (${position.x}, ${position.y})`);
+    return entityId;
+  }
+
+  /**
+   * 指定位置の地面アイテムを取得
+   */
+  getGroundItemAt(position: { x: number; y: number }): string | null {
+    for (const [entityId, data] of this.groundItems) {
+      if (data.position.x === position.x && data.position.y === position.y) {
+        return entityId;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 地面アイテムを削除
+   */
+  removeGroundItem(itemId: string): boolean {
+    if (!this.groundItems.has(itemId)) {
+      return false;
+    }
+
+    // コンポーネントを削除
+    this.componentManager.removeComponent(itemId, 'item');
+    this.componentManager.removeComponent(itemId, 'position');
+
+    // 地面アイテムマップから削除
+    this.groundItems.delete(itemId);
+
+    console.log(`[ECSItemSystem] Ground item removed: ${itemId}`);
+    return true;
+  }
+
+  /**
+   * 地面アイテムを移動
+   */
+  moveGroundItem(itemId: string, newPosition: { x: number; y: number }): boolean {
+    const itemData = this.groundItems.get(itemId);
+    if (!itemData) {
+      return false;
+    }
+
+    // 新しい位置コンポーネントを作成
+    const newPositionComponent: PositionComponent = {
+      id: itemData.position.id,
+      type: 'position',
+      x: newPosition.x,
+      y: newPosition.y
+    };
+
+    // 地面アイテムマップを更新
+    this.groundItems.set(itemId, {
+      item: itemData.item,
+      position: newPositionComponent
+    });
+
+    // コンポーネントマネージャーの位置コンポーネントも更新
+    this.componentManager.removeComponent(itemId, 'position');
+    this.componentManager.addComponent(itemId, newPositionComponent);
+
+    console.log(`[ECSItemSystem] Ground item moved: ${itemId} to (${newPosition.x}, ${newPosition.y})`);
+    return true;
+  }
+
+  /**
+   * 地面アイテムの数を取得
+   */
+  getGroundItemCount(): number {
+    return this.groundItems.size;
+  }
+
+  /**
+   * 地面アイテムを拾得
+   */
+  pickupGroundItem(itemId: string, userId: EntityId): ItemPickupResult {
+    // 地面アイテムの存在確認
+    const groundItemData = this.groundItems.get(itemId);
+    if (!groundItemData) {
+      return {
+        success: false,
+        itemId,
+        entityId: userId,
+        message: 'Item not found on ground',
+        reason: 'item-not-found'
+      };
+    }
+
+    // 拾得者のインベントリを取得
+    const inventory = this.getComponent<InventoryComponent>(userId, 'inventory');
+    if (!inventory) {
+      return {
+        success: false,
+        itemId,
+        entityId: userId,
+        message: 'Entity has no inventory',
+        reason: 'no-inventory'
+      };
+    }
+
+    // インベントリの容量チェック
+    if (inventory.currentCapacity >= inventory.maxCapacity) {
+      return {
+        success: false,
+        itemId,
+        entityId: userId,
+        message: 'Inventory is full',
+        reason: 'inventory-full'
+      };
+    }
+
+    // インベントリにアイテムを追加
+    const inventoryItem: InventoryItem = {
+      id: groundItemData.item.id,
+      templateId: groundItemData.item.templateId,
+      name: groundItemData.item.name,
+      itemType: groundItemData.item.itemType,
+      identified: groundItemData.item.identified,
+      cursed: groundItemData.item.cursed,
+      quantity: groundItemData.item.quantity || 1
+    };
+
+    // 正しいメソッド名を使用
+    const added = this.addItemToInventory(userId, inventoryItem);
+    if (!added) {
+      return {
+        success: false,
+        itemId,
+        entityId: userId,
+        message: 'Failed to add item to inventory',
+        reason: 'add-failed'
+      };
+    }
+
+    // 地面からアイテムを削除
+    this.removeGroundItem(itemId);
+
+    console.log(`[ECSItemSystem] Item picked up: ${itemId} by ${userId}`);
+    
+    return {
+      success: true,
+      itemId,
+      entityId: userId,
+      message: `${groundItemData.item.name} を ひろった！`
+    };
+  }
+
+  /**
+   * 指定位置のアイテムを自動拾得（容量チェック付き）
+   */
+  autoPickupAtPosition(position: { x: number; y: number }, userId: EntityId): ItemPickupResult | null {
+    const itemId = this.getGroundItemAt(position);
+    if (!itemId) {
+      return null; // アイテムがない
+    }
+
+    return this.pickupGroundItem(itemId, userId);
   }
 
   /**

@@ -1,5 +1,6 @@
 /**
  * Input handling system for keyboard and mouse input
+ * Extended for ECS integration and event-driven architecture
  */
 
 import type { Position } from '../types/core.js';
@@ -11,23 +12,76 @@ export interface InputAction {
   action?: 'confirm' | 'cancel' | 'inventory';
 }
 
-export class InputSystem {
+export interface ECSInputEvent {
+  type: 'player-movement' | 'player-action' | 'system-command';
+  playerId: string;
+  data: {
+    direction?: 'up' | 'down' | 'left' | 'right';
+    action?: 'confirm' | 'cancel' | 'inventory' | 'attack' | 'use-item';
+    targetPosition?: Position;
+    itemId?: string;
+  };
+  timestamp: number;
+}
+
+export interface ECSInputHandler {
+  handleInputEvent(event: ECSInputEvent): Promise<boolean>;
+  isInputEnabled(): boolean;
+  setInputEnabled(enabled: boolean): void;
+}
+
+export class InputSystem implements ECSInputHandler {
   private config: GameConfig;
+  private inputEnabled: boolean = true;
+  private eventQueue: ECSInputEvent[] = [];
+  private eventHandlers: Map<string, (event: ECSInputEvent) => void> = new Map();
 
   constructor(config: GameConfig) {
     this.config = config;
   }
 
   /**
-   * キーイベントを入力アクションに変換
+   * 入力イベントハンドラーを登録
    */
-  processKeyEvent(key: string): InputAction | null {
+  registerEventHandler(eventType: string, handler: (event: ECSInputEvent) => void): void {
+    this.eventHandlers.set(eventType, handler);
+  }
+
+  /**
+   * 入力イベントをキューに追加
+   */
+  queueInputEvent(event: ECSInputEvent): void {
+    if (this.inputEnabled) {
+      this.eventQueue.push(event);
+    }
+  }
+
+  /**
+   * キューされたイベントを処理
+   */
+  async processEventQueue(): Promise<void> {
+    while (this.eventQueue.length > 0) {
+      const event = this.eventQueue.shift();
+      if (event) {
+        await this.handleInputEvent(event);
+      }
+    }
+  }
+
+  /**
+   * キーイベントをECS入力イベントに変換
+   */
+  processKeyEvent(key: string, playerId: string = 'player-1'): ECSInputEvent | null {
     // 移動キーの処理
     for (const [direction, keys] of Object.entries(this.config.input.keys.movement)) {
       if (keys.includes(key)) {
         return {
-          type: 'movement',
-          direction: direction as 'up' | 'down' | 'left' | 'right'
+          type: 'player-movement',
+          playerId,
+          data: {
+            direction: direction as 'up' | 'down' | 'left' | 'right'
+          },
+          timestamp: Date.now()
         };
       }
     }
@@ -36,8 +90,12 @@ export class InputSystem {
     for (const [action, keys] of Object.entries(this.config.input.keys.actions)) {
       if (keys.includes(key)) {
         return {
-          type: 'action',
-          action: action as 'confirm' | 'cancel' | 'inventory'
+          type: 'player-action',
+          playerId,
+          data: {
+            action: action as 'confirm' | 'cancel' | 'inventory'
+          },
+          timestamp: Date.now()
         };
       }
     }
@@ -86,5 +144,43 @@ export class InputSystem {
   isNavigationKey(key: string): boolean {
     const navKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', '.'];
     return navKeys.includes(key);
+  }
+
+  // ECSInputHandler インターフェースの実装
+  async handleInputEvent(event: ECSInputEvent): Promise<boolean> {
+    const handler = this.eventHandlers.get(event.type);
+    if (handler) {
+      try {
+        handler(event);
+        return true;
+      } catch (error) {
+        console.error('Error handling input event:', error);
+        return false;
+      }
+    }
+    return false;
+  }
+
+  isInputEnabled(): boolean {
+    return this.inputEnabled;
+  }
+
+  setInputEnabled(enabled: boolean): void {
+    this.inputEnabled = enabled;
+  }
+
+  /**
+   * システムコマンドイベントを作成
+   */
+  createSystemCommand(command: string, data?: any): ECSInputEvent {
+    return {
+      type: 'system-command',
+      playerId: 'system',
+      data: {
+        action: command as any,
+        ...data
+      },
+      timestamp: Date.now()
+    };
   }
 }
