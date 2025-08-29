@@ -113,12 +113,12 @@ export function openChoiceModal(params: {
     const keyHandler = (e: KeyboardEvent) => {
       const key = e.key;
       if (!currentState) return;
-      if (key === 'ArrowUp' || key === 'ArrowDown' || key === 'ArrowLeft' || key === 'ArrowRight') {
+      // 選択移動は上下キーのみに限定（左右キーでは動かさない）
+      if (key === 'ArrowUp' || key === 'ArrowDown') {
         const max = currentState.options.length;
-        // 縦並びに合わせて上下キーを採用（左右も互換で対応）
         let delta = 0;
-        if (key === 'ArrowUp' || key === 'ArrowLeft') delta = -1;
-        if (key === 'ArrowDown' || key === 'ArrowRight') delta = 1;
+        if (key === 'ArrowUp') delta = -1;
+        if (key === 'ArrowDown') delta = 1;
         currentState.selectedIndex = (currentState.selectedIndex + delta + max) % max;
         renderSelection();
         e.preventDefault();

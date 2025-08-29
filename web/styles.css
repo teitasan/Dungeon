@@ -105,15 +105,16 @@ a {
   grid-template-columns: auto 1fr;
   gap: 6px;
   align-items: start;
-  height: 160px;
+  height: 180px; /* ミニマップとログの高さを合わせる */
 }
 
 #minimap {
   background: #000;
   border-radius: 6px;
   box-shadow: 0 0 0 1px #333 inset;
+  /* Canvasの実サイズ(240x160)に合わせてCSSサイズも固定し、引き伸ばしを防ぐ */
   width: 240px;
-  height: 100%;
+  height: 180px; /* コンテンツに合わせて180pxに拡張 */
 }
 
 #messages {

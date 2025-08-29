@@ -337,12 +337,12 @@
     },
     "viewport": {
       "tilesX": 20,
-      "tilesY": 10,
+      "tilesY": 9,
       "tileSize": 32
     },
     "minimap": {
       "width": 240,
-      "height": 160,
+      "height": 180,
       "playerSize": 0.8,
       "playerColor": "#FFFFFF",
       "colors": {

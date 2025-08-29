@@ -253,6 +253,20 @@ export class InputHandler {
     if (isModalOpen()) return;
     // アイキャッチ演出中は無効
     if (this.systems.renderer && this.systems.renderer.isInTransition()) return;
+
+    // Shiftでソート（ID昇順）。配列を直接並べ替える。
+    if (key === 'Shift' && type === 'keydown') {
+      if (Array.isArray(this.player.inventory)) {
+        this.player.inventory.sort((a: any, b: any) => {
+          const aid = String(a.id ?? '');
+          const bid = String(b.id ?? '');
+          return aid.localeCompare(bid);
+        });
+        this.renderInventory();
+        this.uiManager.addMessageWithAnimation('インベントリをID昇順でソートしました');
+      }
+      return;
+    }
     // インベントリ内での移動処理（keydownのみ）
     if ((key === 'ArrowUp' || key === 'ArrowDown') && type === 'keydown') {
       const direction = key === 'ArrowUp' ? 'up' : 'down';
