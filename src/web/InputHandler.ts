@@ -4,6 +4,7 @@ import type { GameSystems } from './GameInitializer.js';
 import type { PlayerEntity } from '../entities/Player.js';
 import type { UIManager } from './ui/UIManager.js';
 import { ItemEntity } from '../entities/Item.js';
+import { ECSBridge } from './ECSBridge.js';
 
 export class InputHandler {
   private keyPress = 0;
@@ -256,15 +257,9 @@ export class InputHandler {
 
     // Shiftでソート（ID昇順）。配列を直接並べ替える。
     if (key === 'Shift' && type === 'keydown') {
-      if (Array.isArray(this.player.inventory)) {
-        this.player.inventory.sort((a: any, b: any) => {
-          const aid = String(a.id ?? '');
-          const bid = String(b.id ?? '');
-          return aid.localeCompare(bid);
-        });
-        this.renderInventory();
-        this.uiManager.addMessageWithAnimation('インベントリをID昇順でソートしました');
-      }
+      ECSBridge.sortPlayerInventoryByIdAsc(this.player);
+      this.renderInventory();
+      this.uiManager.addMessageWithAnimation('インベントリをID昇順でソートしました');
       return;
     }
     // インベントリ内での移動処理（keydownのみ）

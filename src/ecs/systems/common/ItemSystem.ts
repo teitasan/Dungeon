@@ -70,6 +70,7 @@ export class ECSItemSystem extends System {
     // This system processes entities that have inventory
     super(componentManager, ['inventory']);
     this.initializeDefaultItems();
+    this.reloadTemplatesFromRegistry();
   }
 
   /**
@@ -159,6 +160,86 @@ export class ECSItemSystem extends System {
       effects,
       message,
       consumed
+    };
+  }
+
+  /**
+   * Throw an item from entity's inventory
+   * Handles trajectory calculation, collision detection, and landing
+   */
+  throwItem(userId: EntityId, itemId: string, direction: 'north'|'south'|'east'|'west'|'northeast'|'southeast'|'southwest'|'northwest'): {
+    success: boolean;
+    message: string;
+    landingPosition?: { x: number; y: number };
+    consumed: boolean;
+  } {
+    const inventory = this.getComponent<InventoryComponent>(userId, 'inventory');
+    if (!inventory) {
+      return {
+        success: false,
+        message: 'Entity has no inventory',
+        consumed: false
+      };
+    }
+
+    // Find and remove item from inventory
+    const itemIndex = inventory.items.findIndex(item => String(item.id) === String(itemId));
+    if (itemIndex === -1) {
+      return {
+        success: false,
+        message: 'Item not found in inventory',
+        consumed: false
+      };
+    }
+
+    const item = inventory.items[itemIndex];
+    inventory.items.splice(itemIndex, 1);
+    inventory.currentCapacity = Math.max(0, inventory.currentCapacity - 1);
+
+    // Direction vector mapping
+    const dirMap: Record<string, { x: number; y: number }> = {
+      north: { x: 0, y: -1 },
+      south: { x: 0, y: 1 },
+      west: { x: -1, y: 0 },
+      east: { x: 1, y: 0 },
+      northeast: { x: 1, y: -1 },
+      southeast: { x: 1, y: 1 },
+      southwest: { x: -1, y: 1 },
+      northwest: { x: -1, y: -1 }
+    };
+
+    const vector = dirMap[direction] || { x: 0, y: 1 };
+    const maxRange = 10;
+    let lastValid = { x: 0, y: 0 };
+    let landing: { x: number; y: number } | null = null;
+
+    // Calculate trajectory and check for collisions
+    for (let step = 1; step <= maxRange; step++) {
+      const pos = { 
+        x: vector.x * step, 
+        y: vector.y * step 
+      };
+      
+      // For now, assume all positions are valid (wall collision will be handled by non-ECS side)
+      // In a full ECS implementation, this would check PositionComponent and collision components
+      lastValid = { ...pos };
+      
+      if (step === maxRange) {
+        landing = { ...pos };
+        break;
+      }
+    }
+
+    if (!landing) {
+      landing = { ...lastValid };
+    }
+
+    // Return success - the actual landing and collision detection will be handled by the bridge
+    return {
+      success: true,
+      message: 'Item thrown successfully',
+      landingPosition: landing,
+      consumed: true
     };
   }
 
@@ -615,5 +696,42 @@ export class ECSItemSystem extends System {
 
   protected onInitialize(): void {
     console.log('ECS Item System initialized');
+  }
+
+  /**
+   * ItemRegistry にテンプレートが入っていれば、ECS側のテンプレマップを差し替える
+   */
+  public reloadTemplatesFromRegistry(): void {
+    try {
+      // 動的読み込み（ブラウザ/Node両対応用の安全策）
+      // @ts-ignore
+      const mod = require('../../../core/ItemRegistry.js');
+      const reg = mod?.ItemRegistry?.getInstance?.();
+      if (!reg || !reg.hasTemplates()) return;
+
+      this.itemTemplates.clear();
+      for (const tpl of reg.getAll()) {
+        const comp = ItemComponentFactory.create(
+          tpl.id,
+          tpl.name,
+          tpl.itemType,
+          tpl.identified,
+          tpl.cursed,
+          1
+        );
+        // effects / equipmentStats などを反映
+        if (tpl.effects && tpl.effects.length) {
+          (comp as any).effects = [...tpl.effects];
+        }
+        if (tpl.equipmentStats) {
+          (comp as any).equipmentStats = { ...tpl.equipmentStats };
+        }
+        this.itemTemplates.set(comp.templateId, comp);
+      }
+      console.log('[ECSItemSystem] templates loaded from ItemRegistry');
+    } catch (e) {
+      // 失敗してもデフォルトテンプレで継続
+      console.warn('[ECSItemSystem] registry reload skipped:', e);
+    }
   }
 }

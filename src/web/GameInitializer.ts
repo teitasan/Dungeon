@@ -14,6 +14,9 @@ import { WebConfigLoader } from './WebConfigLoader.js';
 import { UIManager } from './ui/UIManager.js';
 import type { Position } from '../types/core.js';
 
+// ECS統合のためのインポート
+import { ECSGameManager, ECSGameManagerConfig } from './ECSGameManager.js';
+
 export interface GameSystems {
   dungeonManager: DungeonManager;
   multipleDungeonSystem: MultipleDungeonSystem;
@@ -25,6 +28,8 @@ export interface GameSystems {
   itemSystem: ItemSystem;
   renderer: CanvasRenderer;
   tilesetManager: TilesetManager | null;
+  // ECS統合
+  ecsGameManager: ECSGameManager;
 }
 
 export class GameInitializer {
@@ -39,27 +44,49 @@ export class GameInitializer {
     player: PlayerEntity;
     uiManager: UIManager;
     config: any;
+    ecsPlayerId: string; // ECSプレイヤーエンティティID
   }> {
     // 設定の読み込み
     const config = await this.configLoader.loadGameConfig();
     
+    // ECS Game Managerの初期化
+    const ecsGameManager = new ECSGameManager({
+      targetFPS: 60,
+      enableProfiling: true,
+      enableDebugging: true,
+      maxEntities: 1000
+    });
+    
     // UIの作成
     const uiManager = await this.createUI(config);
 
-    // システムの初期化
-    const systems = await this.initializeSystems(config);
+    // システムの初期化（非ECS - 段階的移行のため残存）
+    const systems = await this.initializeSystems(config, ecsGameManager);
 
-    // プレイヤーの作成
+    // 非ECSプレイヤーの作成（段階的移行のため残存）
     const player = await this.createPlayer(config);
 
     // ダンジョンの初期化
     await this.initializeDungeon(systems, player, config);
+
+    // ECSプレイヤーの作成（ダンジョン初期化後の正しい位置で）
+    const ecsPlayerId = ecsGameManager.createECSPlayer(player);
 
     // テスト用モンスターの追加
     await this.addTestMonsters(systems, player, config);
 
     // テスト用アイテムの追加
     await this.addTestItems(player);
+
+    // ECSゲーム状態の設定
+    ecsGameManager.setGameState({
+      ecsWorld: ecsGameManager.getWorld(),
+      dungeonManager: systems.dungeonManager,
+      player: player,
+      ecsPlayerId: ecsPlayerId,
+      ecsMonsterIds: [], // 後でモンスターもECS化
+      ecsItemIds: []     // 後でアイテムもECS化
+    });
 
     // レンダラーの設定
     await this.setupRenderer(systems, uiManager, config);
@@ -70,7 +97,10 @@ export class GameInitializer {
     // ゲーム情報オーバーレイの作成
     uiManager.createGameInfoOverlay();
 
-    return { systems, player, uiManager, config };
+    // ECSゲームループを開始
+    ecsGameManager.startGameLoop();
+
+    return { systems, player, uiManager, config, ecsPlayerId };
   }
 
   private async createUI(config: any): Promise<UIManager> {
@@ -82,14 +112,26 @@ export class GameInitializer {
     return uiManager;
   }
 
-  private async initializeSystems(config: any): Promise<GameSystems> {
+  private async initializeSystems(config: any, ecsGameManager: ECSGameManager): Promise<GameSystems> {
     const dungeonManager = new DungeonManager();
     const multipleDungeonSystem = new MultipleDungeonSystem(dungeonManager);
     const uiSystem = new UISystem(dungeonManager);
     const combatSystem = new CombatSystem();
     const inputSystem = new InputSystem(config);
+    // Itemテンプレートをレジストリに読み込み（あれば）
+    try {
+      const { ItemRegistry } = await import('../core/ItemRegistry.js');
+      const reg = ItemRegistry.getInstance();
+      reg.loadFromConfig(config?.items?.templates || []);
+    } catch (e) {
+      console.warn('ItemRegistry load failed (continuing with defaults):', e);
+    }
     // 先に ItemSystem を生成してから MovementSystem に渡す
     const itemSystem = new ItemSystem(dungeonManager);
+    // レジストリ優先でテンプレートを反映（レジストリが空の場合はItemSystem内デフォルトのまま）
+    try {
+      itemSystem.reloadTemplatesFromRegistry?.();
+    } catch {}
     const movementSystem = new MovementSystem(dungeonManager, itemSystem);
     const turnSystem = new TurnSystem(
       config.turnSystem,
@@ -122,7 +164,9 @@ export class GameInitializer {
       turnSystem,
       itemSystem,
       renderer: null as any, // 後で設定
-      tilesetManager: null
+      tilesetManager: null,
+      // ECS統合
+      ecsGameManager: ecsGameManager
     };
   }
 

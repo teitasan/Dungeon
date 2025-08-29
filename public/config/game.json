@@ -268,6 +268,50 @@
     }
   },
   "items": {},
+  "items": {
+    "templates": [
+      {
+        "id": "health-potion",
+        "name": "Health Potion",
+        "itemType": "consumable",
+        "identified": false,
+        "cursed": false,
+        "effects": [ { "type": "heal", "value": 20, "description": "Restores 20 HP" } ]
+      },
+      {
+        "id": "bread",
+        "name": "Bread",
+        "itemType": "consumable",
+        "identified": true,
+        "cursed": false,
+        "effects": [ { "type": "restore-hunger", "value": 30, "description": "Restores 30 hunger" } ]
+      },
+      {
+        "id": "antidote",
+        "name": "Antidote",
+        "itemType": "consumable",
+        "identified": false,
+        "cursed": false,
+        "effects": [ { "type": "cure-status", "statusType": "poison", "description": "Cures poison" } ]
+      },
+      {
+        "id": "scroll-identify",
+        "name": "Scroll of Identify",
+        "itemType": "consumable",
+        "identified": false,
+        "cursed": false,
+        "effects": [ { "type": "identify", "description": "Identifies all items in inventory" } ]
+      },
+      {
+        "id": "scroll-teleport",
+        "name": "Scroll of Teleport",
+        "itemType": "consumable",
+        "identified": false,
+        "cursed": false,
+        "effects": [ { "type": "teleport", "description": "Teleports to random location" } ]
+      }
+    ]
+  },
   "monsters": {},
   "attributes": {
     "availableAttributes": [
