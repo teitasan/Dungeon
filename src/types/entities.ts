@@ -115,6 +115,7 @@ export interface Item extends GameEntity {
     defenseAttributes?: string[];
   };
   equipmentStats?: EquipmentStats;
+  spriteId?: string;
   /**
    * アイテム固有のフラグ（全アイテムに付与）
    * onThrow: 投擲時の基本挙動

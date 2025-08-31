@@ -715,7 +715,8 @@ export class ItemSystem implements InventoryManager {
       template.itemType,
       position,
       template.identified,
-      template.cursed
+      template.cursed,
+      (template as any).spriteId
     );
 
     // Apply template properties
@@ -802,6 +803,7 @@ export class ItemSystem implements InventoryManager {
       itemType: 'consumable',
       identified: false,
       cursed: false,
+      spriteId: 'consumable',
       effects: [
         {
           type: 'heal',
@@ -818,6 +820,7 @@ export class ItemSystem implements InventoryManager {
       itemType: 'consumable',
       identified: true,
       cursed: false,
+      spriteId: 'consumable',
       effects: [
         {
           type: 'restore-hunger',
@@ -834,6 +837,7 @@ export class ItemSystem implements InventoryManager {
       itemType: 'consumable',
       identified: false,
       cursed: false,
+      spriteId: 'consumable',
       effects: [
         {
           type: 'cure-status',
@@ -850,6 +854,7 @@ export class ItemSystem implements InventoryManager {
       itemType: 'consumable',
       identified: false,
       cursed: false,
+      spriteId: 'consumable',
       effects: [
         {
           type: 'identify',
@@ -865,6 +870,7 @@ export class ItemSystem implements InventoryManager {
       itemType: 'consumable',
       identified: false,
       cursed: false,
+      spriteId: 'consumable',
       effects: [
         {
           type: 'teleport',
@@ -882,6 +888,7 @@ export interface ItemTemplate {
   itemType: any;
   identified: boolean;
   cursed: boolean;
+  spriteId?: string;
   effects?: any[];
   equipmentStats?: any;
   attributes?: any;

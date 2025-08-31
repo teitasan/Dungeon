@@ -3,6 +3,7 @@ import type { PlayerEntity } from '../entities/Player';
 import type { GameConfig } from '../types/core.js';
 import { DungeonManager } from '../dungeon/DungeonManager.js';
 import { TilesetManager } from './TilesetManager.js';
+import { ItemSpriteManager } from './ItemSpriteManager.js';
 
 export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D;
@@ -14,6 +15,7 @@ export class CanvasRenderer {
   private explored: boolean[][] | null = null;
   private currentDungeonId: string | null = null;
   private tilesetManager: TilesetManager | null = null;
+  private itemSpriteManager: ItemSpriteManager | null = null;
   private gameConfig: GameConfig | null = null;
   private clairvoyanceActive: boolean = false;
   private remillaActive: boolean = false;
@@ -173,6 +175,88 @@ export class CanvasRenderer {
     this.tilesetManager = tilesetManager;
   }
 
+  setItemSpriteManager(itemSpriteManager: ItemSpriteManager): void {
+    this.itemSpriteManager = itemSpriteManager;
+  }
+
+  /**
+   * Check if entity is an item
+   */
+  private isItem(entity: any): boolean {
+    // より厳密なアイテム判定
+    const isItem = entity && 
+      entity.itemType !== undefined && 
+      entity.effects !== undefined && 
+      entity.identified !== undefined && 
+      entity.cursed !== undefined;
+    
+    // デバッグ用ログ
+    if (entity && entity.id) {
+      console.log(`[DEBUG] Entity ${entity.id}:`, {
+        name: entity.name,
+        itemType: entity.itemType,
+        effects: entity.effects,
+        identified: entity.identified,
+        cursed: entity.cursed,
+        spriteId: entity.spriteId,
+        isItem: isItem
+      });
+    }
+    
+    return isItem;
+  }
+
+  /**
+   * Render item sprite
+   */
+  private renderItem(entity: any, x: number, y: number): void {
+    console.log(`[DEBUG] renderItem called for ${entity.id}, spriteId: ${entity.spriteId}`);
+    
+    if (!this.itemSpriteManager || !this.itemSpriteManager.isLoaded()) {
+      console.log(`[DEBUG] ItemSpriteManager not available or not loaded`);
+      // フォールバック: 文字で描画
+      this.renderItemFallback(entity, x, y);
+      return;
+    }
+
+    const spriteId = entity.spriteId;
+    if (!spriteId || !this.itemSpriteManager.hasSprite(spriteId)) {
+      console.log(`[DEBUG] Sprite not available: spriteId=${spriteId}, hasSprite=${this.itemSpriteManager.hasSprite(spriteId)}`);
+      // スプライトIDがない場合や存在しない場合はフォールバック
+      this.renderItemFallback(entity, x, y);
+      return;
+    }
+
+    console.log(`[DEBUG] Drawing sprite ${spriteId} at (${x}, ${y})`);
+    // スプライトで描画
+    this.itemSpriteManager.drawItemSprite(
+      this.ctx,
+      spriteId,
+      x,
+      y,
+      this.tileSize
+    );
+  }
+
+  /**
+   * Fallback item rendering (text-based)
+   */
+  private renderItemFallback(entity: any, x: number, y: number): void {
+    const glyph = entity.name ? entity.name.charAt(0).toUpperCase() : 'I';
+    
+    // 背景
+    this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    this.ctx.fillRect(x + 3, y + 3, this.tileSize - 6, this.tileSize - 6);
+    
+    // 文字
+    this.ctx.fillStyle = '#d0d0d0';
+    const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
+    this.ctx.font = `${Math.floor(this.tileSize * 0.7)}px '${fontFamily}', ui-monospace, Menlo, monospace`;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(glyph, x + this.tileSize / 2, y + this.tileSize / 2 + 1);
+  }
+
   /**
    * ゲーム設定を設定
    */
@@ -264,11 +348,14 @@ export class CanvasRenderer {
     const [camX, camY, viewW, viewH] = this.computeCamera(dungeon, player);
 
     // 背景クリア
+    console.log(`[DEBUG] Canvas size: ${this.canvas.width}x${this.canvas.height}`);
     ctx.fillStyle = '#0c0c0f';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    console.log(`[DEBUG] Background cleared`);
 
     // タイル描画（ビューポート内のみ）
     // 0.5マス分のオフセットを考慮して描画範囲を2マス拡張
+    console.log(`[DEBUG] Starting tile rendering: viewW=${viewW}, viewH=${viewH}, camX=${camX}, camY=${camY}`);
     for (let vy = 0; vy < viewH + 2; vy++) {
       const y = camY + vy;
       for (let vx = 0; vx < viewW + 2; vx++) {
@@ -380,29 +467,44 @@ export class CanvasRenderer {
 
     // エンティティ描画（可視セルのみ）
     const entities = dungeonManager.getAllEntities();
+    console.log(`[DEBUG] Rendering ${entities.length} entities`);
     for (const entity of entities) {
       const ex = entity.position.x;
       const ey = entity.position.y;
       if (ex < camX || ex >= camX + viewW + 2 || ey < camY || ey >= camY + viewH + 2) continue;
       if (!visible[ey][ex]) continue;
       if ((entity as any).id === player.id) continue;
+      
       const gx = (ex - camX - 0.5) * tileSize;
       const gy = (ey - camY - 0.5) * tileSize;
-      const glyph = (entity as any).name ? ((entity as any).name as string).charAt(0).toUpperCase() : 'E';
-      this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
-      this.ctx.fillRect(gx + 3, gy + 3, tileSize - 6, tileSize - 6);
-      this.ctx.fillStyle = '#d0d0d0';
-              const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
-        this.ctx.font = `${Math.floor(tileSize * 0.7)}px '${fontFamily}', ui-monospace, Menlo, monospace`;
-      this.ctx.textAlign = 'center';
-      this.ctx.textBaseline = 'middle';
-      this.ctx.fillText(glyph, gx + tileSize / 2, gy + tileSize / 2 + 1);
+      
+      try {
+        // アイテムの場合はスプライトで描画
+        if (this.isItem(entity)) {
+          this.renderItem(entity, gx, gy);
+        } else {
+          // その他のエンティティは従来通り文字で描画
+          const glyph = (entity as any).name ? ((entity as any).name as string).charAt(0).toUpperCase() : 'E';
+          this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
+          this.ctx.fillRect(gx + 3, gy + 3, tileSize - 6, tileSize - 6);
+          this.ctx.fillStyle = '#d0d0d0';
+          const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
+          this.ctx.font = `${Math.floor(tileSize * 0.7)}px '${fontFamily}', ui-monospace, Menlo, monospace`;
+          this.ctx.textAlign = 'center';
+          this.ctx.textBaseline = 'middle';
+          this.ctx.fillText(glyph, gx + tileSize / 2, gy + tileSize / 2 + 1);
+        }
+      } catch (error) {
+        console.error(`[ERROR] Failed to render entity ${entity.id}:`, error);
+        // エラーが発生しても描画を続行
+      }
     }
 
     // プレイヤー（円形）
-    const px = (player.position.x - camX - 0.5) * tileSize + tileSize / 2;
-    const py = (player.position.y - camY - 0.5) * tileSize + tileSize / 2;
-    const playerDirection = (player as any).direction || 'south';
+    try {
+      const px = (player.position.x - camX - 0.5) * tileSize + tileSize / 2;
+      const py = (player.position.y - camY - 0.5) * tileSize + tileSize / 2;
+      const playerDirection = (player as any).direction || 'south';
     
     // 円形を描画
     ctx.beginPath();
@@ -513,6 +615,11 @@ export class CanvasRenderer {
       ctx.fillStyle = '#ffffff'; // 白一色のシンプルな三角
       ctx.fill();
     }
+    }
+    
+    } catch (error) {
+      console.error(`[ERROR] Failed to render player:`, error);
+      // エラーが発生しても描画を続行
     }
 
     // ミニマップ描画

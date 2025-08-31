@@ -10,6 +10,7 @@ import { MovementSystem } from '../systems/MovementSystem.js';
 import { TurnSystem } from '../systems/TurnSystem.js';
 import { CanvasRenderer } from './CanvasRenderer.js';
 import { TilesetManager } from './TilesetManager.js';
+import { ItemSpriteManager } from './ItemSpriteManager.js';
 import { WebConfigLoader } from './WebConfigLoader.js';
 import { UIManager } from './ui/UIManager.js';
 import type { Position } from '../types/core.js';
@@ -61,7 +62,8 @@ export class GameInitializer {
     await this.addTestMonsters(systems, player, config);
 
     // テスト用アイテムの追加
-    await this.addTestItems(player);
+    const spawn = player.position;
+    await this.addTestItems(systems, player, spawn);
 
     // レンダラーの設定
     await this.setupRenderer(systems, uiManager, config);
@@ -231,7 +233,7 @@ export class GameInitializer {
     });
   }
 
-  private async addTestItems(player: PlayerEntity): Promise<void> {
+  private async addTestItems(systems: GameSystems, player: PlayerEntity, spawn: Position): Promise<void> {
     // テスト用アイテムを初期インベントリに追加（レミーラ5個）
     const testItems = [
       {
@@ -276,6 +278,8 @@ export class GameInitializer {
         player.addToInventory(item);
       }
     }
+
+    // テスト用アイテムは削除済み（既存のデフォルトアイテムでスプライト表示をテスト）
   }
 
   private async setupRenderer(
@@ -334,6 +338,28 @@ export class GameInitializer {
       }
     } catch (error) {
       console.warn('Failed to load tileset:', error);
+    }
+
+    // アイテムスプライトマネージャーの初期化
+    let itemSpriteManager: ItemSpriteManager | null = null;
+    try {
+      if (config.items?.spritesheet) {
+        console.log('Item spritesheet config found');
+        
+        itemSpriteManager = new ItemSpriteManager(config.items.spritesheet);
+        
+        // 画像の読み込み完了を待ってからレンダラーに設定
+        try {
+          await itemSpriteManager.load();
+          console.log('Item spritesheet loaded successfully');
+          renderer.setItemSpriteManager(itemSpriteManager);
+        } catch (error) {
+          console.warn('Failed to load item spritesheet:', error);
+          renderer.setItemSpriteManager(itemSpriteManager);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load item spritesheet:', error);
     }
     
     // 設定からビューポートを設定

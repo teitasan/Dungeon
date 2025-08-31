@@ -18,6 +18,7 @@ export class ItemEntity extends BaseGameEntity implements Item {
     defenseAttributes?: string[];
   };
   public equipmentStats?: EquipmentStats;
+  public spriteId?: string;
   public itemFlags: ItemFlags;
 
   constructor(
@@ -27,6 +28,7 @@ export class ItemEntity extends BaseGameEntity implements Item {
     position: Position,
     identified: boolean = false,
     cursed: boolean = false,
+    spriteId?: string,
     components: Component[] = [],
     flags: EntityFlags = {}
   ) {
@@ -45,6 +47,7 @@ export class ItemEntity extends BaseGameEntity implements Item {
     this.itemType = itemType;
     this.identified = identified;
     this.cursed = cursed;
+    this.spriteId = spriteId;
     this.effects = [];
     // 既定のフラグ（効果の有無によりデフォルトを決定、初期は効果なし想定）
     this.itemFlags = { onThrow: 'damage-then-disappear' };
@@ -222,6 +225,7 @@ export class ItemEntity extends BaseGameEntity implements Item {
       this.position,
       this.identified,
       this.cursed,
+      this.spriteId,
       this.components,
       this.flags
     );
@@ -243,6 +247,7 @@ export class ItemEntity extends BaseGameEntity implements Item {
       this.position,
       identified,
       this.cursed,
+      this.spriteId,
       this.components,
       this.flags
     );
@@ -293,12 +298,13 @@ export class ItemEntity extends BaseGameEntity implements Item {
         template.itemType,
         position,
         template.identified,
-        template.cursed
+        template.cursed,
+        (template as any).spriteId
       );
 
       // エフェクトを追加
       if (template.effects) {
-        template.effects.forEach(effect => item.addEffect(effect));
+        template.effects.forEach((effect: any) => item.addEffect(effect));
       }
 
       // 装備ステータスを設定
@@ -333,7 +339,8 @@ export class ItemEntity extends BaseGameEntity implements Item {
       template.itemType || 'consumable',
       position,
       template.identified || false,
-      template.cursed || false
+      template.cursed || false,
+      (template as any).spriteId
     );
 
     // エフェクトを追加
