@@ -14,8 +14,7 @@ import { WebConfigLoader } from './WebConfigLoader.js';
 import { UIManager } from './ui/UIManager.js';
 import type { Position } from '../types/core.js';
 
-// ECS統合のためのインポート
-import { ECSGameManager, ECSGameManagerConfig } from './ECSGameManager.js';
+// ECS統合のためのインポート - 削除済み
 
 export interface GameSystems {
   dungeonManager: DungeonManager;
@@ -28,8 +27,6 @@ export interface GameSystems {
   itemSystem: ItemSystem;
   renderer: CanvasRenderer;
   tilesetManager: TilesetManager | null;
-  // ECS統合
-  ecsGameManager: ECSGameManager;
 }
 
 export class GameInitializer {
@@ -44,24 +41,15 @@ export class GameInitializer {
     player: PlayerEntity;
     uiManager: UIManager;
     config: any;
-    ecsPlayerId: string; // ECSプレイヤーエンティティID
   }> {
     // 設定の読み込み
     const config = await this.configLoader.loadGameConfig();
     
-    // ECS Game Managerの初期化
-    const ecsGameManager = new ECSGameManager({
-      targetFPS: 60,
-      enableProfiling: true,
-      enableDebugging: true,
-      maxEntities: 1000
-    });
-    
     // UIの作成
     const uiManager = await this.createUI(config);
 
-    // システムの初期化（非ECS - 段階的移行のため残存）
-    const systems = await this.initializeSystems(config, ecsGameManager);
+    // システムの初期化
+    const systems = await this.initializeSystems(config);
 
     // 非ECSプレイヤーの作成（段階的移行のため残存）
     const player = await this.createPlayer(config);
@@ -69,24 +57,11 @@ export class GameInitializer {
     // ダンジョンの初期化
     await this.initializeDungeon(systems, player, config);
 
-    // ECSプレイヤーの作成（ダンジョン初期化後の正しい位置で）
-    const ecsPlayerId = ecsGameManager.createECSPlayer(player);
-
     // テスト用モンスターの追加
     await this.addTestMonsters(systems, player, config);
 
     // テスト用アイテムの追加
     await this.addTestItems(player);
-
-    // ECSゲーム状態の設定
-    ecsGameManager.setGameState({
-      ecsWorld: ecsGameManager.getWorld(),
-      dungeonManager: systems.dungeonManager,
-      player: player,
-      ecsPlayerId: ecsPlayerId,
-      ecsMonsterIds: [], // 後でモンスターもECS化
-      ecsItemIds: []     // 後でアイテムもECS化
-    });
 
     // レンダラーの設定
     await this.setupRenderer(systems, uiManager, config);
@@ -97,13 +72,7 @@ export class GameInitializer {
     // ゲーム情報オーバーレイの作成
     uiManager.createGameInfoOverlay();
 
-    // ECSゲームループを開始
-    ecsGameManager.startGameLoop();
-
-    // ECSシステムの定期更新を設定
-    this.setupECSUpdateLoop(ecsGameManager, player);
-
-    return { systems, player, uiManager, config, ecsPlayerId };
+    return { systems, player, uiManager, config };
   }
 
   private async createUI(config: any): Promise<UIManager> {
@@ -115,7 +84,7 @@ export class GameInitializer {
     return uiManager;
   }
 
-  private async initializeSystems(config: any, ecsGameManager: ECSGameManager): Promise<GameSystems> {
+  private async initializeSystems(config: any): Promise<GameSystems> {
     const dungeonManager = new DungeonManager();
     const multipleDungeonSystem = new MultipleDungeonSystem(dungeonManager);
     const uiSystem = new UISystem(dungeonManager);
@@ -169,7 +138,7 @@ export class GameInitializer {
       renderer: null as any, // 後で設定
       tilesetManager: null,
       // ECS統合
-      ecsGameManager: ecsGameManager
+
     };
   }
 
@@ -293,15 +262,19 @@ export class GameInitializer {
     ];
 
     for (const itemData of testItems) {
-      const item = new ItemEntity(
-        itemData.id,
-        itemData.name,
-        'consumable',
-        { x: 0, y: 0 }
-      );
-      item.addEffect(itemData.effect);
-      item.identify();
-      player.addToInventory(item);
+      // テンプレートからアイテムを作成
+      const item = ItemEntity.createFromTemplateObject({
+        id: itemData.id,
+        name: itemData.name,
+        itemType: 'consumable',
+        identified: true,
+        cursed: false,
+        effects: [itemData.effect]
+      }, { x: 0, y: 0 });
+      
+      if (item) {
+        player.addToInventory(item);
+      }
     }
   }
 
@@ -392,11 +365,4 @@ export class GameInitializer {
     }
   }
 
-  private setupECSUpdateLoop(ecsGameManager: ECSGameManager, player: PlayerEntity): void {
-    const updateInterval = 1000 / 60; // 60FPS
-    setInterval(() => {
-      ecsGameManager.update();
-
-    }, updateInterval);
-  }
 }

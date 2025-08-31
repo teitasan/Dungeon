@@ -4,7 +4,7 @@ import type { GameSystems } from './GameInitializer.js';
 import type { PlayerEntity } from '../entities/Player.js';
 import type { UIManager } from './ui/UIManager.js';
 import { ItemEntity } from '../entities/Item.js';
-import { ECSBridge } from './ECSBridge.js';
+
 
 export class InputHandler {
   private keyPress = 0;
@@ -99,8 +99,8 @@ export class InputHandler {
       return;
     }
     
-    // ビット演算によるキー状態管理
-    if (type === 'keydown') {
+    // ビット演算によるキー状態管理（インベントリ開中はスキップ）
+    if (type === 'keydown' && !this.inventoryOpen) {
       switch (key) {
         case 'ArrowUp':
           if ((this.keyPress & this.KEY_UP) === 0) {
@@ -141,7 +141,7 @@ export class InputHandler {
           this.shiftDiagonalOnly = true; // 斜め移動のみ
           break;
       }
-    } else if (type === 'keyup') {
+    } else if (type === 'keyup' && !this.inventoryOpen) {
       switch (key) {
         case 'ArrowUp':
           this.keyPress &= ~this.KEY_UP;
@@ -257,7 +257,7 @@ export class InputHandler {
 
     // Shiftでソート（ID昇順）。配列を直接並べ替える。
     if (key === 'Shift' && type === 'keydown') {
-      ECSBridge.sortPlayerInventoryByIdAsc(this.player);
+      this.sortPlayerInventory();
       this.renderInventory();
       this.uiManager.addMessageWithAnimation('インベントリをID昇順でソートしました');
       return;
@@ -269,6 +269,8 @@ export class InputHandler {
       if (result.success) {
         this.renderInventory();
       }
+      // インベントリ内での矢印キー処理が完了したことを明示
+      console.log(`[DEBUG] インベントリ内で矢印キー処理: ${direction}`);
       return;
     }
     
@@ -374,28 +376,12 @@ export class InputHandler {
       if (target && target.id !== this.player.id) {
         console.log(`[DEBUG] 攻撃試行: プレイヤー(${this.player.id}) -> ターゲット(${target.id})`);
         
-        // ECS CombatSystemを使用
-        let attackResult;
-        if (this.systems.ecsGameManager) {
-          const ecsCombatSystem = this.systems.ecsGameManager.getSystem('combat');
-          if (ecsCombatSystem) {
-            attackResult = (ecsCombatSystem as any).executePlayerAttack(this.player.id, target.position);
-          } else {
-            // フォールバック：非ECS CombatSystemを使用
-            attackResult = this.systems.combatSystem.executeAttack({
-              attacker: this.player,
-              defender: target,
-              attackType: 'melee'
-            });
-          }
-        } else {
-          // フォールバック：非ECS CombatSystemを使用
-          attackResult = this.systems.combatSystem.executeAttack({
-            attacker: this.player,
-            defender: target,
-            attackType: 'melee'
-          });
-        }
+        // CombatSystemを使用
+        const attackResult = this.systems.combatSystem.executeAttack({
+          attacker: this.player,
+          defender: target,
+          attackType: 'melee'
+        });
         
         console.log(`[DEBUG] 攻撃結果:`, attackResult);
         
@@ -549,10 +535,7 @@ export class InputHandler {
       if (moveResult.success) {
         console.log(`[DEBUG] 移動成功: プレイヤー位置更新`);
         
-        // ECSシステムにプレイヤー位置を同期
-        if (this.systems.ecsGameManager && this.player.position) {
-          this.systems.ecsGameManager.updatePlayerPosition(this.player.position);
-        }
+
         
         // 移動フラグをリセット
         this.canMove = false;
@@ -703,5 +686,24 @@ export class InputHandler {
 
   public getTurnInProgress(): boolean {
     return this.turnInProgress;
+  }
+
+  /**
+   * プレイヤーのインベントリをソートする
+   */
+  private sortPlayerInventory(): void {
+    if (!this.player.inventory || !Array.isArray(this.player.inventory)) {
+      console.warn('Player inventory is not available for sorting');
+      return;
+    }
+
+    // インベントリをID昇順でソート
+    this.player.inventory.sort((a, b) => {
+      const idA = String(a.id || a.name || '');
+      const idB = String(b.id || b.name || '');
+      return idA.localeCompare(idB);
+    });
+
+    console.log('[DEBUG] Inventory sorted by ID ascending');
   }
 }

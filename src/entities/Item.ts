@@ -195,4 +195,167 @@ export class ItemEntity extends BaseGameEntity implements Item {
     
     return this.effects;
   }
+
+  // ===== ECSから移植した便利メソッド =====
+
+  /**
+   * Check if item can be stacked with another
+   */
+  canStackWith(other: ItemEntity): boolean {
+    return (
+      this.name === other.name &&
+      this.identified === other.identified &&
+      this.cursed === other.cursed &&
+      this.isConsumable() &&
+      other.isConsumable()
+    );
+  }
+
+  /**
+   * Create new item with quantity updated
+   */
+  withQuantity(newQuantity: number): ItemEntity {
+    const newItem = new ItemEntity(
+      this.id,
+      this.name,
+      this.itemType,
+      this.position,
+      this.identified,
+      this.cursed,
+      this.components,
+      this.flags
+    );
+    newItem.effects = [...this.effects];
+    newItem.equipmentStats = this.equipmentStats ? { ...this.equipmentStats } : undefined;
+    newItem.attributes = this.attributes ? { ...this.attributes } : undefined;
+    newItem.durability = this.durability;
+    return newItem;
+  }
+
+  /**
+   * Create new item with identification
+   */
+  withIdentification(identified: boolean = true): ItemEntity {
+    const newItem = new ItemEntity(
+      this.id,
+      this.name,
+      this.itemType,
+      this.position,
+      identified,
+      this.cursed,
+      this.components,
+      this.flags
+    );
+    newItem.effects = [...this.effects];
+    newItem.equipmentStats = this.equipmentStats ? { ...this.equipmentStats } : undefined;
+    newItem.attributes = this.attributes ? { ...this.attributes } : undefined;
+    newItem.durability = this.durability;
+    return newItem;
+  }
+
+  /**
+   * Get item effects of specific type
+   */
+  getEffectsOfType(effectType: string): ItemEffect[] {
+    return this.effects.filter(effect => effect.type === effectType);
+  }
+
+  /**
+   * Get total effect value for specific type
+   */
+  getTotalEffectValue(effectType: string): number {
+    return this.effects
+      .filter(effect => effect.type === effectType)
+      .reduce((total, effect) => total + (effect.value || 0), 0);
+  }
+
+  // ===== 汎用ファクトリメソッド =====
+
+  /**
+   * Create item from template ID using ItemRegistry
+   */
+  static createFromTemplate(templateId: string, position: Position): ItemEntity | null {
+    try {
+      // ItemRegistryからテンプレートを取得
+      const { ItemRegistry } = require('../../core/ItemRegistry.js');
+      const registry = ItemRegistry.getInstance();
+      const template = registry.getTemplate(templateId);
+      
+      if (!template) {
+        console.warn(`Item template not found: ${templateId}`);
+        return null;
+      }
+
+      // テンプレートからアイテムを作成
+      const item = new ItemEntity(
+        `${templateId}-${Date.now()}`,
+        template.name,
+        template.itemType,
+        position,
+        template.identified,
+        template.cursed
+      );
+
+      // エフェクトを追加
+      if (template.effects) {
+        template.effects.forEach(effect => item.addEffect(effect));
+      }
+
+      // 装備ステータスを設定
+      if (template.equipmentStats) {
+        item.setEquipmentStats(template.equipmentStats);
+      }
+
+      // 属性を設定
+      if (template.attributes) {
+        item.setAttributes(template.attributes);
+      }
+
+      // 耐久度を設定
+      if (template.durability !== undefined) {
+        item.setDurability(template.durability);
+      }
+
+      return item;
+    } catch (error) {
+      console.error(`Failed to create item from template ${templateId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Create item from template object
+   */
+  static createFromTemplateObject(template: any, position: Position): ItemEntity {
+    const item = new ItemEntity(
+      `${template.id || 'item'}-${Date.now()}`,
+      template.name || template.id || 'Unknown Item',
+      template.itemType || 'consumable',
+      position,
+      template.identified || false,
+      template.cursed || false
+    );
+
+    // エフェクトを追加
+    if (template.effects) {
+      template.effects.forEach((effect: any) => item.addEffect(effect));
+    }
+
+    // 装備ステータスを設定
+    if (template.equipmentStats) {
+      item.setEquipmentStats(template.equipmentStats);
+    }
+
+    // 属性を設定
+    if (template.attributes) {
+      item.setAttributes(template.attributes);
+    }
+
+    // 耐久度を設定
+    if (template.durability !== undefined) {
+      item.setDurability(template.durability);
+    }
+
+    return item;
+  }
 }

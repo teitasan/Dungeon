@@ -90,30 +90,6 @@ export class ItemSystem implements InventoryManager {
    * Use an item
    */
   useItem(user: GameEntity, item: ItemEntity, target?: GameEntity): ItemUsageResult {
-    // --- ECS委譲（薄いファサード）: プレイヤーの所持品はECSで処理して同期 ---
-    try {
-      // プレイヤー限定で委譲（今後は拡張）
-      if ((user as any).inventory && (user as any).id === 'player-1') {
-        // @ts-ignore
-        const { ECSBridge } = require('../web/ECSBridge.js');
-        if (ECSBridge?.isEnabled?.()) {
-          const bridgeRes = ECSBridge.useItemOnPlayer(user as any, item.id, this.dungeonManager);
-          if (bridgeRes) {
-            const res: ItemUsageResult = {
-              success: !!bridgeRes.success,
-              item,
-              user,
-              effects: [],
-              message: bridgeRes.message || '',
-              consumed: !!bridgeRes.consumed,
-              appliedEffects: []
-            };
-            if (this.messageSink && res.message) this.messageSink(res.message);
-            return res;
-          }
-        }
-      }
-    } catch {}
 
     const actualTarget = target || user;
     const effects: ItemUsageEffect[] = [];
@@ -365,27 +341,6 @@ export class ItemSystem implements InventoryManager {
    * Pick up item from ground
    */
   pickupItem(entity: GameEntity, position: Position): ItemPickupResult {
-    // --- ECS委譲（薄いファサード）: 容量判定と在庫更新をECSで実施し同期 ---
-    try {
-      if ((entity as any).inventory && (entity as any).id === 'player-1') {
-        // @ts-ignore
-        const { ECSBridge } = require('../web/ECSBridge.js');
-        if (ECSBridge?.isEnabled?.()) {
-          const r = ECSBridge.pickupOneAtPosition(entity as any, this.dungeonManager, position);
-          if (r && typeof r.success === 'boolean') {
-            const result: ItemPickupResult = {
-              success: r.success,
-              item: (r.pickedItem ?? null) as any,
-              entity,
-              message: r.message,
-              reason: r.success ? undefined : (r.message.includes('full') ? 'inventory-full' : (r.message.includes('No items') ? 'no-items' : undefined))
-            };
-            if (this.messageSink && result.success) this.messageSink(r.message);
-            return result;
-          }
-        }
-      }
-    } catch {}
 
     const entitiesAtPosition = this.dungeonManager.getEntitiesAt(position);
     const items = entitiesAtPosition.filter(e => e instanceof ItemEntity) as ItemEntity[];
@@ -452,25 +407,6 @@ export class ItemSystem implements InventoryManager {
     message: string;
     landingPosition?: Position;
   } {
-    // --- ECS委譲（薄いファサード）: プレイヤーの投擲をECSへ委譲 ---
-    try {
-      if ((user as any).inventory && (user as any).id === 'player-1') {
-        // @ts-ignore
-        const { ECSBridge } = require('../web/ECSBridge.js');
-        if (ECSBridge?.isEnabled?.()) {
-          const r = ECSBridge.throwItemFromPlayer(user as any, String(itemId), direction, this.dungeonManager);
-          if (r && typeof r.success === 'boolean') {
-            const result = {
-              success: r.success,
-              message: r.message,
-              landingPosition: r.landingPosition
-            };
-            if (this.messageSink && result.message) this.messageSink(result.message);
-            return result;
-          }
-        }
-      }
-    } catch {}
 
     // フォールバック: 旧実装（ECS未対応の特殊効果など）
     // インベントリから取り出し
@@ -577,28 +513,6 @@ export class ItemSystem implements InventoryManager {
    * Drop item at position
    */
   dropItem(entity: GameEntity, itemId: string, position: Position): ItemDropResult {
-    // --- ECS委譲（薄いファサード）: 在庫更新をECSで行い、地面へ反映 ---
-    try {
-      if ((entity as any).inventory && (entity as any).id === 'player-1') {
-        // @ts-ignore
-        const { ECSBridge } = require('../web/ECSBridge.js');
-        if (ECSBridge?.isEnabled?.()) {
-          const r = ECSBridge.dropFromPlayer(entity as any, String(itemId), this.dungeonManager, position);
-          if (r && typeof r.success === 'boolean') {
-            const result: ItemDropResult = {
-              success: r.success,
-              item: (r.dropped ?? null) as any,
-              entity,
-              position: r.position ?? position,
-              message: r.message,
-              reason: r.success ? undefined : 'place-failed'
-            };
-            if (this.messageSink && result.message) this.messageSink(result.message);
-            return result;
-          }
-        }
-      }
-    } catch {}
 
     const item = this.removeItem(entity, itemId);
     
