@@ -16,6 +16,9 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
   public spawnWeight: number;
   public spawnConditions: SpawnCondition[];
   public statusEffects: StatusEffect[];
+  public spriteId?: string;
+  public currentDirection: string = 'front'; // 現在の向き
+  public speedState: 'normal' | 'fast' | 'slow' = 'normal'; // 速度状態
 
   constructor(
     id: string,
@@ -25,6 +28,7 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
     stats?: CharacterStats,
     attributes?: CharacterAttributes,
     aiType: string = 'basic-hostile',
+    spriteId?: string,
     components: Component[] = [],
     flags: EntityFlags = {}
   ) {
@@ -36,6 +40,7 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
     this.stats = monsterStats;
     this.attributes = attributes || createDefaultCharacterAttributes('neutral');
     this.aiType = aiType;
+    this.spriteId = spriteId;
     this.dropTable = [];
     this.spawnWeight = 1.0; // Default spawn weight
     this.spawnConditions = [];
@@ -122,4 +127,6 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
   getExperienceValue(): number {
     return this.stats.experienceValue;
   }
+
+
 }

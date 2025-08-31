@@ -84,6 +84,7 @@ export interface Monster extends GameEntity {
   spawnWeight: number;
   spawnConditions: SpawnCondition[];
   statusEffects: StatusEffect[];
+  spriteId?: string;
 }
 
 // Companion model

@@ -20,6 +20,7 @@ export class DungeonManager {
   private dungeonTemplates: Map<string, DungeonTemplate> = new Map();
   private generator: DungeonGenerator;
   private currentTemplateId: string | null = null;
+  public aiSystem: any = null; // AISystemの参照
 
   constructor() {
     this.generator = new DungeonGenerator();
@@ -164,6 +165,20 @@ export class DungeonManager {
   getEntitiesAt(position: Position): GameEntity[] {
     const cell = this.getCellAt(position);
     return cell ? [...cell.entities] : [];
+  }
+
+  /**
+   * Remove entity from specific position
+   */
+  removeEntityFromPosition(entity: GameEntity, position: Position): boolean {
+    const cell = this.getCellAt(position);
+    if (!cell) return false;
+
+    const index = cell.entities.findIndex(e => e.id === entity.id);
+    if (index === -1) return false;
+
+    cell.entities.splice(index, 1);
+    return true;
   }
 
   /**

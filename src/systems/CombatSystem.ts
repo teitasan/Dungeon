@@ -168,15 +168,43 @@ export class CombatSystem {
   }
 
   /**
-   * 攻撃範囲内かチェック
+   * 攻撃範囲内かチェック（角を挟んだ斜め攻撃は禁止）
    */
   private isInAttackRange(attacker: GameEntity, defender: GameEntity): boolean {
-    // 現在は隣接攻撃のみ対応
+    // 隣接攻撃（上下左右 + 斜め）に対応
     const attackerPos = attacker.position;
     const defenderPos = defender.position;
     
-    const distance = Math.abs(attackerPos.x - defenderPos.x) + Math.abs(attackerPos.y - defenderPos.y);
-    return distance <= 1; // 隣接（マンハッタン距離1以下）
+    const dx = Math.abs(attackerPos.x - defenderPos.x);
+    const dy = Math.abs(attackerPos.y - defenderPos.y);
+    
+    // 隣接判定: 上下左右(距離1) + 斜め(距離√2 ≈ 1.414)
+    const isAdjacent = dx <= 1 && dy <= 1 && (dx + dy > 0); // 同じ位置は除外
+    
+    if (!isAdjacent) {
+      return false;
+    }
+    
+    // 斜め隣接の場合、角を挟んでいないかチェック
+    if (dx === 1 && dy === 1) {
+      // 斜め隣接の場合、角の位置が歩行可能かチェック
+      // 攻撃者と防御者の間の角をチェック
+      const cornerPos1 = { x: attackerPos.x, y: defenderPos.y };
+      const cornerPos2 = { x: defenderPos.x, y: attackerPos.y };
+      
+      // ダンジョンマネージャーが利用可能な場合のみチェック
+      if (this.dungeonManager && typeof this.dungeonManager.isWalkable === 'function') {
+        const isCorner1Walkable = this.dungeonManager.isWalkable(cornerPos1);
+        const isCorner2Walkable = this.dungeonManager.isWalkable(cornerPos2);
+        
+        // 両方の角が歩行可能でなければ攻撃禁止
+        if (!isCorner1Walkable || !isCorner2Walkable) {
+          return false; // 角が歩行不可のため攻撃禁止
+        }
+      }
+    }
+    
+    return true;
   }
 
   /**
@@ -363,6 +391,53 @@ export class CombatSystem {
     // TODO: Add range checks, line of sight, etc.
     
     return true;
+  }
+
+  /**
+   * Process combat action between entities
+   */
+  private processCombatAction(attacker: GameEntity, target: GameEntity, actionType: string): CombatResult | null {
+    // ダメージ計算
+    const damage = this.calculateDamage(attacker, target, 0, 1.0, false);
+    
+    // ターゲットのHPを減少
+    if (target.stats && target.stats.hp !== undefined) {
+      target.stats.hp = Math.max(0, target.stats.hp - damage.finalDamage);
+    }
+    
+    // 戦闘結果を作成
+    const result: CombatResult = {
+      attacker,
+      target,
+      action: actionType,
+      damage: damage.finalDamage,
+      critical: false,
+      message: `${attacker.name || attacker.id}が${target.name || target.id}に${damage.finalDamage}ダメージを与えた！`
+    };
+    
+    // 戦闘ログに記録
+    this.logCombatAction({ type: actionType, attacker, target }, result);
+    
+    return result;
+  }
+
+  /**
+   * Process attack between entities
+   */
+  processAttack(attacker: GameEntity, target: GameEntity): CombatResult | null {
+    if (!this.canAttack(attacker, target)) {
+      return null;
+    }
+
+    // 攻撃処理を実行
+    const result = this.processCombatAction(attacker, target, 'attack');
+    
+    // メッセージシンクがあれば通知
+    if (this.messageSink && result) {
+      this.messageSink(result.message);
+    }
+
+    return result;
   }
 
   /**

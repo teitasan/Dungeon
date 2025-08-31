@@ -4,6 +4,7 @@ import type { GameConfig } from '../types/core.js';
 import { DungeonManager } from '../dungeon/DungeonManager.js';
 import { TilesetManager } from './TilesetManager.js';
 import { ItemSpriteManager } from './ItemSpriteManager.js';
+import { MonsterSpriteManager } from './MonsterSpriteManager.js';
 
 export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D;
@@ -16,6 +17,7 @@ export class CanvasRenderer {
   private currentDungeonId: string | null = null;
   private tilesetManager: TilesetManager | null = null;
   private itemSpriteManager: ItemSpriteManager | null = null;
+  private monsterSpriteManager: MonsterSpriteManager | null = null;
   private gameConfig: GameConfig | null = null;
   private clairvoyanceActive: boolean = false;
   private remillaActive: boolean = false;
@@ -179,6 +181,10 @@ export class CanvasRenderer {
     this.itemSpriteManager = itemSpriteManager;
   }
 
+  setMonsterSpriteManager(monsterSpriteManager: MonsterSpriteManager): void {
+    this.monsterSpriteManager = monsterSpriteManager;
+  }
+
   /**
    * Check if entity is an item
    */
@@ -191,29 +197,41 @@ export class CanvasRenderer {
       entity.cursed !== undefined;
     
     // デバッグ用ログ
-    if (entity && entity.id) {
-      console.log(`[DEBUG] Entity ${entity.id}:`, {
-        name: entity.name,
-        itemType: entity.itemType,
-        effects: entity.effects,
-        identified: entity.identified,
-        cursed: entity.cursed,
-        spriteId: entity.spriteId,
-        isItem: isItem
-      });
-    }
+    // if (entity && entity.id) {
+    //   console.log(`[DEBUG] Entity ${entity.id}:`, {
+    //     name: entity.name,
+    //     itemType: entity.itemType,
+    //     effects: entity.effects,
+    //     identified: entity.identified,
+    //     cursed: entity.cursed,
+    //     spriteId: entity.spriteId,
+    //     isItem: isItem
+    //   });
+    // }
     
     return isItem;
+  }
+
+  /**
+   * Check if entity is a monster
+   */
+  private isMonster(entity: any): boolean {
+    // モンスター判定
+    const isMonster = entity && 
+      entity.monsterType !== undefined && 
+      entity.aiType !== undefined;
+    
+    return isMonster;
   }
 
   /**
    * Render item sprite
    */
   private renderItem(entity: any, x: number, y: number): void {
-    console.log(`[DEBUG] renderItem called for ${entity.id}, spriteId: ${entity.spriteId}`);
+    // console.log(`[DEBUG] renderItem called for ${entity.id}, spriteId: ${entity.spriteId}`);
     
     if (!this.itemSpriteManager || !this.itemSpriteManager.isLoaded()) {
-      console.log(`[DEBUG] ItemSpriteManager not available or not loaded`);
+      // console.log(`[DEBUG] ItemSpriteManager not available or not loaded`);
       // フォールバック: 文字で描画
       this.renderItemFallback(entity, x, y);
       return;
@@ -221,13 +239,13 @@ export class CanvasRenderer {
 
     const spriteId = entity.spriteId;
     if (!spriteId || !this.itemSpriteManager.hasSprite(spriteId)) {
-      console.log(`[DEBUG] Sprite not available: spriteId=${spriteId}, hasSprite=${this.itemSpriteManager.hasSprite(spriteId)}`);
+      // console.log(`[DEBUG] Sprite not available: spriteId=${spriteId}, hasSprite=${this.itemSpriteManager.hasSprite(spriteId)}`);
       // スプライトIDがない場合や存在しない場合はフォールバック
       this.renderItemFallback(entity, x, y);
       return;
     }
 
-    console.log(`[DEBUG] Drawing sprite ${spriteId} at (${x}, ${y})`);
+    // console.log(`[DEBUG] Drawing sprite ${spriteId} at (${x}, ${y})`);
     // スプライトで描画
     this.itemSpriteManager.drawItemSprite(
       this.ctx,
@@ -258,6 +276,93 @@ export class CanvasRenderer {
   }
 
   /**
+   * Render monster sprite
+   */
+  private renderMonster(entity: any, x: number, y: number): void {
+    // console.log(`[DEBUG] renderMonster called for ${entity.id}, spriteId: ${entity.spriteId}`);
+    
+    if (!this.monsterSpriteManager || !this.monsterSpriteManager.isLoaded()) {
+      // console.log(`[DEBUG] MonsterSpriteManager not available or not loaded`);
+      // フォールバック: 文字で描画
+      this.renderMonsterFallback(entity, x, y);
+      return;
+    }
+
+    const spriteId = entity.spriteId;
+    if (!spriteId || !this.monsterSpriteManager.hasSprite(spriteId)) {
+      // console.log(`[DEBUG] Monster sprite not available: spriteId=${spriteId}, hasSprite=${this.monsterSpriteManager.hasSprite(spriteId)}`);
+      // スプライトIDがない場合や存在しない場合はフォールバック
+      this.renderMonsterFallback(entity, x, y);
+      return;
+    }
+
+    // console.log(`[DEBUG] Drawing monster sprite ${spriteId} at (${x}, ${y})`);
+    // スプライトで描画（保存された方向を使用）
+    const direction = (entity as any).currentDirection || 'front';
+    console.log(`[CanvasRenderer] 敵${entity.id}の描画: 方向=${direction}, スプライトID=${spriteId}`);
+    this.monsterSpriteManager.drawMonsterSprite(
+      this.ctx,
+      spriteId,
+      x,
+      y,
+      this.tileSize,
+      direction
+    );
+  }
+
+  /**
+   * Fallback monster rendering (text-based)
+   */
+  private renderMonsterFallback(entity: any, x: number, y: number): void {
+    const glyph = entity.name ? entity.name.charAt(0).toUpperCase() : 'M';
+    
+    // 背景
+    this.ctx.fillStyle = 'rgba(255,0,0,0.1)';
+    this.ctx.fillRect(x + 3, y + 3, this.tileSize - 6, this.tileSize - 6);
+    
+    // 文字
+    this.ctx.fillStyle = '#ff4444';
+    const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
+    this.ctx.font = `${Math.floor(this.tileSize * 0.7)}px '${fontFamily}', ui-monospace, Menlo, monospace`;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(glyph, x + this.tileSize / 2, y + this.tileSize / 2 + 1);
+  }
+
+  /**
+   * Calculate monster direction relative to player
+   */
+  private calculateMonsterDirection(monster: any, monsterX: number, monsterY: number): string {
+    // プレイヤーの位置を取得（現在のビューポート中心から計算）
+    const viewportCenterX = this.viewportTilesX ? this.viewportTilesX / 2 : 0;
+    const viewportCenterY = this.viewportTilesY ? this.viewportTilesY / 2 : 0;
+    
+    // モンスターのビューポート内での相対位置
+    const relativeX = monsterX / this.tileSize + viewportCenterX;
+    const relativeY = monsterY / this.tileSize + viewportCenterY;
+    
+    // プレイヤー（ビューポート中心）からの方向を計算
+    const deltaX = relativeX - viewportCenterX;
+    const deltaY = relativeY - viewportCenterY;
+    
+    // デバッグ用ログ
+    // console.log(`[DEBUG] Monster direction calc: monster(${monsterX}, ${monsterY}), viewport(${viewportCenterX}, ${viewportCenterY}), delta(${deltaX}, ${deltaY})`);
+    
+    // 8方向の判定（座標系を修正）
+    if (Math.abs(deltaX) < 0.5 && deltaY > 0) return 'front';      // 南（正面）
+    if (Math.abs(deltaX) < 0.5 && deltaY < 0) return 'back';       // 北（後ろ）
+    if (deltaX > 0 && Math.abs(deltaY) < 0.5) return 'right';      // 東（右）
+    if (deltaX < 0 && Math.abs(deltaY) < 0.5) return 'left';       // 西（左）
+    
+    if (deltaX > 0 && deltaY > 0) return 'se';                      // 南東
+    if (deltaX < 0 && deltaY > 0) return 'sw';                      // 南西
+    if (deltaX > 0 && deltaY < 0) return 'ne';                      // 北東
+    if (deltaX < 0 && deltaY < 0) return 'nw';                      // 北西
+    
+    return 'front'; // デフォルト
+  }
+
+  /**
    * ゲーム設定を設定
    */
   setGameConfig(gameConfig: GameConfig): void {
@@ -267,9 +372,14 @@ export class CanvasRenderer {
   render(dungeon: Dungeon, dungeonManager: DungeonManager, player: PlayerEntity, turnSystem?: any): void {
     const { ctx, tileSize } = this;
 
+    // 敵のアニメーション更新
+    if (this.monsterSpriteManager) {
+      this.monsterSpriteManager.updateAnimation();
+    }
+
     // Dungeon change → explored リセット + 効果リセット
     if (this.currentDungeonId !== dungeon.id) {
-      console.log(`[DEBUG] ダンジョン変更: ${this.currentDungeonId} → ${dungeon.id}`);
+      // console.log(`[DEBUG] ダンジョン変更: ${this.currentDungeonId} → ${dungeon.id}`);
       this.currentDungeonId = dungeon.id;
       this.explored = Array.from({ length: dungeon.height }, () =>
         Array<boolean>(dungeon.width).fill(false)
@@ -277,7 +387,7 @@ export class CanvasRenderer {
       
       // ダンジョン変更時は効果もリセット
       if (this.activeEffectsFloor !== null) {
-        console.log(`[DEBUG] ダンジョン変更による効果リセット`);
+        // console.log(`[DEBUG] ダンジョン変更による効果リセット`);
         this.clairvoyanceActive = false;
         this.remillaActive = false;
         this.trapDetectionActive = false;
@@ -348,14 +458,14 @@ export class CanvasRenderer {
     const [camX, camY, viewW, viewH] = this.computeCamera(dungeon, player);
 
     // 背景クリア
-    console.log(`[DEBUG] Canvas size: ${this.canvas.width}x${this.canvas.height}`);
+    // console.log(`[DEBUG] Canvas size: ${this.canvas.width}x${this.canvas.height}`);
     ctx.fillStyle = '#0c0c0f';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    console.log(`[DEBUG] Background cleared`);
+    // console.log(`[DEBUG] Background cleared`);
 
     // タイル描画（ビューポート内のみ）
     // 0.5マス分のオフセットを考慮して描画範囲を2マス拡張
-    console.log(`[DEBUG] Starting tile rendering: viewW=${viewW}, viewH=${viewH}, camX=${camX}, camY=${camY}`);
+    // console.log(`[DEBUG] Starting tile rendering: viewW=${viewW}, viewH=${viewH}, camX=${camX}, camY=${camY}`);
     for (let vy = 0; vy < viewH + 2; vy++) {
       const y = camY + vy;
       for (let vx = 0; vx < viewW + 2; vx++) {
@@ -467,7 +577,7 @@ export class CanvasRenderer {
 
     // エンティティ描画（可視セルのみ）
     const entities = dungeonManager.getAllEntities();
-    console.log(`[DEBUG] Rendering ${entities.length} entities`);
+    // console.log(`[DEBUG] Rendering ${entities.length} entities`);
     for (const entity of entities) {
       const ex = entity.position.x;
       const ey = entity.position.y;
@@ -482,6 +592,9 @@ export class CanvasRenderer {
         // アイテムの場合はスプライトで描画
         if (this.isItem(entity)) {
           this.renderItem(entity, gx, gy);
+        } else if (this.isMonster(entity)) {
+          // モンスターの場合はスプライトで描画
+          this.renderMonster(entity, gx, gy);
         } else {
           // その他のエンティティは従来通り文字で描画
           const glyph = (entity as any).name ? ((entity as any).name as string).charAt(0).toUpperCase() : 'E';

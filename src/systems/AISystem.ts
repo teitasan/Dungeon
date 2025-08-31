@@ -56,6 +56,8 @@ export interface AIState {
   aggroLevel: number;
   lastDecisionTime: number;
   behaviorOverride?: AIBehaviorType;
+  lastDecision: AIDecision | null; // 前回の決定をキャッシュ
+  lastTurnProcessed?: number; // 最後に処理したターン番号
 }
 
 export class AISystem {
@@ -163,27 +165,75 @@ export class AISystem {
       
       const distance = this.getDistance(entity.position, target.position);
       
+      console.log(`[AI] ${entity.id}: ターゲット発見 ${target.id} (距離: ${distance})`);
+      
       // Attack if in range
-      if (distance <= config.attackRange && this.combatSystem.canAttack(entity, target)) {
-        return {
+      const inRange = this.isInAttackRange(entity, target);
+      const canAttack = this.combatSystem.canAttack(entity, target);
+      console.log(`[AI] ${entity.id}: 攻撃判定 - 範囲内: ${inRange}, 攻撃可能: ${canAttack}, 距離: ${distance}`);
+      
+      if (inRange && canAttack) {
+        console.log(`[AI] ${entity.id}: 攻撃実行 (距離: ${distance})`);
+        // 攻撃決定をAI状態に保存
+        state.lastDecision = {
           action: 'attack',
           target,
           priority: 10
         };
+        return state.lastDecision;
+      } else if (inRange && !canAttack) {
+        console.log(`[AI] ${entity.id}: 範囲内だが攻撃できない - 理由を調査`);
+      } else if (!inRange) {
+        console.log(`[AI] ${entity.id}: 攻撃範囲外 - 現在(${entity.position.x},${entity.position.y}), 目標(${target.position.x},${target.position.y})`);
+        
+        // 一時的に元の判定も試す
+        if (distance <= config.attackRange && canAttack) {
+          console.log(`[AI] ${entity.id}: 元の判定で攻撃実行 (距離: ${distance})`);
+          // 攻撃決定をAI状態に保存
+          state.lastDecision = {
+            action: 'attack',
+            target,
+            priority: 10
+          };
+          return state.lastDecision;
+        }
       }
       
       // Move towards target
       const movePosition = this.getNextMoveTowards(entity.position, target.position);
       if (movePosition) {
+        console.log(`[AI] ${entity.id}: プレイヤーに向かって移動 (${entity.position.x},${entity.position.y}) -> (${movePosition.x},${movePosition.y})`);
         return {
           action: 'move',
           position: movePosition,
           priority: 8
         };
+      } else {
+        console.log(`[AI] ${entity.id}: 移動先が見つからない - 現在位置(${entity.position.x},${entity.position.y}), 目標(${target.position.x},${target.position.y})`);
+        // 移動できない理由を調査
+        this.debugMoveFailure(entity.position, target.position);
+        
+        // 移動できない場合は待機（攻撃の準備）
+        return { action: 'wait', priority: 5 };
       }
+    } else {
+      console.log(`[AI] ${entity.id}: ターゲットが見つからない (範囲: ${config.aggroRange})`);
     }
     
     // No target found, wait or patrol
+    if (entity instanceof MonsterEntity) {
+      // 敵の場合は、ターゲットが見つからなくてもランダムに移動
+      const randomPos = this.getRandomAdjacentPosition(entity.position);
+      if (randomPos) {
+        console.log(`[AI] ${entity.id}: ターゲットなし、ランダム移動 (${entity.position.x},${entity.position.y}) -> (${randomPos.x},${randomPos.y})`);
+        return {
+          action: 'move',
+          position: randomPos,
+          priority: 3
+        };
+      }
+    }
+    
     return { action: 'wait', priority: 1 };
   }
 
@@ -529,22 +579,66 @@ export class AISystem {
   }
 
   /**
+   * Debug move failure reasons
+   */
+  private debugMoveFailure(from: Position, to: Position): void {
+    const dx = Math.sign(to.x - from.x);
+    const dy = Math.sign(to.y - from.y);
+    
+    console.log(`[AI DEBUG] 移動失敗調査:`);
+    console.log(`  - 現在位置: (${from.x}, ${from.y})`);
+    console.log(`  - 目標位置: (${to.x}, ${to.y})`);
+    console.log(`  - 方向: dx=${dx}, dy=${dy}`);
+    
+    // 各候補位置をチェック
+    const candidates = [
+      { x: from.x + dx, y: from.y + dy, name: '対角線' },
+      { x: from.x + dx, y: from.y, name: '水平' },
+      { x: from.x, y: from.y + dy, name: '垂直' }
+    ];
+    
+    for (const pos of candidates) {
+      const isWalkable = this.dungeonManager.isWalkable(pos);
+      const entitiesAt = this.dungeonManager.getEntitiesAt(pos);
+      console.log(`  - ${pos.name}位置(${pos.x}, ${pos.y}): 歩行可能=${isWalkable}, エンティティ数=${entitiesAt.length}`);
+    }
+  }
+
+  /**
    * Get next move towards target
    */
   private getNextMoveTowards(from: Position, to: Position): Position | null {
     const dx = Math.sign(to.x - from.x);
     const dy = Math.sign(to.y - from.y);
     
+    // より効率的な移動のため、対角線移動を優先
     const candidates = [
-      { x: from.x + dx, y: from.y + dy }, // Diagonal
-      { x: from.x + dx, y: from.y },     // Horizontal
-      { x: from.x, y: from.y + dy }      // Vertical
+      { x: from.x + dx, y: from.y + dy }, // Diagonal (優先)
+      { x: from.x + dx, y: from.y },      // Horizontal
+      { x: from.x, y: from.y + dy }       // Vertical
     ];
     
     for (const pos of candidates) {
       if (this.dungeonManager.isWalkable(pos) && 
           this.dungeonManager.getEntitiesAt(pos).length === 0) {
         return pos;
+      }
+    }
+    
+    // 対角線移動ができない場合、単方向移動を試す
+    if (dx !== 0) {
+      const horizontalPos = { x: from.x + dx, y: from.y };
+      if (this.dungeonManager.isWalkable(horizontalPos) && 
+          this.dungeonManager.getEntitiesAt(horizontalPos).length === 0) {
+        return horizontalPos;
+      }
+    }
+    
+    if (dy !== 0) {
+      const verticalPos = { x: from.x, y: from.y + dy };
+      if (this.dungeonManager.isWalkable(verticalPos) && 
+          this.dungeonManager.getEntitiesAt(verticalPos).length === 0) {
+        return verticalPos;
       }
     }
     
@@ -591,10 +685,149 @@ export class AISystem {
   }
 
   /**
+   * Check if two entities are in attack range (adjacent including diagonal, but not through corners)
+   */
+  private isInAttackRange(entity1: GameEntity, entity2: GameEntity): boolean {
+    const pos1 = entity1.position;
+    const pos2 = entity2.position;
+    
+    const dx = Math.abs(pos1.x - pos2.x);
+    const dy = Math.abs(pos1.y - pos2.y);
+    
+    // 隣接判定: 上下左右(距離1) + 斜め(距離√2 ≈ 1.414)
+    const isAdjacent = dx <= 1 && dy <= 1 && (dx + dy > 0); // 同じ位置は除外
+    
+    if (!isAdjacent) {
+      console.log(`[AI DEBUG] 攻撃範囲判定: (${pos1.x},${pos1.y}) -> (${pos2.x},${pos2.y}), dx=${dx}, dy=${dy}, 結果=false (隣接していない)`);
+      return false;
+    }
+    
+    // 斜め隣接の場合、角を挟んでいないかチェック
+    if (dx === 1 && dy === 1) {
+      // 斜め隣接の場合、角の位置が歩行可能かチェック
+      // 敵とプレイヤーの間の角をチェック
+      const cornerPos1 = { x: pos1.x, y: pos2.y };
+      const cornerPos2 = { x: pos2.x, y: pos1.y };
+      
+      const isCorner1Walkable = this.dungeonManager.isWalkable(cornerPos1);
+      const isCorner2Walkable = this.dungeonManager.isWalkable(cornerPos2);
+      
+      // 両方の角が歩行可能でなければ攻撃禁止
+      if (!isCorner1Walkable || !isCorner2Walkable) {
+        const blockedCorner = !isCorner1Walkable ? cornerPos1 : cornerPos2;
+        console.log(`[AI DEBUG] 攻撃範囲判定: (${pos1.x},${pos1.y}) -> (${pos2.x},${pos2.y}), 角(${blockedCorner.x},${blockedCorner.y})が歩行不可のため攻撃禁止`);
+        return false;
+      }
+    }
+    
+    console.log(`[AI DEBUG] 攻撃範囲判定: (${pos1.x},${pos1.y}) -> (${pos2.x},${pos2.y}), dx=${dx}, dy=${dy}, 結果=true (攻撃可能)`);
+    return true;
+  }
+
+  /**
    * Calculate distance between positions
    */
   private getDistance(pos1: Position, pos2: Position): number {
-    return Math.abs(pos1.x - pos2.x) + Math.abs(pos1.y - pos2.y);
+    // ユークリッド距離を使用（より正確）
+    const dx = pos1.x - pos2.x;
+    const dy = pos1.y - pos2.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  /**
+   * Update monster direction based on player position (for movement)
+   */
+  private updateMonsterDirection(monster: MonsterEntity, from: Position, to: Position): void {
+    // プレイヤーの位置を取得
+    const player = this.findPlayer();
+    if (!player) {
+      // プレイヤーが見つからない場合は移動方向で決定
+      const deltaX = to.x - from.x;
+      const deltaY = to.y - from.y;
+      
+      if (deltaX === 0 && deltaY > 0) {
+        monster.currentDirection = 'front';
+      } else if (deltaX === 0 && deltaY < 0) {
+        monster.currentDirection = 'back';
+      } else if (deltaX > 0 && deltaY === 0) {
+        monster.currentDirection = 'right';
+      } else if (deltaX < 0 && deltaY === 0) {
+        monster.currentDirection = 'left';
+      } else if (deltaX > 0 && deltaY > 0) {
+        monster.currentDirection = 'se';
+      } else if (deltaX < 0 && deltaY > 0) {
+        monster.currentDirection = 'sw';
+      } else if (deltaX > 0 && deltaY < 0) {
+        monster.currentDirection = 'ne';
+      } else if (deltaX < 0 && deltaY < 0) {
+        monster.currentDirection = 'nw';
+      }
+      return;
+    }
+    
+    // プレイヤーへの相対位置で向きを決定
+    const deltaX = player.position.x - to.x;
+    const deltaY = player.position.y - to.y;
+    
+    if (deltaX === 0 && deltaY > 0) {
+      monster.currentDirection = 'front';      // プレイヤーが南（下）
+    } else if (deltaX === 0 && deltaY < 0) {
+      monster.currentDirection = 'back';       // プレイヤーが北（上）
+    } else if (deltaX > 0 && deltaY === 0) {
+      monster.currentDirection = 'right';      // プレイヤーが東（右）
+    } else if (deltaX < 0 && deltaY === 0) {
+      monster.currentDirection = 'left';       // プレイヤーが西（左）
+    } else if (deltaX > 0 && deltaY > 0) {
+      monster.currentDirection = 'se';         // プレイヤーが南東
+    } else if (deltaX < 0 && deltaY > 0) {
+      monster.currentDirection = 'sw';         // プレイヤーが南西
+    } else if (deltaX > 0 && deltaY < 0) {
+      monster.currentDirection = 'ne';         // プレイヤーが北東
+    } else if (deltaX < 0 && deltaY < 0) {
+      monster.currentDirection = 'nw';         // プレイヤーが北西
+    }
+    
+    console.log(`[AISystem] 敵${monster.id}の向きを更新: ${monster.currentDirection} プレイヤー(${player.position.x},${player.position.y}) -> 敵(${to.x},${to.y})`);
+    console.log(`[AISystem] 方向計算詳細: deltaX=${deltaX}, deltaY=${deltaY}`);
+  }
+
+  /**
+   * Update monster direction to face player (for in-place rotation)
+   */
+  public updateMonsterDirectionForPlayer(monster: MonsterEntity): void {
+    const player = this.findPlayer();
+    if (!player) return;
+    
+    // プレイヤーへの相対位置で向きを決定
+    const deltaX = player.position.x - monster.position.x;
+    const deltaY = player.position.y - monster.position.y;
+    
+    if (deltaX === 0 && deltaY > 0) {
+      monster.currentDirection = 'front';      // プレイヤーが南（下）
+    } else if (deltaX === 0 && deltaY < 0) {
+      monster.currentDirection = 'back';       // プレイヤーが北（上）
+    } else if (deltaX > 0 && deltaY === 0) {
+      monster.currentDirection = 'right';      // プレイヤーが東（右）
+    } else if (deltaX < 0 && deltaY === 0) {
+      monster.currentDirection = 'left';       // プレイヤーが西（左）
+    } else if (deltaX > 0 && deltaY > 0) {
+      monster.currentDirection = 'se';         // プレイヤーが南東
+    } else if (deltaX < 0 && deltaY > 0) {
+      monster.currentDirection = 'sw';         // プレイヤーが南西
+    } else if (deltaX > 0 && deltaY < 0) {
+      monster.currentDirection = 'ne';         // プレイヤーが北東
+    } else if (deltaX < 0 && deltaY < 0) {
+      monster.currentDirection = 'nw';         // プレイヤーが北西
+    }
+    
+    console.log(`[AISystem] 敵${monster.id}の向きを更新（その場）: ${monster.currentDirection} プレイヤー(${player.position.x},${player.position.y}) -> 敵(${monster.position.x},${monster.position.y})`);
+  }
+
+  /**
+   * Get current turn number from TurnSystem
+   */
+  private getCurrentTurn(): number {
+    return this.turnSystem ? this.turnSystem.getCurrentTurn() : 0;
   }
 
   /**
@@ -606,6 +839,8 @@ export class AISystem {
     if (!state) {
       state = {
         homePosition: { ...entity.position },
+        lastDecision: null,
+        lastTurnProcessed: undefined,
         patrolPoints: [],
         currentPatrolIndex: 0,
         aggroLevel: 0,
@@ -667,10 +902,198 @@ export class AISystem {
   }
 
   /**
+   * Process entity movement based on AI decision
+   */
+  processEntityMovement(entity: GameEntity): { moved: boolean } | null {
+    console.log(`[AISystem] 移動処理開始: ${entity.id}`);
+    
+    if (!this.hasAISupport(entity)) {
+      console.log(`[AISystem] AIサポートなし: ${entity.id}`);
+      return null;
+    }
+
+    // AI決定を取得（移動処理用）
+    const decision = this.processAI(entity);
+    console.log(`[AISystem] 移動用AI決定: ${entity.id} - ${JSON.stringify(decision)}`);
+    
+    if (!decision || decision.action !== 'move' || !decision.position) {
+      console.log(`[AISystem] 移動決定なし: ${entity.id} - decision=${!!decision}, action=${decision?.action}, position=${!!decision?.position}`);
+      return { moved: false };
+    }
+
+    // 移動先が有効かチェック
+    if (!this.dungeonManager.isWalkable(decision.position) || 
+        this.dungeonManager.getEntitiesAt(decision.position).length > 0) {
+      return { moved: false };
+    }
+
+    // 現在位置から移動先への移動を実行
+    const oldPosition = { ...entity.position };
+    entity.position.x = decision.position.x;
+    entity.position.y = decision.position.y;
+
+    // ダンジョンマネージャーでエンティティの位置を更新
+    this.dungeonManager.removeEntityFromPosition(entity, oldPosition);
+    this.dungeonManager.addEntity(entity, decision.position);
+
+    console.log(`[AI] ${entity.id} moved from (${oldPosition.x}, ${oldPosition.y}) to (${decision.position.x}, ${decision.position.y})`);
+    return { moved: true };
+  }
+
+  /**
+   * Process entity attack based on AI decision
+   */
+  processEntityAttack(entity: GameEntity): { attacked: boolean } | null {
+    console.log(`[AISystem] 攻撃処理開始: ${entity.id}`);
+    
+    if (!this.hasAISupport(entity)) {
+      console.log(`[AISystem] AIサポートなし: ${entity.id}`);
+      return null;
+    }
+
+    // AI決定を取得（攻撃処理用）
+    const decision = this.processAI(entity);
+    console.log(`[AISystem] 攻撃用AI決定: ${entity.id} - ${JSON.stringify(decision)}`);
+    
+    if (!decision || decision.action !== 'attack' || !decision.target) {
+      console.log(`[AISystem] 攻撃決定が無効: ${entity.id} - ${JSON.stringify(decision)}`);
+      return { attacked: false };
+    }
+
+    // 攻撃可能かチェック
+    const canAttack = this.combatSystem.canAttack(entity, decision.target);
+    console.log(`[AISystem] 攻撃可能チェック: ${entity.id} -> ${decision.target.id}, 結果: ${canAttack}`);
+    
+    if (!canAttack) {
+      console.log(`[AISystem] 攻撃不可: ${entity.id} -> ${decision.target.id}`);
+      return { attacked: false };
+    }
+
+    // 攻撃実行
+    console.log(`[AISystem] 攻撃実行開始: ${entity.id} -> ${decision.target.id}`);
+    const attackResult = this.combatSystem.processAttack(entity, decision.target);
+    console.log(`[AISystem] 攻撃結果: ${entity.id} -> ${decision.target.id}, 結果: ${JSON.stringify(attackResult)}`);
+    
+    if (attackResult) {
+      console.log(`[AI] ${entity.id} attacked ${decision.target.id}`);
+      return { attacked: true };
+    }
+
+    console.log(`[AISystem] 攻撃失敗: ${entity.id} -> ${decision.target.id}`);
+    return { attacked: false };
+  }
+
+  /**
+   * Process entity movement with existing AI decision
+   */
+  processEntityMovementWithDecision(entity: GameEntity, decision: AIDecision): { moved: boolean } | null {
+    console.log(`[AISystem] 移動処理開始（決定済み）: ${entity.id}`);
+    
+    if (!this.hasAISupport(entity)) {
+      console.log(`[AISystem] AIサポートなし: ${entity.id}`);
+      return null;
+    }
+
+    if (!decision || decision.action !== 'move' || !decision.position) {
+      console.log(`[AISystem] 移動決定が無効: ${entity.id} - ${JSON.stringify(decision)}`);
+      return { moved: false };
+    }
+
+    // 移動先が有効かチェック
+    if (!this.dungeonManager.isWalkable(decision.position) || 
+        this.dungeonManager.getEntitiesAt(decision.position).length > 0) {
+      return { moved: false };
+    }
+
+    // 現在位置から移動先への移動を実行
+    const oldPosition = { ...entity.position };
+    entity.position.x = decision.position.x;
+    entity.position.y = decision.position.y;
+
+    // 移動方向を計算して更新
+    if (entity instanceof MonsterEntity) {
+      this.updateMonsterDirection(entity, oldPosition, decision.position);
+    }
+
+    // ダンジョンマネージャーでエンティティの位置を更新
+    this.dungeonManager.removeEntityFromPosition(entity, oldPosition);
+    this.dungeonManager.addEntity(entity, decision.position);
+
+    console.log(`[AI] ${entity.id} moved from (${oldPosition.x}, ${oldPosition.y}) to (${decision.position.x}, ${decision.position.y})`);
+    return { moved: true };
+  }
+
+  /**
+   * Process entity attack with existing AI decision
+   */
+  processEntityAttackWithDecision(entity: GameEntity, decision: AIDecision): { attacked: boolean } | null {
+    console.log(`[AISystem] 攻撃処理開始（決定済み）: ${entity.id}`);
+    
+    if (!this.hasAISupport(entity)) {
+      console.log(`[AISystem] AIサポートなし: ${entity.id}`);
+      return null;
+    }
+
+    if (!decision || decision.action !== 'attack' || !decision.target) {
+      console.log(`[AISystem] 攻撃決定が無効: ${entity.id} - ${JSON.stringify(decision)}`);
+      return { attacked: false };
+    }
+
+    // 攻撃可能かチェック
+    const canAttack = this.combatSystem.canAttack(entity, decision.target);
+    console.log(`[AISystem] 攻撃可能チェック: ${entity.id} -> ${decision.target.id}, 結果: ${canAttack}`);
+    
+    if (!canAttack) {
+      console.log(`[AISystem] 攻撃不可: ${entity.id} -> ${decision.target.id}`);
+      return { attacked: false };
+    }
+
+    // 攻撃前に方向を更新（その場での方向転換）
+    if (entity instanceof MonsterEntity) {
+      this.updateMonsterDirection(entity, entity.position, entity.position);
+    }
+
+    // 攻撃実行
+    console.log(`[AISystem] 攻撃実行開始: ${entity.id} -> ${decision.target.id}`);
+    const attackResult = this.combatSystem.processAttack(entity, decision.target);
+    console.log(`[AISystem] 攻撃結果: ${entity.id} -> ${decision.target.id}, 結果: ${JSON.stringify(attackResult)}`);
+    
+    if (attackResult) {
+      console.log(`[AI] ${entity.id} attacked ${decision.target.id}`);
+      return { attacked: true };
+    }
+
+    console.log(`[AISystem] 攻撃失敗: ${entity.id} -> ${decision.target.id}`);
+    return { attacked: false };
+  }
+
+  /**
    * Initialize default AI behaviors
    */
   private initializeDefaultBehaviors(): void {
-    // Basic hostile monster
+    // Aggressive monster (プレイヤーを積極的に追跡・攻撃)
+    this.registerBehavior('aggressive', {
+      type: 'aggressive',
+      aggroRange: 12,       // より遠くからプレイヤーを発見
+      attackRange: 1,        // 隣接時のみ攻撃
+      fleeThreshold: 0.1,    // ほぼ逃げない
+      patrolRadius: 0,       // パトロールしない
+      followDistance: 1,     // プレイヤーに近づく
+      decisionCooldown: 100  // より頻繁に行動
+    });
+
+    // Simple aggressive monster (シンプルで分かりやすい行動)
+    this.registerBehavior('simple-aggressive', {
+      type: 'aggressive',
+      aggroRange: 15,       // 非常に遠くからプレイヤーを発見
+      attackRange: 1,        // 隣接時のみ攻撃
+      fleeThreshold: 0.05,   // ほぼ絶対に逃げない
+      patrolRadius: 0,       // パトロールしない
+      followDistance: 1,     // プレイヤーに近づく
+      decisionCooldown: 50   // 非常に頻繁に行動
+    });
+
+    // Basic hostile monster (後方互換性のため残す)
     this.registerBehavior('basic-hostile', {
       type: 'aggressive',
       aggroRange: 5,
