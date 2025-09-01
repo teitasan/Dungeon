@@ -79,6 +79,46 @@ export class UIManager {
   }
 
   /**
+   * プレイヤーのHPを更新
+   */
+  updatePlayerHealth(current: number, max: number): void {
+    // HP表示の更新処理（必要に応じて実装）
+    console.log(`[UIManager] Player HP: ${current}/${max}`);
+  }
+
+  /**
+   * プレイヤーの満腹度を更新
+   */
+  updatePlayerHunger(current: number, max: number): void {
+    // 満腹度表示の更新処理（必要に応じて実装）
+    console.log(`[UIManager] Player Hunger: ${current}/${max}`);
+  }
+
+  /**
+   * プレイヤーの位置を更新
+   */
+  updatePlayerPosition(x: number, y: number): void {
+    // 位置表示の更新処理（必要に応じて実装）
+    console.log(`[UIManager] Player Position: (${x}, ${y})`);
+  }
+
+  /**
+   * モンスター情報を更新
+   */
+  updateMonsterInfo(monsters: any[]): void {
+    // モンスター情報表示の更新処理（必要に応じて実装）
+    console.log(`[UIManager] Monster count: ${monsters.length}`);
+  }
+
+  /**
+   * 床アイテム情報を更新
+   */
+  updateGroundItemsInfo(items: any[]): void {
+    // 床アイテム情報表示の更新処理（必要に応じて実装）
+    console.log(`[UIManager] Ground items count: ${items.length}`);
+  }
+
+  /**
    * 新しいメッセージを追加してアニメーション表示
    */
   addMessageWithAnimation(message: string): void {

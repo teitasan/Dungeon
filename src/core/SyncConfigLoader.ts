@@ -61,6 +61,20 @@ export interface DungeonTemplateConfig {
   // 追加: フロア初期アイテム個数設定
   itemSpawnDefault?: { min: number; max: number };
   itemSpawnRanges?: Array<{ floorRange: string; min: number; max: number }>;
+  // 追加: 階層別モンスター出現設定
+  floorMonsterSpawns?: Array<{
+    floorRange: string;
+    minSpawnCount: number;
+    maxSpawnCount: number;
+    monsterEntries: Array<{ monsterId: string; weight: number; minFloor: number; maxFloor: number }>;
+    spawnLimits?: { maxPerFloor: number; baseSpawnPerRoom: number; randomVariation: number };
+  }>;
+  // 追加: モンスタースポーンのデフォルト設定
+  monsterSpawnDefault?: {
+    minSpawnCount: number;
+    maxSpawnCount: number;
+    spawnLimits: { maxPerFloor: number; baseSpawnPerRoom: number; randomVariation: number };
+  };
 }
 
 export interface DungeonTemplatesConfig {

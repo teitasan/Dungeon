@@ -217,18 +217,23 @@
     },
     "endTurnProcessing": [
       {
-        "process": "status-recovery",
+        "process": "death-check",
         "order": 1,
+        "description": "死亡エンティティのチェックと削除"
+      },
+      {
+        "process": "status-recovery",
+        "order": 2,
         "description": "状態異常の回復判定"
       },
       {
         "process": "slip-damage",
-        "order": 2,
+        "order": 3,
         "description": "毒などのスリップダメージ"
       },
       {
         "process": "hunger-decrease",
-        "order": 3,
+        "order": 4,
         "description": "満腹度の減少"
       }
     ]
@@ -334,71 +339,131 @@
       "baseSpawnPerRoom": 1,
       "randomVariation": 2
     },
-    "spritesheet": {
-      "imagePath": "/images/pipo-simpleenemy01a.png",
-      "tileSize": 32,
-      "sprites": {
-        "enemy-0-0": { "x": 0, "y": 0, "width": 1, "height": 1 },
-        "enemy-0-1": { "x": 0, "y": 1, "width": 1, "height": 1 },
-        "enemy-0-2": { "x": 0, "y": 2, "width": 1, "height": 1 },
-        "enemy-1-0": { "x": 1, "y": 0, "width": 1, "height": 1 },
-        "enemy-1-1": { "x": 1, "y": 1, "width": 1, "height": 1 },
-        "enemy-1-2": { "x": 1, "y": 2, "width": 1, "height": 1 },
-        "enemy-1-3": { "x": 1, "y": 3, "width": 1, "height": 1 },
-        "enemy-2-0": { "x": 2, "y": 0, "width": 1, "height": 1 },
-        "enemy-2-1": { "x": 2, "y": 1, "width": 1, "height": 1 },
-        "enemy-2-2": { "x": 2, "y": 2, "width": 1, "height": 1 },
-        "enemy-2-3": { "x": 2, "y": 3, "width": 1, "height": 1 },
-        "enemy-3-0": { "x": 3, "y": 0, "width": 1, "height": 1 },
-        "enemy-3-1": { "x": 3, "y": 1, "width": 1, "height": 1 },
-        "enemy-3-2": { "x": 3, "y": 2, "width": 1, "height": 1 },
-        "enemy-3-3": { "x": 3, "y": 3, "width": 1, "height": 1 },
-        "enemy-4-0": { "x": 4, "y": 0, "width": 1, "height": 1 },
-        "enemy-4-1": { "x": 4, "y": 1, "width": 1, "height": 1 },
-        "enemy-4-2": { "x": 4, "y": 2, "width": 1, "height": 1 },
-        "enemy-4-3": { "x": 4, "y": 3, "width": 1, "height": 1 },
-        "enemy-5-0": { "x": 5, "y": 0, "width": 1, "height": 1 },
-        "enemy-5-1": { "x": 5, "y": 1, "width": 1, "height": 1 },
-        "enemy-5-2": { "x": 5, "y": 2, "width": 1, "height": 1 },
-        "enemy-5-3": { "x": 5, "y": 3, "width": 1, "height": 1 }
-      },
-      "animations": {
-        "idle": {
-          "frames": ["enemy-1-0", "enemy-0-0", "enemy-1-0", "enemy-2-0", "enemy-1-0"],
-          "frameDuration": 200
-        },
-        "front": {
-          "frames": ["enemy-1-0", "enemy-0-0", "enemy-1-0", "enemy-2-0", "enemy-1-0"],
-          "frameDuration": 200
-        },
-        "left": {
-          "frames": ["enemy-1-1", "enemy-0-1", "enemy-1-1", "enemy-2-1", "enemy-1-1"],
-          "frameDuration": 200
-        },
-        "right": {
-          "frames": ["enemy-1-2", "enemy-0-2", "enemy-1-2", "enemy-2-2", "enemy-1-2"],
-          "frameDuration": 200
-        },
-        "back": {
-          "frames": ["enemy-1-3", "enemy-0-3", "enemy-1-3", "enemy-2-3", "enemy-1-3"],
-          "frameDuration": 200
-        },
-        "sw": {
-          "frames": ["enemy-4-0", "enemy-3-0", "enemy-4-0", "enemy-5-0", "enemy-4-0"],
-          "frameDuration": 200
-        },
-        "se": {
-          "frames": ["enemy-4-1", "enemy-3-1", "enemy-4-1", "enemy-5-1", "enemy-4-1"],
-          "frameDuration": 200
-        },
-        "nw": {
-          "frames": ["enemy-4-2", "enemy-3-2", "enemy-4-2", "enemy-5-2", "enemy-4-2"],
-          "frameDuration": 200
-        },
-        "ne": {
-          "frames": ["enemy-4-3", "enemy-3-3", "enemy-4-3", "enemy-5-3", "enemy-4-3"],
-          "frameDuration": 200
+    "spritesheets": {
+      "basic": {
+        "imagePath": "/images/pipo-simpleenemy01a.png",
+        "tileSize": 32,
+        "sprites": {
+          "enemy-0-0": { "x": 0, "y": 0, "width": 1, "height": 1 },
+          "enemy-0-1": { "x": 0, "y": 1, "width": 1, "height": 1 },
+          "enemy-0-2": { "x": 0, "y": 2, "width": 1, "height": 1 },
+          "enemy-1-0": { "x": 1, "y": 0, "width": 1, "height": 1 },
+          "enemy-1-1": { "x": 1, "y": 1, "width": 1, "height": 1 },
+          "enemy-1-2": { "x": 1, "y": 2, "width": 1, "height": 1 },
+          "enemy-1-3": { "x": 1, "y": 3, "width": 1, "height": 1 },
+          "enemy-2-0": { "x": 2, "y": 0, "width": 1, "height": 1 },
+          "enemy-2-1": { "x": 2, "y": 1, "width": 1, "height": 1 },
+          "enemy-2-2": { "x": 2, "y": 2, "width": 1, "height": 1 },
+          "enemy-2-3": { "x": 2, "y": 3, "width": 1, "height": 1 },
+          "enemy-3-0": { "x": 3, "y": 0, "width": 1, "height": 1 },
+          "enemy-3-1": { "x": 3, "y": 1, "width": 1, "height": 1 },
+          "enemy-3-2": { "x": 3, "y": 2, "width": 1, "height": 1 },
+          "enemy-3-3": { "x": 3, "y": 3, "width": 1, "height": 1 },
+          "enemy-4-0": { "x": 4, "y": 0, "width": 1, "height": 1 },
+          "enemy-4-1": { "x": 4, "y": 1, "width": 1, "height": 1 },
+          "enemy-4-2": { "x": 4, "y": 2, "width": 1, "height": 1 },
+          "enemy-4-3": { "x": 4, "y": 3, "width": 1, "height": 1 },
+          "enemy-5-0": { "x": 5, "y": 0, "width": 1, "height": 1 },
+          "enemy-5-1": { "x": 5, "y": 1, "width": 1, "height": 1 },
+          "enemy-5-2": { "x": 5, "y": 2, "width": 1, "height": 1 },
+          "enemy-5-3": { "x": 5, "y": 3, "width": 1, "height": 1 }
         }
+      },
+      "elite": {
+        "imagePath": "/images/pipo-simpleenemy01c.png",
+        "tileSize": 32,
+        "sprites": {
+          "enemy-0-0": { "x": 0, "y": 0, "width": 1, "height": 1 },
+          "enemy-0-1": { "x": 0, "y": 1, "width": 1, "height": 1 },
+          "enemy-0-2": { "x": 0, "y": 2, "width": 1, "height": 1 },
+          "enemy-1-0": { "x": 1, "y": 0, "width": 1, "height": 1 },
+          "enemy-1-1": { "x": 1, "y": 1, "width": 1, "height": 1 },
+          "enemy-1-2": { "x": 1, "y": 2, "width": 1, "height": 1 },
+          "enemy-1-3": { "x": 1, "y": 3, "width": 1, "height": 1 },
+          "enemy-2-0": { "x": 2, "y": 0, "width": 1, "height": 1 },
+          "enemy-2-1": { "x": 2, "y": 1, "width": 1, "height": 1 },
+          "enemy-2-2": { "x": 2, "y": 2, "width": 1, "height": 1 },
+          "enemy-2-3": { "x": 2, "y": 3, "width": 1, "height": 1 },
+          "enemy-3-0": { "x": 3, "y": 0, "width": 1, "height": 1 },
+          "enemy-3-1": { "x": 3, "y": 1, "width": 1, "height": 1 },
+          "enemy-3-2": { "x": 3, "y": 2, "width": 1, "height": 1 },
+          "enemy-3-3": { "x": 3, "y": 3, "width": 1, "height": 1 },
+          "enemy-4-0": { "x": 4, "y": 0, "width": 1, "height": 1 },
+          "enemy-4-1": { "x": 4, "y": 1, "width": 1, "height": 1 },
+          "enemy-4-2": { "x": 4, "y": 2, "width": 1, "height": 1 },
+          "enemy-4-3": { "x": 4, "y": 3, "width": 1, "height": 1 },
+          "enemy-5-0": { "x": 5, "y": 0, "width": 1, "height": 1 },
+          "enemy-5-1": { "x": 5, "y": 1, "width": 1, "height": 1 },
+          "enemy-5-2": { "x": 5, "y": 2, "width": 1, "height": 1 },
+          "enemy-5-3": { "x": 5, "y": 3, "width": 1, "height": 1 }
+        }
+      },
+      "boss": {
+        "imagePath": "/images/pipo-simpleenemy01b.png",
+        "tileSize": 32,
+        "sprites": {
+          "enemy-0-0": { "x": 0, "y": 0, "width": 1, "height": 1 },
+          "enemy-0-1": { "x": 0, "y": 1, "width": 1, "height": 1 },
+          "enemy-0-2": { "x": 0, "y": 2, "width": 1, "height": 1 },
+          "enemy-1-0": { "x": 1, "y": 0, "width": 1, "height": 1 },
+          "enemy-1-1": { "x": 1, "y": 1, "width": 1, "height": 1 },
+          "enemy-1-2": { "x": 1, "y": 2, "width": 1, "height": 1 },
+          "enemy-1-3": { "x": 1, "y": 3, "width": 1, "height": 1 },
+          "enemy-2-0": { "x": 2, "y": 0, "width": 1, "height": 1 },
+          "enemy-2-1": { "x": 2, "y": 1, "width": 1, "height": 1 },
+          "enemy-2-2": { "x": 2, "y": 2, "width": 1, "height": 1 },
+          "enemy-2-3": { "x": 2, "y": 3, "width": 1, "height": 1 },
+          "enemy-3-0": { "x": 3, "y": 0, "width": 1, "height": 1 },
+          "enemy-3-1": { "x": 3, "y": 1, "width": 1, "height": 1 },
+          "enemy-3-2": { "x": 3, "y": 2, "width": 1, "height": 1 },
+          "enemy-3-3": { "x": 3, "y": 3, "width": 1, "height": 1 },
+          "enemy-4-0": { "x": 4, "y": 0, "width": 1, "height": 1 },
+          "enemy-4-1": { "x": 4, "y": 1, "width": 1, "height": 1 },
+          "enemy-4-2": { "x": 4, "y": 2, "width": 1, "height": 1 },
+          "enemy-4-3": { "x": 4, "y": 3, "width": 1, "height": 1 },
+          "enemy-5-0": { "x": 5, "y": 0, "width": 1, "height": 1 },
+          "enemy-5-1": { "x": 5, "y": 1, "width": 1, "height": 1 },
+          "enemy-5-2": { "x": 5, "y": 2, "width": 1, "height": 1 },
+          "enemy-5-3": { "x": 5, "y": 3, "width": 1, "height": 1 }
+        }
+      }
+    },
+    "animations": {
+      "idle": {
+        "frames": ["enemy-1-0", "enemy-0-0", "enemy-1-0", "enemy-2-0", "enemy-1-0"],
+        "frameDuration": 200
+      },
+      "front": {
+        "frames": ["enemy-1-0", "enemy-0-0", "enemy-1-0", "enemy-2-0", "enemy-1-0"],
+        "frameDuration": 200
+      },
+      "left": {
+        "frames": ["enemy-1-1", "enemy-0-1", "enemy-1-1", "enemy-2-1", "enemy-1-1"],
+        "frameDuration": 200
+      },
+      "right": {
+        "frames": ["enemy-1-2", "enemy-0-2", "enemy-1-2", "enemy-2-2", "enemy-1-2"],
+        "frameDuration": 200
+      },
+      "back": {
+        "frames": ["enemy-1-3", "enemy-0-3", "enemy-1-3", "enemy-2-3", "enemy-1-3"],
+        "frameDuration": 200
+      },
+      "sw": {
+        "frames": ["enemy-4-0", "enemy-3-0", "enemy-4-0", "enemy-5-0", "enemy-4-0"],
+        "frameDuration": 200
+      },
+      "se": {
+        "frames": ["enemy-4-1", "enemy-3-1", "enemy-4-1", "enemy-5-1", "enemy-4-1"],
+        "frameDuration": 200
+      },
+      "nw": {
+        "frames": ["enemy-4-2", "enemy-3-2", "enemy-4-2", "enemy-5-2", "enemy-4-2"],
+        "frameDuration": 200
+      },
+      "ne": {
+        "frames": ["enemy-4-3", "enemy-3-3", "enemy-4-3", "enemy-5-3", "enemy-4-3"],
+        "frameDuration": 200
       }
     },
     "templates": [
@@ -406,6 +471,7 @@
         "id": "simple-enemy",
         "name": "Simple Enemy",
         "monsterType": "basic",
+        "spritesheet": "basic",
         "spriteId": "enemy-1-0",
         "stats": {
           "hp": 20,
@@ -414,9 +480,116 @@
           "defense": 2,
           "evasionRate": 0.05
         },
-        "aiType": "simple-aggressive"
+        "aiType": "simple-aggressive",
+        "experienceValue": 15,
+        "dropRate": 0.3,
+        "dropTableId": "common-drops",
+        "level": 1,
+        "description": "基本的な敵。弱いが数が多い。"
+      },
+      {
+        "id": "strong-enemy",
+        "name": "Strong Enemy",
+        "monsterType": "elite",
+        "spritesheet": "elite",
+        "spriteId": "enemy-1-0",
+        "stats": {
+          "hp": 35,
+          "maxHp": 35,
+          "attack": 8,
+          "defense": 4,
+          "evasionRate": 0.08
+        },
+        "aiType": "aggressive-chase",
+        "experienceValue": 35,
+        "dropRate": 0.6,
+        "dropTableId": "common-drops",
+        "level": 3,
+        "description": "中程度の強さの敵。慎重に対処が必要。"
+      },
+      {
+        "id": "boss-enemy",
+        "name": "Boss Enemy",
+        "monsterType": "boss",
+        "spritesheet": "boss",
+        "spriteId": "enemy-1-0",
+        "stats": {
+          "hp": 80,
+          "maxHp": 80,
+          "attack": 15,
+          "defense": 8,
+          "evasionRate": 0.12
+        },
+        "aiType": "boss-aggressive",
+        "experienceValue": 100,
+        "dropRate": 1.0,
+        "dropTableId": "common-drops",
+        "level": 5,
+        "description": "強力なボス級の敵。最大限の準備が必要。"
       }
-    ]
+    ],
+    "dropTables": {
+      "basic-dungeon-drops": [
+        {
+          "itemId": "bread",
+          "weight": 40,
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "itemId": "health-potion",
+          "weight": 35,
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "itemId": "gold",
+          "weight": 25,
+          "minCount": 1,
+          "maxCount": 3
+        }
+      ],
+      "large-dungeon-drops": [
+        {
+          "itemId": "health-potion",
+          "weight": 40,
+          "minCount": 1,
+          "maxCount": 2
+        },
+        {
+          "itemId": "antidote",
+          "weight": 30,
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "itemId": "gold",
+          "weight": 30,
+          "minCount": 2,
+          "maxCount": 5
+        }
+      ],
+      "beginner-cave-drops": [
+        {
+          "itemId": "bread",
+          "weight": 50,
+          "minCount": 1,
+          "maxCount": 2
+        },
+        {
+          "itemId": "health-potion",
+          "weight": 30,
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "itemId": "gold",
+          "weight": 20,
+          "minCount": 1,
+          "maxCount": 2
+        }
+      ]
+    }
   },
   "attributes": {
     "availableAttributes": [
@@ -527,16 +700,16 @@
       }
     }
   },
-      "messages": {
-      "ui": {
-        "cancel": "キャンセル",
-        "attackMiss": "空振りした",
-        "stairsConfirmDown": "次の階へ進みますか？",
-        "stairsConfirmUp": "前の階へ戻りますか？",
-        "stairsAdvanceDown": "次の階へ進んだ",
-        "stairsAdvanceUp": "前の階へ戻った",
-        "stairsDecline": "いいえを選んだ",
-        "itemUseUnimplemented": "決定: アイテム使用は未実装"
-      }
+  "messages": {
+    "ui": {
+      "cancel": "キャンセル",
+      "attackMiss": "空振りした",
+      "stairsConfirmDown": "次の階へ進みますか？",
+      "stairsConfirmUp": "前の階へ戻りますか？",
+      "stairsAdvanceDown": "次の階へ進んだ",
+      "stairsAdvanceUp": "前の階へ戻った",
+      "stairsDecline": "いいえを選んだ",
+      "itemUseUnimplemented": "決定: アイテム使用は未実装"
     }
+  }
 }

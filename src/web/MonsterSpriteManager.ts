@@ -24,39 +24,80 @@ export interface MonsterSpritesheetConfig {
   };
 }
 
+// 一時的にコメントアウト
+// export interface MonsterSpritesheetsConfig {
+//   basic: MonsterSpritesheetConfig;
+//   elite: MonsterSpritesheetConfig;
+//   boss: MonsterSpritesheetConfig;
+//   animations: {
+//     [key: string]: {
+//       frames: string[];
+//       frameDuration: number;
+//     };
+//   };
+// }
+
 export class MonsterSpriteManager {
-  private image: HTMLImageElement | null = null;
-  private config: MonsterSpritesheetConfig;
+  private images: Map<string, HTMLImageElement> = new Map();
+  private spritesheets: any;
+  private animations: any;
   private loaded = false;
   private animationFrame = 0;
   private lastAnimationTime = 0;
 
-  constructor(config: MonsterSpritesheetConfig) {
-    this.config = config;
+  constructor(config: any) {
+    this.spritesheets = config;
+    this.animations = config.animations;
   }
 
   async load(): Promise<void> {
     if (this.loaded) return;
 
-    return new Promise((resolve, reject) => {
-      this.image = new Image();
-      this.image.onload = () => {
-        this.loaded = true;
-        resolve();
-      };
-      this.image.onerror = () => {
-        reject(new Error(`Failed to load monster spritesheet: ${this.config.imagePath}`));
-      };
-      this.image.src = this.config.imagePath;
-    });
+    console.log(`[DEBUG] Loading monster spritesheets...`);
+
+    const loadPromises: Promise<void>[] = [];
+    
+    // 3つのスプライトシートを読み込み
+    const types = ['basic', 'elite', 'boss'];
+    
+    for (const type of types) {
+      const spritesheet = this.spritesheets[type];
+      if (spritesheet && spritesheet.imagePath) {
+        console.log(`[DEBUG] Loading ${type}: ${spritesheet.imagePath}`);
+        
+        const loadPromise = new Promise<void>((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => {
+            this.images.set(type, image);
+            console.log(`[DEBUG] Loaded ${type}: ${spritesheet.imagePath}`);
+            resolve();
+          };
+          image.onerror = () => {
+            reject(new Error(`Failed to load ${type}: ${spritesheet.imagePath}`));
+          };
+          image.src = spritesheet.imagePath;
+        });
+        loadPromises.push(loadPromise);
+      }
+    }
+
+    try {
+      await Promise.all(loadPromises);
+      console.log(`[DEBUG] All spritesheets loaded:`, Array.from(this.images.keys()));
+      this.loaded = true;
+    } catch (error) {
+      console.error(`[DEBUG] Error loading spritesheets:`, error);
+      throw error;
+    }
   }
 
   isLoaded(): boolean {
     return this.loaded;
   }
 
-  hasSprite(spriteId: string): boolean {
-    return this.config.sprites[spriteId] !== undefined;
+  hasSprite(spriteId: string, monsterType: string = 'basic'): boolean {
+    const spritesheet = this.spritesheets[monsterType];
+    return spritesheet?.sprites[spriteId] !== undefined;
   }
 
   /**
@@ -68,51 +109,58 @@ export class MonsterSpriteManager {
     x: number,
     y: number,
     tileSize: number,
-    direction: string = 'front'
+    direction: string = 'front',
+    monsterType: string = 'basic'
   ): void {
-    if (!this.image) return;
+    // 敵の種類に応じた画像を取得
+    const image = this.images.get(monsterType);
+    if (!image) {
+      console.warn(`Image not found for type: ${monsterType}`);
+      return;
+    }
 
-    // ベーススプライトIDを取得（例: "enemy-1-0" -> "enemy"）
-    const baseId = spriteId.split('-')[0];
-    
-    // console.log(`[DEBUG] MonsterSpriteManager: spriteId=${spriteId}, baseId=${baseId}, direction=${direction}`);
-    
+    // 敵の種類に応じたスプライトシート設定を取得
+    const spritesheet = this.spritesheets[monsterType];
+    if (!spritesheet) {
+      console.warn(`Spritesheet not found for type: ${monsterType}`);
+      return;
+    }
+
     // 方向に応じたスプライトIDを取得
-    const directionSpriteId = this.getDirectionSpriteId(baseId, direction);
-    const spriteDef = this.config.sprites[directionSpriteId];
-    
-    // console.log(`[DEBUG] MonsterSpriteManager: directionSpriteId=${directionSpriteId}, spriteDef=`, spriteDef);
+    const directionSpriteId = this.getDirectionSpriteId(spriteId, direction);
+    const spriteDef = spritesheet.sprites[directionSpriteId];
     
     if (!spriteDef) {
-      console.warn(`Monster sprite not found: ${directionSpriteId}`);
+      console.warn(`Sprite not found: ${directionSpriteId}`);
       return;
     }
 
     // アニメーション対応
     const animatedSpriteId = this.getAnimatedSpriteId(directionSpriteId);
-    const finalSpriteDef = this.config.sprites[animatedSpriteId] || spriteDef;
+    const finalSpriteDef = spritesheet.sprites[animatedSpriteId] || spriteDef;
 
-    // console.log(`[DEBUG] MonsterSpriteManager: animatedSpriteId=${animatedSpriteId}, finalSpriteDef=`, finalSpriteDef);
-
-    this.drawSpriteInternal(ctx, finalSpriteDef, x, y, tileSize);
+    this.drawSpriteInternal(ctx, finalSpriteDef, x, y, tileSize, image);
   }
 
   /**
    * Get sprite ID for specific direction
    */
   private getDirectionSpriteId(baseSpriteId: string, direction: string): string {
+    // スプライトIDからベースIDを抽出（例: "enemy-1-0" -> "enemy"）
+    const baseId = baseSpriteId.split('-')[0];
+    
     const directionMap: { [key: string]: string } = {
-      'front': `${baseSpriteId}-1-0`,    // 正面（x1y0）
-      'left': `${baseSpriteId}-1-1`,     // 左（x1y1）
-      'right': `${baseSpriteId}-1-2`,    // 右（x1y2）
-      'back': `${baseSpriteId}-1-3`,     // 後ろ（x1y3）
-      'sw': `${baseSpriteId}-4-0`,       // 南西（x4y0）
-      'se': `${baseSpriteId}-4-1`,       // 南東（x4y1）
-      'nw': `${baseSpriteId}-4-2`,       // 北西（x4y2）
-      'ne': `${baseSpriteId}-4-3`        // 北東（x4y3）
+      'front': `${baseId}-1-0`,    // 正面（x1y0）
+      'left': `${baseId}-1-1`,     // 左（x1y1）
+      'right': `${baseId}-1-2`,    // 右（x1y2）
+      'back': `${baseId}-1-3`,     // 後ろ（x1y3）
+      'sw': `${baseId}-4-0`,       // 南西（x4y0）
+      'se': `${baseId}-4-1`,       // 南東（x4y1）
+      'nw': `${baseId}-4-2`,       // 北西（x4y2）
+      'ne': `${baseId}-4-3`        // 北東（x4y3）
     };
 
-    return directionMap[direction] || `${baseSpriteId}-1-0`;
+    return directionMap[direction] || `${baseId}-1-0`;
   }
 
   /**
@@ -143,16 +191,16 @@ export class MonsterSpriteManager {
       else if (y === '3') direction = 'back';
       
       // 方向別のアニメーションを取得
-      console.log(`[MonsterSpriteManager] スプライトID: ${spriteId}, 判定された方向: ${direction}`);
-      const animation = this.config.animations[direction];
+      // console.log(`[MonsterSpriteManager] スプライトID: ${spriteId}, 判定された方向: ${direction}`);
+      const animation = this.animations[direction];
       if (animation && animation.frames.length > 0) {
         const frameIndex = this.animationFrame % animation.frames.length;
         const animatedSpriteId = animation.frames[frameIndex];
         
-        console.log(`[MonsterSpriteManager] アニメーション: ${direction}, フレーム${frameIndex}: ${animatedSpriteId}`);
+        // console.log(`[MonsterSpriteManager] アニメーション: ${direction}, フレーム${frameIndex}: ${animatedSpriteId}`);
         
-        // アニメーション用スプライトが存在するかチェック
-        if (this.config.sprites[animatedSpriteId]) {
+        // アニメーション用スプライトが存在するかチェック（基本的なスプライトシートでチェック）
+        if (this.spritesheets.basic.sprites[animatedSpriteId]) {
           return animatedSpriteId;
         }
       }
@@ -167,9 +215,9 @@ export class MonsterSpriteManager {
     spriteDef: MonsterSpriteDefinition,
     x: number,
     y: number,
-    tileSize: number
+    tileSize: number,
+    image: HTMLImageElement
   ): void {
-    if (!this.image) return;
 
     // ピクセルアートのスムージングを無効化
     ctx.imageSmoothingEnabled = false;
@@ -183,7 +231,7 @@ export class MonsterSpriteManager {
 
     // 32x32の画像を指定サイズのタイルに拡大して描画
     ctx.drawImage(
-      this.image,
+      image,
       sourceX,
       sourceY,
       sourceWidth,
@@ -198,8 +246,9 @@ export class MonsterSpriteManager {
   /**
    * Get sprite definition for a monster
    */
-  getSpriteDefinition(spriteId: string): MonsterSpriteDefinition | undefined {
-    return this.config.sprites[spriteId];
+  getSpriteDefinition(spriteId: string, monsterType: string = 'basic'): MonsterSpriteDefinition | undefined {
+    const spritesheet = this.spritesheets[monsterType];
+    return spritesheet?.sprites[spriteId];
   }
 
   /**

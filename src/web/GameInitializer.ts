@@ -226,11 +226,30 @@ export class GameInitializer {
             template.name,
             template.monsterType,
             randomPosition,
-            template.stats || { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
+            template.stats ? { ...template.stats } : { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
             undefined, // attributes
             template.aiType || 'basic-hostile',
-            template.spriteId
+            template.spriteId,
+            template.experienceValue,
+            template.dropRate,
+            template.dropTableId,
+            template.level,
+            template.description,
+            template.spritesheet
           );
+
+          // ドロップテーブルを設定ファイルから取得して設定
+          // まずダンジョンテンプレートのマッピングを確認
+          const currentDungeonId = dungeonManager.getCurrentDungeon()?.id;
+          if (currentDungeonId) {
+            const dungeonTemplate = dungeonManager.getTemplate(currentDungeonId);
+            if (template.dropTableId && dungeonTemplate?.dropTableMapping?.[template.dropTableId]) {
+              const actualDropTableId = dungeonTemplate.dropTableMapping[template.dropTableId];
+              if (config.monsters?.dropTables?.[actualDropTableId]) {
+                monster.dropTable = config.monsters.dropTables[actualDropTableId];
+              }
+            }
+          }
           
           // 初期方向を設定
           monster.currentDirection = 'front';
@@ -480,23 +499,29 @@ export class GameInitializer {
     // 敵のスプライトマネージャーの初期化
     let monsterSpriteManager: MonsterSpriteManager | null = null;
     try {
-      if (config.monsters?.spritesheet) {
-        console.log('Monster spritesheet config found');
+      if (config.monsters?.spritesheets) {
+        console.log('Monster spritesheets config found');
         
-        monsterSpriteManager = new MonsterSpriteManager(config.monsters.spritesheet);
+        // 複数スプライトシートとアニメーション設定を渡す
+        const monsterConfig = {
+          ...config.monsters.spritesheets,
+          animations: config.monsters.animations
+        };
+        
+        monsterSpriteManager = new MonsterSpriteManager(monsterConfig);
         
         // 画像の読み込み完了を待ってからレンダラーに設定
         try {
           await monsterSpriteManager.load();
-          console.log('Monster spritesheet loaded successfully');
+          console.log('Monster spritesheets loaded successfully');
           renderer.setMonsterSpriteManager(monsterSpriteManager);
         } catch (error) {
-          console.warn('Failed to load monster spritesheet:', error);
+          console.warn('Failed to load monster spritesheets:', error);
           renderer.setMonsterSpriteManager(monsterSpriteManager);
         }
       }
     } catch (error) {
-      console.warn('Failed to load monster spritesheet:', error);
+      console.warn('Failed to load monster spritesheets:', error);
     }
     
     // 設定からビューポートを設定

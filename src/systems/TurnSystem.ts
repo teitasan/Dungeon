@@ -132,7 +132,6 @@ export class TurnSystem {
       
       // デバッグログ
       if (this.isEnemy(entity)) {
-        console.log(`[TurnSystem] 敵の速度設定: ${entity.id}, speedState=${speedState.speedState}, action1=${speedState.action1State.canAct}, action2=${speedState.action2State.canAct}`);
         // 敵は常に行動可能にする
         speedState.action1State.canAct = true;
         speedState.action2State.canAct = false; // 2回目行動は無効
@@ -834,13 +833,12 @@ export class TurnSystem {
   private executeEndTurnProcessing(): void {
     console.log('--- ターン終了処理 ---');
     
-    // 設定に基づいて順序通りに処理
-    const sortedProcesses = [...this.config.endTurnProcessing].sort((a, b) => a.order - b.order);
-    
-    for (const process of sortedProcesses) {
-      console.log(`  ${process.process}: ${process.description}`);
-      
+    // 設定された順序で処理を実行
+    for (const process of this.config.endTurnProcessing) {
       switch (process.process) {
+        case 'death-check':
+          this.processDeathCheck();
+          break;
         case 'status-recovery':
           this.processStatusRecovery();
           break;
@@ -1024,22 +1022,7 @@ export class TurnSystem {
     }
   }
 
-  /**
-   * エンティティを削除
-   */
-  removeEntity(entity: GameEntity): void {
-    const index = this.turnManager.turnOrder.indexOf(entity);
-    if (index !== -1) {
-      this.turnManager.turnOrder.splice(index, 1);
-      this.turnManager.entitySpeedStates.delete(entity.id);
-      this.turnManager.phaseEntityStates.delete(entity.id);
-      
-      // Adjust current index if necessary
-      if (this.turnManager.currentEntityIndex >= index) {
-        this.turnManager.currentEntityIndex = Math.max(0, this.turnManager.currentEntityIndex - 1);
-      }
-    }
-  }
+
 
   /**
    * プレイヤー行動を記録（外部から呼び出される）
@@ -1112,6 +1095,27 @@ export class TurnSystem {
       if (this.isEnemy(a) && this.isAlly(b)) return 1;
       return 0;
     });
+  }
+
+  /**
+   * Remove entity from turn system
+   */
+  removeEntity(entity: GameEntity): void {
+    // ターン順序から削除
+    this.turnManager.turnOrder = this.turnManager.turnOrder.filter(e => e.id !== entity.id);
+    
+    // 速度状態から削除
+    this.turnManager.entitySpeedStates.delete(entity.id);
+    
+    // フェーズ状態から削除
+    this.turnManager.phaseEntityStates.delete(entity.id);
+    
+    // 現在のエンティティインデックスを調整
+    if (this.turnManager.currentEntityIndex >= this.turnManager.turnOrder.length) {
+      this.turnManager.currentEntityIndex = Math.max(0, this.turnManager.turnOrder.length - 1);
+    }
+    
+    console.log(`[TurnSystem] エンティティを削除: ${entity.id}`);
   }
 
   /**
@@ -1316,7 +1320,7 @@ export class TurnSystem {
       monsterTemplate.name,
       monsterTemplate.monsterType,
       position,
-      monsterTemplate.stats || { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
+      monsterTemplate.stats ? { ...monsterTemplate.stats } : { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
       undefined, // attributes
       monsterTemplate.aiType || 'basic-hostile',
       monsterTemplate.spriteId
@@ -1345,5 +1349,53 @@ export class TurnSystem {
       stats: { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
       aiType: 'simple-aggressive'
     };
+  }
+
+  /**
+   * 死亡エンティティのチェックと削除
+   */
+  private processDeathCheck(): void {
+    // 現在のターン順序から死亡したエンティティを削除
+    const entitiesToRemove: GameEntity[] = [];
+    
+    console.log(`[TurnSystem] 死亡チェック開始: ターン順序内のエンティティ数: ${this.turnManager.turnOrder.length}`);
+    
+    for (const entity of this.turnManager.turnOrder) {
+      const hp = entity.stats?.hp;
+      const maxHp = entity.stats?.maxHp;
+      const isDead = this.isEntityDead(entity);
+      
+      console.log(`[TurnSystem] エンティティ${entity.id}: HP=${hp}/${maxHp}, 死亡判定=${isDead}`);
+      
+      if (isDead) {
+        entitiesToRemove.push(entity);
+        console.log(`[TurnSystem] 死亡エンティティを検出: ${entity.id}`);
+      }
+    }
+    
+    console.log(`[TurnSystem] 削除対象エンティティ数: ${entitiesToRemove.length}`);
+    
+    // 死亡したエンティティをターンシステムから削除
+    for (const deadEntity of entitiesToRemove) {
+      this.removeEntity(deadEntity);
+      console.log(`[TurnSystem] 死亡エンティティをターンシステムから削除: ${deadEntity.id}`);
+    }
+  }
+
+  /**
+   * エンティティが死亡しているかチェック
+   */
+  private isEntityDead(entity: GameEntity): boolean {
+    // プレイヤーとモンスターのHPチェック
+    if (entity.stats && entity.stats.hp !== undefined) {
+      return entity.stats.hp <= 0;
+    }
+    
+    // アイテムの場合はHPが1以下で削除対象
+    if (entity.stats && entity.stats.hp !== undefined && entity.stats.hp <= 1) {
+      return true;
+    }
+    
+    return false;
   }
 }

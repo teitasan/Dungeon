@@ -282,15 +282,18 @@ export class CanvasRenderer {
     // console.log(`[DEBUG] renderMonster called for ${entity.id}, spriteId: ${entity.spriteId}`);
     
     if (!this.monsterSpriteManager || !this.monsterSpriteManager.isLoaded()) {
-      // console.log(`[DEBUG] MonsterSpriteManager not available or not loaded`);
+      console.log(`[DEBUG] MonsterSpriteManager not available or not loaded: manager=${!!this.monsterSpriteManager}, loaded=${this.monsterSpriteManager?.isLoaded()}`);
       // フォールバック: 文字で描画
       this.renderMonsterFallback(entity, x, y);
       return;
     }
 
     const spriteId = entity.spriteId;
-    if (!spriteId || !this.monsterSpriteManager.hasSprite(spriteId)) {
-      // console.log(`[DEBUG] Monster sprite not available: spriteId=${spriteId}, hasSprite=${this.monsterSpriteManager.hasSprite(spriteId)}`);
+    const monsterType = (entity as any).spritesheet || 'basic';
+    console.log(`[DEBUG] Rendering monster: ${entity.id}, spriteId=${spriteId}, monsterType=${monsterType}`);
+    
+    if (!spriteId || !this.monsterSpriteManager.hasSprite(spriteId, monsterType)) {
+      console.log(`[DEBUG] Monster sprite not available: spriteId=${spriteId}, monsterType=${monsterType}, hasSprite=${this.monsterSpriteManager.hasSprite(spriteId, monsterType)}`);
       // スプライトIDがない場合や存在しない場合はフォールバック
       this.renderMonsterFallback(entity, x, y);
       return;
@@ -299,14 +302,15 @@ export class CanvasRenderer {
     // console.log(`[DEBUG] Drawing monster sprite ${spriteId} at (${x}, ${y})`);
     // スプライトで描画（保存された方向を使用）
     const direction = (entity as any).currentDirection || 'front';
-    console.log(`[CanvasRenderer] 敵${entity.id}の描画: 方向=${direction}, スプライトID=${spriteId}`);
+    // console.log(`[CanvasRenderer] 敵${entity.id}の描画: 方向=${direction}, スプライトID=${spriteId}, 種類=${monsterType}`);
     this.monsterSpriteManager.drawMonsterSprite(
       this.ctx,
       spriteId,
       x,
       y,
       this.tileSize,
-      direction
+      direction,
+      monsterType
     );
   }
 

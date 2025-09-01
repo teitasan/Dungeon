@@ -85,6 +85,12 @@ export class AISystem {
    * Process AI for an entity
    */
   processAI(entity: GameEntity): AIDecision | null {
+    // エンティティの生存チェック
+    if (!this.isEntityAlive(entity)) {
+      console.log(`[AISystem] 死亡エンティティ${entity.id}のAI処理をスキップ`);
+      return null;
+    }
+
     if (!this.hasAISupport(entity)) {
       return null;
     }
@@ -605,7 +611,7 @@ export class AISystem {
   }
 
   /**
-   * Get next move towards target
+   * Get next move towards target (simplified version)
    */
   private getNextMoveTowards(from: Position, to: Position): Position | null {
     const dx = Math.sign(to.x - from.x);
@@ -643,6 +649,25 @@ export class AISystem {
     }
     
     return null;
+  }
+
+  /**
+   * Get entities within specified range from position
+   */
+  private getEntitiesInRange(position: Position, range: number): GameEntity[] {
+    const entities: GameEntity[] = [];
+    
+    for (let y = position.y - range; y <= position.y + range; y++) {
+      for (let x = position.x - range; x <= position.x + range; x++) {
+        const pos = { x, y };
+        if (this.dungeonManager.isValidPosition(pos)) {
+          const entitiesAtPos = this.dungeonManager.getEntitiesAt(pos);
+          entities.push(...entitiesAtPos);
+        }
+      }
+    }
+    
+    return entities;
   }
 
   /**
@@ -795,6 +820,12 @@ export class AISystem {
    * Update monster direction to face player (for in-place rotation)
    */
   public updateMonsterDirectionForPlayer(monster: MonsterEntity): void {
+    // エンティティの生存チェック
+    if (!this.isEntityAlive(monster)) {
+      console.log(`[AISystem] 死亡エンティティ${monster.id}の向き更新をスキップ`);
+      return;
+    }
+
     const player = this.findPlayer();
     if (!player) return;
     
@@ -1136,5 +1167,18 @@ export class AISystem {
       followDistance: 0,
       decisionCooldown: 1000
     });
+  }
+
+  /**
+   * Check if an entity is alive
+   */
+  private isEntityAlive(entity: GameEntity): boolean {
+    // HPベースでの生存チェック
+    if (entity.stats && entity.stats.hp !== undefined) {
+      return entity.stats.hp > 0;
+    }
+    
+    // HP情報がない場合は生存とみなす
+    return true;
   }
 }

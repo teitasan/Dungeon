@@ -14,7 +14,8 @@ import {
   CombatConfig,
   CombatAction,
   CombatLogEntry,
-  CombatState
+  CombatState,
+  CombatActionType
 } from '../types/combat';
 import { AttributeSystem } from './AttributeSystem';
 import { ActionResult } from '../types/movement';
@@ -163,6 +164,11 @@ export class CombatSystem {
       attacker,
       target: defender
     }, result);
+
+    // 死亡チェック
+    if (defender.stats && defender.stats.hp <= 0) {
+      this.handleEntityDeath(defender);
+    }
 
     return result;
   }
@@ -407,16 +413,25 @@ export class CombatSystem {
     
     // 戦闘結果を作成
     const result: CombatResult = {
-      attacker,
-      target,
-      action: actionType,
+      success: true,
       damage: damage.finalDamage,
+      actualDamage: damage.finalDamage,
       critical: false,
-      message: `${attacker.name || attacker.id}が${target.name || target.id}に${damage.finalDamage}ダメージを与えた！`
+      evaded: false,
+      blocked: false,
+      attacker,
+      defender: target,
+      effects: [],
+      message: `${attacker.id}が${target.id}に${damage.finalDamage}ダメージを与えた！`
     };
     
     // 戦闘ログに記録
-    this.logCombatAction({ type: actionType, attacker, target }, result);
+    this.logCombatAction({ type: 'attack' as CombatActionType, attacker, target }, result);
+    
+    // 死亡チェック
+    if (target.stats && target.stats.hp <= 0) {
+      this.handleEntityDeath(target);
+    }
     
     return result;
   }
@@ -567,5 +582,81 @@ export class CombatSystem {
    */
   getAttributeSystem(): AttributeSystem {
     return this.attributeSystem;
+  }
+
+  /**
+   * Handle entity death (enemy defeat, item drops, etc.)
+   */
+  private handleEntityDeath(entity: GameEntity): void {
+    // 敵の死亡処理
+    if (this.isEnemy(entity)) {
+      this.handleEnemyDeath(entity);
+    }
+    
+    // プレイヤーの死亡処理
+    if (this.isPlayer(entity)) {
+      this.handlePlayerDeath(entity);
+    }
+  }
+
+    /**
+   * Handle enemy death
+   */
+  private handleEnemyDeath(enemy: GameEntity): void {
+    console.log(`[CombatSystem] 敵${enemy.id}が倒された`);
+    console.log(`[CombatSystem] 敵${enemy.id}の現在位置: (${enemy.position.x}, ${enemy.position.y})`);
+    
+    // ドロップアイテムの生成（実装予定）
+    // TODO: DropSystemと連携してドロップアイテムを生成
+    
+    // エンティティをダンジョンから削除
+    if (this.dungeonManager) {
+      console.log(`[CombatSystem] 敵${enemy.id}をダンジョンから削除開始`);
+      const removed = this.dungeonManager.removeEntity(enemy);
+      console.log(`[CombatSystem] 敵${enemy.id}の削除結果: ${removed ? '成功' : '失敗'}`);
+      
+      if (removed) {
+        console.log(`[CombatSystem] 敵${enemy.id}をダンジョンから削除完了`);
+      } else {
+        console.log(`[CombatSystem] 警告: 敵${enemy.id}の削除に失敗しました`);
+      }
+    } else {
+      console.log(`[CombatSystem] 警告: dungeonManagerが設定されていません`);
+    }
+    
+    // メッセージを出力
+    if (this.messageSink) {
+      this.messageSink(`${enemy.id}を倒した！`);
+    }
+  }
+
+  /**
+   * Handle player death
+   */
+  private handlePlayerDeath(player: GameEntity): void {
+    console.log(`[CombatSystem] プレイヤー${player.id}が倒された`);
+    
+          // メッセージを出力
+      if (this.messageSink) {
+        this.messageSink(`${player.id}は力尽きた...`);
+      }
+    
+    // TODO: DeathSystemと連携してゲームオーバー処理
+  }
+
+  /**
+   * Check if entity is an enemy
+   */
+  private isEnemy(entity: GameEntity): boolean {
+    // MonsterEntityの判定（暫定的な実装）
+    return entity.id.includes('enemy') || entity.id.includes('monster');
+  }
+
+  /**
+   * Check if entity is a player
+   */
+  private isPlayer(entity: GameEntity): boolean {
+    // PlayerEntityの判定（暫定的な実装）
+    return entity.id.includes('player') || entity.id === 'player-1';
   }
 }

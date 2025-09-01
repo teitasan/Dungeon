@@ -101,6 +101,16 @@ export class DungeonManager {
   }
 
   /**
+   * Check if position is within dungeon bounds
+   */
+  isValidPosition(position: Position): boolean {
+    if (!this.currentDungeon) return false;
+    
+    const { x, y } = position;
+    return x >= 0 && x < this.currentDungeon.width && y >= 0 && y < this.currentDungeon.height;
+  }
+
+  /**
    * Check if position is walkable
    */
   isWalkable(position: Position): boolean {
@@ -132,17 +142,53 @@ export class DungeonManager {
    * Remove entity from dungeon
    */
   removeEntity(entity: GameEntity): boolean {
-    if (!this.currentDungeon) return false;
+    if (!this.currentDungeon) {
+      console.log(`[DungeonManager] 警告: currentDungeonがnullです`);
+      return false;
+    }
+
+    console.log(`[DungeonManager] エンティティ${entity.id}の削除開始: 位置(${entity.position.x}, ${entity.position.y})`);
 
     const cell = this.getCellAt(entity.position);
-    if (!cell) return false;
+    if (!cell) {
+      console.log(`[DungeonManager] 警告: 位置(${entity.position.x}, ${entity.position.y})のセルが見つかりません`);
+      return false;
+    }
 
-    const index = cell.entities.indexOf(entity);
+    // エンティティの参照で削除を試行
+    let index = cell.entities.indexOf(entity);
     if (index !== -1) {
+      console.log(`[DungeonManager] エンティティ参照で削除: ${entity.id}`);
       cell.entities.splice(index, 1);
+      console.log(`[DungeonManager] エンティティ${entity.id}の削除完了`);
       return true;
     }
 
+    // エンティティのIDで削除を試行（位置が変更されている場合の対策）
+    index = cell.entities.findIndex(e => e.id === entity.id);
+    if (index !== -1) {
+      console.log(`[DungeonManager] エンティティIDで削除: ${entity.id}`);
+      cell.entities.splice(index, 1);
+      console.log(`[DungeonManager] エンティティ${entity.id}の削除完了`);
+      return true;
+    }
+
+    // 全ダンジョン内でエンティティを検索して削除
+    console.log(`[DungeonManager] 全ダンジョン内でエンティティ${entity.id}を検索中...`);
+    for (let y = 0; y < this.currentDungeon.height; y++) {
+      for (let x = 0; x < this.currentDungeon.width; x++) {
+        const searchCell = this.currentDungeon.cells[y][x];
+        const searchIndex = searchCell.entities.findIndex(e => e.id === entity.id);
+        if (searchIndex !== -1) {
+          console.log(`[DungeonManager] エンティティ${entity.id}を位置(${x}, ${y})で発見、削除実行`);
+          searchCell.entities.splice(searchIndex, 1);
+          console.log(`[DungeonManager] エンティティ${entity.id}の削除完了`);
+          return true;
+        }
+      }
+    }
+
+    console.log(`[DungeonManager] 警告: エンティティ${entity.id}が見つかりませんでした`);
     return false;
   }
 
@@ -377,7 +423,10 @@ export class DungeonManager {
           itemTable: templateConfig.itemTable,
           specialRules: templateConfig.specialRules,
           itemSpawnDefault: templateConfig.itemSpawnDefault,
-          itemSpawnRanges: templateConfig.itemSpawnRanges
+          itemSpawnRanges: templateConfig.itemSpawnRanges,
+          // 新規: 階層別モンスター出現設定とデフォルト
+          floorMonsterSpawns: templateConfig.floorMonsterSpawns,
+          monsterSpawnDefault: templateConfig.monsterSpawnDefault
         };
         
         this.registerTemplate(template);
@@ -553,3 +602,4 @@ export class DungeonManager {
     };
   }
 }
+
