@@ -6,6 +6,7 @@ import { GameEntity } from '../types/entities';
 import { MonsterEntity } from '../entities/Monster';
 import { CompanionEntity } from '../entities/Companion';
 import { PlayerEntity } from '../entities/Player';
+import { ItemEntity } from '../entities/Item';
 import { Position } from '../types/core';
 import { DungeonManager } from '../dungeon/DungeonManager';
 import { MovementSystem } from './MovementSystem';
@@ -346,7 +347,7 @@ export class AISystem {
       const positions = this.dungeonManager.getAdjacentPositions(player.position);
       const validPositions = positions.filter(pos => 
         this.dungeonManager.isWalkable(pos) && 
-        this.dungeonManager.getEntitiesAt(pos).length === 0
+        this.isPositionAvailableForMovement(pos)
       );
       
       if (validPositions.length > 0) {
@@ -611,6 +612,15 @@ export class AISystem {
   }
 
   /**
+   * Check if position is available for movement (アイテムは通過可能)
+   */
+  private isPositionAvailableForMovement(pos: Position): boolean {
+    const entitiesAt = this.dungeonManager.getEntitiesAt(pos);
+    const blockingEntities = entitiesAt.filter(e => !(e instanceof ItemEntity));
+    return blockingEntities.length === 0;
+  }
+
+  /**
    * Get next move towards target (simplified version)
    */
   private getNextMoveTowards(from: Position, to: Position): Position | null {
@@ -626,7 +636,7 @@ export class AISystem {
     
     for (const pos of candidates) {
       if (this.dungeonManager.isWalkable(pos) && 
-          this.dungeonManager.getEntitiesAt(pos).length === 0) {
+          this.isPositionAvailableForMovement(pos)) {
         return pos;
       }
     }
@@ -635,7 +645,7 @@ export class AISystem {
     if (dx !== 0) {
       const horizontalPos = { x: from.x + dx, y: from.y };
       if (this.dungeonManager.isWalkable(horizontalPos) && 
-          this.dungeonManager.getEntitiesAt(horizontalPos).length === 0) {
+          this.isPositionAvailableForMovement(horizontalPos)) {
         return horizontalPos;
       }
     }
@@ -643,7 +653,7 @@ export class AISystem {
     if (dy !== 0) {
       const verticalPos = { x: from.x, y: from.y + dy };
       if (this.dungeonManager.isWalkable(verticalPos) && 
-          this.dungeonManager.getEntitiesAt(verticalPos).length === 0) {
+          this.isPositionAvailableForMovement(verticalPos)) {
         return verticalPos;
       }
     }
@@ -687,7 +697,7 @@ export class AISystem {
     const fleePos = { x: from.x + fleeX, y: from.y + fleeY };
     
     if (this.dungeonManager.isWalkable(fleePos) && 
-        this.dungeonManager.getEntitiesAt(fleePos).length === 0) {
+        this.isPositionAvailableForMovement(fleePos)) {
       return fleePos;
     }
     
@@ -701,7 +711,7 @@ export class AISystem {
     const adjacent = this.dungeonManager.getAdjacentPositions(from);
     const walkable = adjacent.filter(pos => 
       this.dungeonManager.isWalkable(pos) && 
-      this.dungeonManager.getEntitiesAt(pos).length === 0
+      this.isPositionAvailableForMovement(pos)
     );
     
     if (walkable.length === 0) return null;
@@ -953,8 +963,14 @@ export class AISystem {
     }
 
     // 移動先が有効かチェック
-    if (!this.dungeonManager.isWalkable(decision.position) || 
-        this.dungeonManager.getEntitiesAt(decision.position).length > 0) {
+    if (!this.dungeonManager.isWalkable(decision.position)) {
+      return { moved: false };
+    }
+    
+    // アイテム以外のエンティティがいる場合は移動不可
+    const entitiesAtTarget = this.dungeonManager.getEntitiesAt(decision.position);
+    const blockingEntities = entitiesAtTarget.filter(e => !(e instanceof ItemEntity));
+    if (blockingEntities.length > 0) {
       return { moved: false };
     }
 
@@ -1031,8 +1047,14 @@ export class AISystem {
     }
 
     // 移動先が有効かチェック
-    if (!this.dungeonManager.isWalkable(decision.position) || 
-        this.dungeonManager.getEntitiesAt(decision.position).length > 0) {
+    if (!this.dungeonManager.isWalkable(decision.position)) {
+      return { moved: false };
+    }
+    
+    // アイテム以外のエンティティがいる場合は移動不可
+    const entitiesAtTarget = this.dungeonManager.getEntitiesAt(decision.position);
+    const blockingEntities = entitiesAtTarget.filter(e => !(e instanceof ItemEntity));
+    if (blockingEntities.length > 0) {
       return { moved: false };
     }
 
