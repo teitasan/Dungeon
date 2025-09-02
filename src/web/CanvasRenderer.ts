@@ -960,25 +960,28 @@ export class CanvasRenderer {
     if (this.dungeonManager) {
       const all = this.dungeonManager.getAllEntities();
       const items = all.filter(e => (e as any).constructor?.name === 'ItemEntity');
-      mm.fillStyle = '#87CEEB'; // 水色
+      mm.fillStyle = '#0ad4e1'; // 水色
       for (const it of items) {
         const ix = it.position.x;
         const iy = it.position.y;
         if (ix < 0 || ix >= dungeon.width || iy < 0 || iy >= dungeon.height) continue;
         if (!visible[iy][ix]) continue; // 視界内のみ
 
-        const cx = offsetX + ix * mmTile + Math.floor((mmTile - 4) / 2);
-        const cy = offsetY + iy * mmTile + Math.floor((mmTile - 4) / 2);
-        // 4x4の円（角丸矩形で代用するとドット感が出る）
-        const r = 2; // 角丸半径
-        mm.beginPath();
-        mm.moveTo(cx + r, cy);
-        mm.arcTo(cx + 4, cy, cx + 4, cy + 4, r);
-        mm.arcTo(cx + 4, cy + 4, cx, cy + 4, r);
-        mm.arcTo(cx, cy + 4, cx, cy, r);
-        mm.arcTo(cx, cy, cx + 4, cy, r);
-        mm.closePath();
-        mm.fill();
+        const x = offsetX + ix * mmTile;
+        const y = offsetY + iy * mmTile;
+        // 理想の形（0110, 1111, 1111, 0110）を描画
+        
+        // 1行目: 0110
+        mm.fillRect(x + 1, y + 0, 2, 1);
+        
+        // 2行目: 1111
+        mm.fillRect(x + 0, y + 1, 4, 1);
+        
+        // 3行目: 1111
+        mm.fillRect(x + 0, y + 2, 4, 1);
+        
+        // 4行目: 0110
+        mm.fillRect(x + 1, y + 3, 2, 1);
       }
       // 敵を表示（視界内のみ、4x4pxの赤い●）
       // Note:
@@ -987,24 +990,29 @@ export class CanvasRenderer {
       //   将来、検出範囲を緩めたい場合は id/name に 'enemy' や 'monster' を含むか等の
       //   ヘルパー関数（isMonsterLike など）を導入して判定を拡張してください。
       const monsters = all.filter(e => (e as any).constructor?.name === 'MonsterEntity');
-      mm.fillStyle = '#ff4444'; // 赤
+      mm.fillStyle = '#da1809'; // 赤
       for (const m of monsters) {
         const mx = m.position.x;
         const my = m.position.y;
         if (mx < 0 || mx >= dungeon.width || my < 0 || my >= dungeon.height) continue;
         if (!visible[my][mx]) continue; // 視界内のみ
 
-        const cx = offsetX + mx * mmTile + Math.floor((mmTile - 4) / 2);
-        const cy = offsetY + my * mmTile + Math.floor((mmTile - 4) / 2);
-        const r = 2;
-        mm.beginPath();
-        mm.moveTo(cx + r, cy);
-        mm.arcTo(cx + 4, cy, cx + 4, cy + 4, r);
-        mm.arcTo(cx + 4, cy + 4, cx, cy + 4, r);
-        mm.arcTo(cx, cy + 4, cx, cy, r);
-        mm.arcTo(cx, cy, cx + 4, cy, r);
-        mm.closePath();
-        mm.fill();
+        const x = offsetX + mx * mmTile;
+        const y = offsetY + my * mmTile;
+        
+        // 理想の形（0110, 1111, 1111, 0110）を描画
+        
+        // 1行目: 0110
+        mm.fillRect(x + 1, y + 0, 2, 1);
+        
+        // 2行目: 1111
+        mm.fillRect(x + 0, y + 1, 4, 1);
+        
+        // 3行目: 1111
+        mm.fillRect(x + 0, y + 2, 4, 1);
+        
+        // 4行目: 0110
+        mm.fillRect(x + 1, y + 3, 2, 1);
       }
     }
 
@@ -1029,6 +1037,10 @@ export class CanvasRenderer {
       playerPixelSize
     );
 
+    // 特殊効果による表示（千里眼・透視効果）
+    this.renderMinimapItems(mm, dungeon, mmTile, offsetX, offsetY);
+    this.renderMinimapMonsters(mm, dungeon, mmTile, offsetX, offsetY);
+
     // 描画完了後、スムージング設定を元に戻す
     mm.imageSmoothingEnabled = false;
   }
@@ -1052,23 +1064,35 @@ export class CanvasRenderer {
     // ダンジョン内の全エンティティを取得し、アイテムをフィルタリング
     const allEntities = this.dungeonManager.getAllEntities();
     const items = allEntities.filter(entity => {
-      // アイテムかどうかを判定（名前やIDで判定）
-      return entity.id.includes('scroll') || entity.id.includes('item') || 
+      // アイテムかどうかを判定（クラス名、ID、名前で判定）
+      return (entity as any).constructor?.name === 'ItemEntity' ||
+             entity.id.includes('scroll') || entity.id.includes('item') || 
              (entity as any).name?.includes('巻物') || (entity as any).name?.includes('アイテム');
     });
 
     console.log('[DEBUG] 千里眼効果: アイテム数:', items.length);
     console.log('[DEBUG] 千里眼効果: アイテム詳細:', items);
 
-    // アイテムを小さな点で表示
-    mm.fillStyle = '#ffd700'; // 金色
+    // アイテムを表示（4x4ピクセルをフル活用）
     for (const item of items) {
       if (item.position) {
-        const x = offsetX + item.position.x * mmTile + Math.floor(mmTile / 4);
-        const y = offsetY + item.position.y * mmTile + Math.floor(mmTile / 4);
-        const size = Math.max(1, Math.floor(mmTile / 4));
+        const x = offsetX + item.position.x * mmTile;
+        const y = offsetY + item.position.y * mmTile;
         
-        mm.fillRect(x, y, size, size);
+        // 理想の形（0110, 1111, 1111, 0110）を描画
+        mm.fillStyle = '#0ad4e1'; // 水色
+        
+        // 1行目: 0110
+        mm.fillRect(x + 1, y + 0, 2, 1);
+        
+        // 2行目: 1111
+        mm.fillRect(x + 0, y + 1, 4, 1);
+        
+        // 3行目: 1111
+        mm.fillRect(x + 0, y + 2, 4, 1);
+        
+        // 4行目: 0110
+        mm.fillRect(x + 1, y + 3, 2, 1);
         
         // デバッグ用：アイテム位置をコンソールに表示
         console.log(`[DEBUG] アイテム位置: ${item.id} at (${item.position.x}, ${item.position.y})`);
@@ -1095,23 +1119,35 @@ export class CanvasRenderer {
     // ダンジョン内の全エンティティを取得し、モンスターをフィルタリング
     const allEntities = this.dungeonManager.getAllEntities();
     const monsters = allEntities.filter(entity => {
-      // モンスターかどうかを判定（名前やIDで判定）
-      return entity.id.includes('monster') || entity.id.includes('enemy') || 
+      // モンスターかどうかを判定（クラス名、ID、名前で判定）
+      return (entity as any).constructor?.name === 'MonsterEntity' ||
+             entity.id.includes('monster') || entity.id.includes('enemy') || 
              (entity as any).name?.includes('モンスター') || (entity as any).name?.includes('敵');
     });
 
     console.log('[DEBUG] 透視効果: モンスター数:', monsters.length);
     console.log('[DEBUG] 透視効果: モンスター詳細:', monsters);
 
-    // モンスターを小さな点で表示
-    mm.fillStyle = '#ff4444'; // 赤色
+    // モンスターを表示（4x4ピクセルをフル活用）
     for (const monster of monsters) {
       if (monster.position) {
-        const x = offsetX + monster.position.x * mmTile + Math.floor(mmTile / 4);
-        const y = offsetY + monster.position.y * mmTile + Math.floor(mmTile / 4);
-        const size = Math.max(1, Math.floor(mmTile / 4));
+        const x = offsetX + monster.position.x * mmTile;
+        const y = offsetY + monster.position.y * mmTile;
         
-        mm.fillRect(x, y, size, size);
+        // 理想の形（0110, 1111, 1111, 0110）を描画
+        mm.fillStyle = '#da1809'; // 赤色
+        
+        // 1行目: 0110
+        mm.fillRect(x + 1, y + 0, 2, 1);
+        
+        // 2行目: 1111
+        mm.fillRect(x + 0, y + 1, 4, 1);
+        
+        // 3行目: 1111
+        mm.fillRect(x + 0, y + 2, 4, 1);
+        
+        // 4行目: 0110
+        mm.fillRect(x + 1, y + 3, 2, 1);
         
         // デバッグ用：モンスター位置をコンソールに表示
         console.log(`[DEBUG] モンスター位置: ${monster.id} at (${monster.position.x}, ${monster.position.y})`);
@@ -1126,6 +1162,7 @@ export class CanvasRenderer {
     this.clairvoyanceActive = true;
     this.activeEffectsFloor = floor;
     console.log(`[DEBUG] 千里眼効果有効化: フロア${floor}`);
+    console.log(`[DEBUG] 千里眼効果状態: ${this.clairvoyanceActive}`);
     
     // ミニマップが接続されている場合は即座に更新
     this.forceMinimapUpdate();
@@ -1190,6 +1227,7 @@ export class CanvasRenderer {
     this.monsterVisionActive = true;
     this.activeEffectsFloor = floor;
     console.log(`[DEBUG] 透視効果有効化: フロア${floor}`);
+    console.log(`[DEBUG] 透視効果状態: ${this.monsterVisionActive}`);
     
     // ミニマップが接続されている場合は即座に更新
     this.forceMinimapUpdate();

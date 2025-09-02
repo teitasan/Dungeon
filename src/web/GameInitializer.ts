@@ -368,7 +368,7 @@ export class GameInitializer {
   }
 
   private async addTestItems(systems: GameSystems, player: PlayerEntity, spawn: Position): Promise<void> {
-    // テスト用アイテムを初期インベントリに追加（レミーラ5個）
+    // テスト用アイテムを初期インベントリに追加（レミーラ5個 + 透視3個 + 千里眼2個）
     const testItems = [
       {
         id: 'scroll-remilla-1',
@@ -394,6 +394,31 @@ export class GameInitializer {
         id: 'scroll-remilla-5',
         name: 'レミーラの巻物',
         effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
+      },
+      {
+        id: 'scroll-monster-vision-1',
+        name: '透視の巻物',
+        effect: { type: 'reveal-monsters', value: 1, description: 'フロア全体のモンスターの位置を表示' }
+      },
+      {
+        id: 'scroll-monster-vision-2',
+        name: '透視の巻物',
+        effect: { type: 'reveal-monsters', value: 1, description: 'フロア全体のモンスターの位置を表示' }
+      },
+      {
+        id: 'scroll-monster-vision-3',
+        name: '透視の巻物',
+        effect: { type: 'reveal-monsters', value: 1, description: 'フロア全体のモンスターの位置を表示' }
+      },
+      {
+        id: 'scroll-clairvoyance-1',
+        name: '千里眼の巻物',
+        effect: { type: 'reveal-items', value: 1, description: 'フロア全体のアイテムの位置を表示' }
+      },
+      {
+        id: 'scroll-clairvoyance-2',
+        name: '千里眼の巻物',
+        effect: { type: 'reveal-items', value: 1, description: 'フロア全体のアイテムの位置を表示' }
       }
     ];
 
