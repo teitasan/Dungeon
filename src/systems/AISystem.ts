@@ -104,14 +104,6 @@ export class AISystem {
 
     const state = this.getOrCreateAIState(entity);
     
-    // Check decision cooldown
-    const currentTime = Date.now();
-    if (currentTime - state.lastDecisionTime < config.decisionCooldown) {
-      return { action: 'wait', priority: 0 };
-    }
-
-    state.lastDecisionTime = currentTime;
-
     // Get behavior type (check for override)
     const behaviorType = state.behaviorOverride || config.type;
 
