@@ -4,6 +4,7 @@ import type { GameSystems } from './GameInitializer.js';
 import type { PlayerEntity } from '../entities/Player.js';
 import type { UIManager } from './ui/UIManager.js';
 import { ItemEntity } from '../entities/Item.js';
+import { MonsterEntity } from '../entities/Monster.js';
 
 
 export class InputHandler {
@@ -17,7 +18,7 @@ export class InputHandler {
   private turnStartTime = 0;
   private movementInProgress = false;
   private lastMovementTime = 0;
-  private turnMode = false; // Cキー押下中は方向転換モード
+  private turnMode = false; // 方向転換モード（トグル）
   private shiftDiagonalOnly = false; // Shift押下中は斜め移動のみ許可
 
   // 方向転換用に、現在の矢印ビットから向きを更新する
@@ -131,12 +132,18 @@ export class InputHandler {
           if (this.turnMode) this.updateDirectionFromBits();
           break;
         case 'c':
-        case 'C':
-          this.turnMode = true; // 方向転換モードON
+        case 'C': {
+          // トグルで方向転換モードを切り替え
+          this.turnMode = !this.turnMode;
           if (this.systems.renderer && this.systems.renderer.setTurnCursorActive) {
-            this.systems.renderer.setTurnCursorActive(true);
+            this.systems.renderer.setTurnCursorActive(this.turnMode);
+          }
+          // モードON直後、隣接に敵がいればその方向を向く
+          if (this.turnMode) {
+            this.faceAdjacentEnemyIfAny();
           }
           break;
+        }
         case 'Shift':
           this.shiftDiagonalOnly = true; // 斜め移動のみ
           break;
@@ -155,13 +162,7 @@ export class InputHandler {
         case 'ArrowRight':
           this.keyPress &= ~this.KEY_RIGHT;
           break;
-        case 'c':
-        case 'C':
-          this.turnMode = false; // 方向転換モードOFF
-          if (this.systems.renderer && this.systems.renderer.setTurnCursorActive) {
-            this.systems.renderer.setTurnCursorActive(false);
-          }
-          break;
+        // Cキーのkeyupでは何もしない（トグル方式）
         case 'Shift':
           this.shiftDiagonalOnly = false;
           break;
@@ -241,6 +242,8 @@ export class InputHandler {
     const result = this.systems.itemSystem.throwItem(this.player, targetItem.id, dir as any);
     
     if (result.success) {
+      // 行動時は方向転換モードを解除
+      this.exitTurnMode();
       // ターンを消費し、連打での多重実行を防ぐ
       this.canAttack = false;
       this.onPlayerAction('item', true, result);
@@ -317,6 +320,8 @@ export class InputHandler {
         if (result.message) this.uiManager.addMessageWithAnimation(result.message);
         this.onRender();
         if (result.success) {
+          // 行動時は方向転換モードを解除
+          this.exitTurnMode();
           this.setInventoryOpen(false);
           this.renderInventory();
           this.onPlayerAction('item', true);
@@ -328,6 +333,8 @@ export class InputHandler {
         if (throwResult.message) this.uiManager.addMessageWithAnimation(throwResult.message);
         this.onRender();
         if (throwResult.success) {
+          // 行動時は方向転換モードを解除
+          this.exitTurnMode();
           this.setInventoryOpen(false);
           this.renderInventory();
           this.onPlayerAction('item', true, throwResult);
@@ -338,6 +345,8 @@ export class InputHandler {
         if (dropResult.message) this.uiManager.addMessageWithAnimation(dropResult.message);
         this.onRender();
         if (dropResult.success) {
+          // 行動時は方向転換モードを解除
+          this.exitTurnMode();
           this.setInventoryOpen(false);
           this.renderInventory();
           this.onPlayerAction('item', true, dropResult);
@@ -375,22 +384,33 @@ export class InputHandler {
       
       if (target && target.id !== this.player.id) {
         console.log(`[DEBUG] 攻撃試行: プレイヤー(${this.player.id}) -> ターゲット(${target.id})`);
-        
-        // CombatSystemを使用
-        const attackResult = this.systems.combatSystem.executeAttack({
+
+        // 攻撃範囲チェック込みで実行（角抜け斜めは不可）
+        const action = this.systems.combatSystem.attemptAttackWithActionResult({
           attacker: this.player,
           defender: target,
           attackType: 'melee'
         });
-        
-        console.log(`[DEBUG] 攻撃結果:`, attackResult);
-        
-        if (attackResult.success) {
-          this.uiManager.addMessageWithAnimation(`攻撃成功！${target.id}に${attackResult.damage}ダメージ`);
+
+        console.log(`[DEBUG] 攻撃ActionResult:`, action);
+
+        if (action.success) {
+          const dmg = action.data?.actualDamage ?? action.data?.damage;
+          if (typeof dmg === 'number') {
+            this.uiManager.addMessageWithAnimation(`攻撃成功！${target.id}に${dmg}ダメージ`);
+          } else {
+            this.uiManager.addMessageWithAnimation(`攻撃成功！`);
+          }
           this.canAttack = false; // 攻撃フラグをリセット
+          // 行動時は方向転換モードを解除
+          this.exitTurnMode();
           this.onPlayerAction('attack', true);
         } else {
-          this.uiManager.addMessageWithAnimation(`攻撃失敗: ${attackResult.message}`);
+          // 範囲外や角抜け等も「空振り」としてターン消費
+          this.uiManager.addMessageWithAnimation('空振り！');
+          this.canAttack = false;
+          this.exitTurnMode();
+          this.onPlayerAction('attack', true);
         }
       } else {
         console.log(`[DEBUG] ターゲットがプレイヤー自身のため攻撃スキップ`);
@@ -400,6 +420,8 @@ export class InputHandler {
       console.log(`[DEBUG] 空振り実行: プレイヤー(${this.player.id})`);
       this.uiManager.addMessageWithAnimation('空振り！');
       this.canAttack = false; // 攻撃フラグをリセット
+      // 行動時は方向転換モードを解除
+      this.exitTurnMode();
       this.onPlayerAction('attack', true); // 空振りでもターン消費
     }
     
@@ -640,6 +662,45 @@ export class InputHandler {
   public resetKeyState(): void {
     this.keyPress = 0;
     this.keyTrg = 0;
+  }
+
+  // 行動などで方向転換モードを終了する共通処理
+  private exitTurnMode(): void {
+    if (this.turnMode) {
+      this.turnMode = false;
+      if (this.systems.renderer && this.systems.renderer.setTurnCursorActive) {
+        this.systems.renderer.setTurnCursorActive(false);
+      }
+    }
+  }
+
+  // 隣接8方向に敵がいれば、その方向を向く
+  private faceAdjacentEnemyIfAny(): void {
+    const pos = this.player.position;
+    const directions: Array<{
+      name: 'north' | 'northeast' | 'east' | 'southeast' | 'south' | 'southwest' | 'west' | 'northwest';
+      dx: number; dy: number;
+    }> = [
+      { name: 'north', dx: 0, dy: -1 },
+      { name: 'northeast', dx: 1, dy: -1 },
+      { name: 'east', dx: 1, dy: 0 },
+      { name: 'southeast', dx: 1, dy: 1 },
+      { name: 'south', dx: 0, dy: 1 },
+      { name: 'southwest', dx: -1, dy: 1 },
+      { name: 'west', dx: -1, dy: 0 },
+      { name: 'northwest', dx: -1, dy: -1 },
+    ];
+
+    for (const dir of directions) {
+      const checkPos = { x: pos.x + dir.dx, y: pos.y + dir.dy };
+      const entities = this.systems.dungeonManager.getEntitiesAt(checkPos);
+      // アイテムを除外し、モンスターがいれば採用
+      const hasEnemy = entities.some(e => e instanceof MonsterEntity);
+      if (hasEnemy) {
+        this.player.direction = dir.name;
+        return;
+      }
+    }
   }
 
   // 8方向の移動方向をPositionに変換する関数

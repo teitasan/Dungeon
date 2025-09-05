@@ -393,8 +393,12 @@ export class CombatSystem {
     
     if (attackerStats.hp <= 0) return false;
     if (targetStats.hp <= 0) return false;
-
-    // TODO: Add range checks, line of sight, etc.
+    // 近接レンジ・角抜け禁止のチェック（DungeonManagerがある場合）
+    if (this.dungeonManager) {
+      if (!this.isInAttackRange(attacker, target)) {
+        return false;
+      }
+    }
     
     return true;
   }
