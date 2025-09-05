@@ -1,0 +1,217 @@
+{
+  "turnSystem": {
+    "phases": [
+      {
+        "phase": "turn-start",
+        "description": "ターン開始処理（ターン数カウント、新規敵出現）",
+        "conditions": []
+      },
+      {
+        "phase": "player-action-1",
+        "description": "プレイヤー1回目行動（移動、攻撃、アイテム使用）",
+        "conditions": []
+      },
+      {
+        "phase": "enemy-action-1",
+        "description": "敵1回目行動（移動・攻撃）",
+        "conditions": []
+      },
+      {
+        "phase": "ally-action-1",
+        "description": "味方1回目行動（移動・攻撃）",
+        "conditions": []
+      },
+      {
+        "phase": "trap-processing-1",
+        "description": "1回目行動後の罠処理",
+        "conditions": []
+      },
+      {
+        "phase": "mid-turn-recovery",
+        "description": "中間回復処理（倍速者のみ）",
+        "conditions": ["fast-entities-only"]
+      },
+      {
+        "phase": "player-action-2",
+        "description": "プレイヤー2回目行動（倍速のみ）",
+        "conditions": ["player-is-fast"]
+      },
+      {
+        "phase": "enemy-action-2",
+        "description": "敵2回目行動（倍速のみ）",
+        "conditions": ["enemy-is-fast"]
+      },
+      {
+        "phase": "ally-action-2",
+        "description": "味方2回目行動（倍速のみ）",
+        "conditions": ["ally-is-fast"]
+      },
+      {
+        "phase": "trap-processing-2",
+        "description": "2回目行動後の罠処理",
+        "conditions": []
+      },
+      {
+        "phase": "end-turn-recovery",
+        "description": "ターン終了時の回復処理",
+        "conditions": []
+      },
+      {
+        "phase": "end-turn",
+        "description": "ターン終了処理",
+        "conditions": []
+      }
+    ],
+    "speedSystem": {
+      "normal": {
+        "action1": {
+          "enabled": true,
+          "canMove": true,
+          "canAttack": true,
+          "canUseItem": true
+        },
+        "action2": {
+          "enabled": false,
+          "canMove": false,
+          "canAttack": false,
+          "canUseItem": false
+        },
+        "description": "通常速度（1回目行動のみ）"
+      },
+      "fast": {
+        "action1": {
+          "enabled": true,
+          "canMove": true,
+          "canAttack": true,
+          "canUseItem": true
+        },
+        "action2": {
+          "enabled": true,
+          "canMove": true,
+          "canAttack": true,
+          "canUseItem": true,
+          "adjacentRule": true
+        },
+        "description": "倍速（2回行動、隣接時は2回目の移動・攻撃をスキップ）"
+      },
+      "slow": {
+        "action1": {
+          "enabled": false,
+          "canMove": false,
+          "canAttack": false,
+          "canUseItem": false,
+          "skipTurns": 1
+        },
+        "action2": {
+          "enabled": false,
+          "canMove": false,
+          "canAttack": false,
+          "canUseItem": false
+        },
+        "description": "鈍足（2ターンに1回、強制的に待機）"
+      }
+    },
+    "endTurnProcessing": [
+      {
+        "process": "death-check",
+        "order": 1,
+        "description": "死亡エンティティのチェックと削除"
+      },
+      {
+        "process": "status-recovery",
+        "order": 2,
+        "description": "状態異常の回復判定"
+      },
+      {
+        "process": "slip-damage",
+        "order": 3,
+        "description": "毒などのスリップダメージ"
+      },
+      {
+        "process": "hunger-decrease",
+        "order": 4,
+        "description": "満腹度の減少"
+      }
+    ]
+  },
+  "combat": {
+    "baseDamageFormula": "{attack * 1.3 * (35/36)^defense} * random(7/8, 9/8)",
+    "minDamage": 1,
+    "randomRange": {
+      "min": 0.875,
+      "max": 1.125
+    },
+    "defenseReductionBase": 0.9722222222222222,
+    "attackMultiplier": 1.3,
+    "criticalChance": 0.05,
+    "criticalEffect": "defense-ignore",
+    "criticalFormula": "{attack * 1.3} * random(7/8, 9/8)",
+    "evasionEnabled": true,
+    "baseEvasionRate": 0.05,
+    "evasionEffect": "damage-zero",
+    "evasionTiming": "pre-damage",
+    "unavoidableAttackFlag": false,
+    "attributeDamageEnabled": true
+  },
+  "ui": {
+    "fonts": {
+      "primary": "PixelMplus",
+      "secondary": "PixelMplus12",
+      "fallback": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+    },
+    "viewport": {
+      "tilesX": 20,
+      "tilesY": 9,
+      "tileSize": 32
+    },
+    "minimap": {
+      "width": 240,
+      "height": 180,
+      "playerSize": 0.8,
+      "playerColor": "#FFFFFF",
+      "colors": {
+        "stairs-down": "#87CEEB",
+        "stairs-up": "#87CEEB"
+      }
+    },
+    "layout": {
+      "maxWidth": 1180,
+      "gridTemplateColumns": "1fr",
+      "gridTemplateRows": "auto auto"
+    },
+    "messages": {
+      "maxLines": 5
+    }
+  },
+  "input": {
+    "keys": {
+      "movement": {
+        "up": ["ArrowUp", "w", "W"],
+        "down": ["ArrowDown", "s", "S"],
+        "left": ["ArrowLeft", "a", "A"],
+        "right": ["ArrowRight", "d", "D"],
+        "northeast": ["e", "E"],
+        "southeast": ["c", "C"],
+        "southwest": ["z", "Z"],
+        "northwest": ["q", "Q"]
+      },
+      "actions": {
+        "confirm": ["z", "Z", "Enter"],
+        "cancel": ["x", "X", "Escape"],
+        "inventory": ["i", "I"]
+      }
+    }
+  },
+  "messages": {
+    "ui": {
+      "cancel": "キャンセル",
+      "attackMiss": "空振りした",
+      "stairsConfirmDown": "次の階へ進みますか？",
+      "stairsConfirmUp": "前の階へ戻りますか？",
+      "stairsAdvanceDown": "次の階へ進んだ",
+      "stairsAdvanceUp": "前の階へ戻った",
+      "stairsDecline": "いいえを選んだ",
+      "itemUseUnimplemented": "決定: アイテム使用は未実装"
+    }
+  }
+}
