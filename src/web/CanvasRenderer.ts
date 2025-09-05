@@ -216,12 +216,8 @@ export class CanvasRenderer {
    * Check if entity is a monster
    */
   private isMonster(entity: any): boolean {
-    // モンスター判定
-    const isMonster = entity && 
-      entity.monsterType !== undefined && 
-      entity.aiType !== undefined;
-    
-    return isMonster;
+    // モンスター判定（aiType は廃止）
+    return !!(entity && entity.monsterType !== undefined);
   }
 
   /**

@@ -8,23 +8,13 @@ import { CompanionEntity } from '../entities/Companion';
 import { PlayerEntity } from '../entities/Player';
 import { ItemEntity } from '../entities/Item';
 import { Position } from '../types/core';
+import { MovementPattern, MovementPatternConfig } from '../types/ai';
 import { DungeonManager } from '../dungeon/DungeonManager';
 import { MovementSystem } from './MovementSystem';
 import { CombatSystem } from './CombatSystem';
 import { TurnSystem } from './TurnSystem';
 
 // AI behavior types
-export type AIBehaviorType = 
-  | 'aggressive' 
-  | 'defensive' 
-  | 'passive' 
-  | 'patrol' 
-  | 'guard' 
-  | 'follow' 
-  | 'flee' 
-  | 'random';
-
-// AI action types
 export type AIActionType = 'move' | 'attack' | 'wait' | 'use-item' | 'special';
 
 // AI decision result
@@ -37,16 +27,6 @@ export interface AIDecision {
 }
 
 // AI behavior configuration
-export interface AIBehaviorConfig {
-  type: AIBehaviorType;
-  aggroRange: number;
-  attackRange: number;
-  fleeThreshold: number; // HP percentage to start fleeing
-  patrolRadius: number;
-  followDistance: number;
-  decisionCooldown: number;
-}
-
 // AI state
 export interface AIState {
   target?: GameEntity;
@@ -56,9 +36,9 @@ export interface AIState {
   currentPatrolIndex: number;
   aggroLevel: number;
   lastDecisionTime: number;
-  behaviorOverride?: AIBehaviorType;
   lastDecision: AIDecision | null; // 前回の決定をキャッシュ
   lastTurnProcessed?: number; // 最後に処理したターン番号
+  warpCooldownLeft?: number; // ワープの簡易クールダウン
 }
 
 export class AISystem {
@@ -67,7 +47,6 @@ export class AISystem {
   private combatSystem: CombatSystem;
   private turnSystem: TurnSystem;
   private aiStates: Map<string, AIState> = new Map();
-  private behaviorConfigs: Map<string, AIBehaviorConfig> = new Map();
 
   constructor(
     dungeonManager: DungeonManager,
@@ -79,7 +58,6 @@ export class AISystem {
     this.movementSystem = movementSystem;
     this.combatSystem = combatSystem;
     this.turnSystem = turnSystem;
-    this.initializeDefaultBehaviors();
   }
 
   /**
@@ -96,19 +74,13 @@ export class AISystem {
       return null;
     }
 
-    const aiType = this.getAIType(entity);
-    const config = this.behaviorConfigs.get(aiType);
-    if (!config) {
-      return null;
-    }
-
     const state = this.getOrCreateAIState(entity);
-    
-    // Get behavior type (check for override)
-    const behaviorType = state.behaviorOverride || config.type;
 
-    // Make decision based on behavior
-    const decision = this.makeDecision(entity, config, state, behaviorType);
+    // 新: 7種の移動パターンに一本化
+    const pattern = this.getMovementPattern(entity);
+    const patternConfig = this.getMovementConfig(entity, pattern);
+
+    const decision = this.makePatternDecision(entity, state, pattern, patternConfig);
     
     // Update AI state based on decision
     this.updateAIState(entity, state, decision);
@@ -119,402 +91,181 @@ export class AISystem {
   /**
    * Make AI decision based on behavior type
    */
-  private makeDecision(
+  // 旧ビヘイビア分岐は削除済み（新パターンのみ）
+
+  /**
+   * 7種の移動パターンに基づく意思決定
+   */
+  private makePatternDecision(
     entity: GameEntity,
-    config: AIBehaviorConfig,
     state: AIState,
-    behaviorType: AIBehaviorType
+    pattern: MovementPattern,
+    cfg: MovementPatternConfig
   ): AIDecision {
-    switch (behaviorType) {
-      case 'aggressive':
-        return this.makeAggressiveDecision(entity, config, state);
-      case 'defensive':
-        return this.makeDefensiveDecision(entity, config, state);
-      case 'passive':
-        return this.makePassiveDecision(entity, config, state);
-      case 'patrol':
-        return this.makePatrolDecision(entity, config, state);
-      case 'guard':
-        return this.makeGuardDecision(entity, config, state);
-      case 'follow':
-        return this.makeFollowDecision(entity, config, state);
-      case 'flee':
-        return this.makeFleeDecision(entity, config, state);
+    // 目標（敵 or 追従対象）を決定
+    const target = this.resolvePatternTarget(entity, pattern);
+
+    // 可能なら攻撃を優先（接近系・一定距離系など対象ありの場合）
+    if (target && this.isInAttackRange(entity, target) && this.combatSystem.canAttack(entity, target)) {
+      return { action: 'attack', target, priority: 10 };
+    }
+
+    switch (pattern) {
+      case 'idle':
+        return { action: 'wait', priority: 1 };
+      case 'random': {
+        const moveProb = cfg.moveProbability ?? 0.5;
+        if (Math.random() < moveProb) {
+          const pos = this.getRandomAdjacentPosition(entity.position);
+          if (pos) return { action: 'move', position: pos, priority: 3 };
+        }
+        return { action: 'wait', priority: 1 };
+      }
+      case 'approach': {
+        if (!target) return { action: 'wait', priority: 1 };
+        const next = this.getNextStepByPathfind(entity.position, target.position) || this.getNextMoveTowards(entity.position, target.position);
+        if (next) return { action: 'move', position: next, priority: 8 };
+        return { action: 'wait', priority: 2 };
+      }
+      case 'escape': {
+        if (!target) return { action: 'wait', priority: 1 };
+        const fleePos = this.getFleePosition(entity.position, target.position) || this.getRandomAdjacentPosition(entity.position);
+        if (fleePos) return { action: 'move', position: fleePos, priority: 8 };
+        return { action: 'wait', priority: 2 };
+      }
+      case 'keep-distance': {
+        if (!target) return { action: 'wait', priority: 1 };
+        const minD = cfg.minDistance ?? 2;
+        const maxD = cfg.maxDistance ?? 3;
+        const dist = this.getDistance(entity.position, target.position);
+        if (dist < minD) {
+          // 離れる
+          const away = this.getFleePosition(entity.position, target.position) || this.getRandomAdjacentPosition(entity.position);
+          if (away) return { action: 'move', position: away, priority: 7 };
+          return { action: 'wait', priority: 2 };
+        } else if (dist > maxD) {
+          // 近づく
+          const step = this.getNextStepByPathfind(entity.position, target.position) || this.getNextMoveTowards(entity.position, target.position);
+          if (step) return { action: 'move', position: step, priority: 7 };
+          return { action: 'wait', priority: 2 };
+        }
+        // 範囲内なら待機
+        return { action: 'wait', priority: 3 };
+      }
+      case 'patrol': {
+        const points = cfg.patrolPoints && cfg.patrolPoints.length > 0 ? cfg.patrolPoints : state.patrolPoints;
+        if (!points || points.length === 0) {
+          // パトロールポイントが無い場合はランダム移動
+          const pos = this.getRandomAdjacentPosition(entity.position);
+          if (pos) return { action: 'move', position: pos, priority: 4 };
+          return { action: 'wait', priority: 1 };
+        }
+        // 現在の目標ポイントへ
+        const idx = state.currentPatrolIndex % points.length;
+        const goal = points[idx];
+        const dist = this.getDistance(entity.position, goal);
+        if (dist <= 1) {
+          state.currentPatrolIndex = (state.currentPatrolIndex + 1) % points.length;
+        }
+        const step = this.getNextStepByPathfind(entity.position, goal) || this.getNextMoveTowards(entity.position, goal);
+        if (step) return { action: 'move', position: step, priority: 5 };
+        return { action: 'wait', priority: 2 };
+      }
+      case 'warp': {
+        // 簡易クールダウン（ターン制御が無い前提で控えめに）
+        if (state.warpCooldownLeft && state.warpCooldownLeft > 0) {
+          state.warpCooldownLeft -= 1;
+          return { action: 'wait', priority: 1 };
+        }
+        const range = cfg.warpRange ?? 6;
+        const dest = this.selectRandomWarpPosition(entity.position, range);
+        if (dest) {
+          state.warpCooldownLeft = cfg.warpCooldownTicks ?? 3;
+          return { action: 'move', position: dest, priority: 9 };
+        }
+        return { action: 'wait', priority: 1 };
+      }
+    }
+  }
+
+  /** 目標（敵 or 追従対象）を決定 */
+  private resolvePatternTarget(entity: GameEntity, pattern: MovementPattern): GameEntity | null {
+    // Companion の keep-distance はプレイヤーを基準にする
+    if (pattern === 'keep-distance' && entity instanceof CompanionEntity) {
+      return this.findPlayer();
+    }
+    // 敵（Monster）はプレイヤー/味方を敵視
+    if (pattern === 'approach' || pattern === 'escape' || pattern === 'keep-distance') {
+      const target = this.findNearestEnemy(entity, 20) || null;
+      return target;
+    }
+    return null;
+  }
+
+  /** パス探索で次の1歩を返す（なければ null） */
+  private getNextStepByPathfind(from: Position, to: Position): Position | null {
+    const path = this.dungeonManager.findPath(from, to);
+    if (path && path.length > 0) return path[0];
+    return null;
+  }
+
+  /** ワープ先のランダム選定（範囲内・歩行可能・非ブロッキング） */
+  private selectRandomWarpPosition(from: Position, range: number): Position | null {
+    const candidates: Position[] = [];
+    for (let dy = -range; dy <= range; dy++) {
+      for (let dx = -range; dx <= range; dx++) {
+        const pos = { x: from.x + dx, y: from.y + dy };
+        if (!this.dungeonManager.isValidPosition(pos)) continue;
+        if (!this.dungeonManager.isWalkable(pos)) continue;
+        const ents = this.dungeonManager.getEntitiesAt(pos);
+        // アイテム以外がいない
+        const blocking = ents.filter(e => !(e instanceof ItemEntity));
+        if (blocking.length === 0) candidates.push(pos);
+      }
+    }
+    if (candidates.length === 0) return null;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  /** エンティティから移動パターンを取得（aiType互換は廃止） */
+  private getMovementPattern(entity: GameEntity): MovementPattern {
+    const anyEnt = entity as any;
+    if (anyEnt.movementPattern) return anyEnt.movementPattern as MovementPattern;
+
+    // 旧 aiType は廃止。未設定なら 'approach'
+    return 'approach';
+  }
+
+  /** エンティティからパターン設定を取得（無ければデフォルト） */
+  private getMovementConfig(entity: GameEntity, pattern: MovementPattern): MovementPatternConfig {
+    const anyEnt = entity as any;
+    const base: MovementPatternConfig = anyEnt.movementConfig || {};
+    // デフォルト値の補完
+    switch (pattern) {
+      case 'approach':
+        return { desiredRange: 1, decisionCooldown: 100, ...base };
+      case 'escape':
+        return { safeDistance: 4, decisionCooldown: 100, ...base };
+      case 'idle':
+        return { decisionCooldown: 200, ...base };
+      case 'keep-distance':
+        return { minDistance: 2, maxDistance: 3, decisionCooldown: 120, ...base };
       case 'random':
-        return this.makeRandomDecision(entity, config, state);
-      default:
-        return { action: 'wait', priority: 0 };
+        return { moveProbability: 0.6, decisionCooldown: 200, ...base };
+      case 'patrol':
+        return { loop: true, pauseTicks: 0, decisionCooldown: 150, ...base };
+      case 'warp':
+        return { warpRange: 6, warpCooldownTicks: 3, decisionCooldown: 120, ...base };
     }
   }
 
-  /**
-   * Aggressive AI behavior
-   */
-  private makeAggressiveDecision(
-    entity: GameEntity,
-    config: AIBehaviorConfig,
-    state: AIState
-  ): AIDecision {
-    // Find nearest enemy
-    const target = this.findNearestEnemy(entity, config.aggroRange);
-    
-    if (target) {
-      state.target = target;
-      state.lastKnownTargetPosition = target.position;
-      
-      const distance = this.getDistance(entity.position, target.position);
-      
-      console.log(`[AI] ${entity.id}: ターゲット発見 ${target.id} (距離: ${distance})`);
-      
-      // Attack if in range
-      const inRange = this.isInAttackRange(entity, target);
-      const canAttack = this.combatSystem.canAttack(entity, target);
-      console.log(`[AI] ${entity.id}: 攻撃判定 - 範囲内: ${inRange}, 攻撃可能: ${canAttack}, 距離: ${distance}`);
-      
-      if (inRange && canAttack) {
-        console.log(`[AI] ${entity.id}: 攻撃実行 (距離: ${distance})`);
-        // 攻撃決定をAI状態に保存
-        state.lastDecision = {
-          action: 'attack',
-          target,
-          priority: 10
-        };
-        return state.lastDecision;
-      } else if (inRange && !canAttack) {
-        console.log(`[AI] ${entity.id}: 範囲内だが攻撃できない - 理由を調査`);
-      } else if (!inRange) {
-        console.log(`[AI] ${entity.id}: 攻撃範囲外 - 現在(${entity.position.x},${entity.position.y}), 目標(${target.position.x},${target.position.y})`);
-        
-        // 一時的に元の判定も試す
-        if (distance <= config.attackRange && canAttack) {
-          console.log(`[AI] ${entity.id}: 元の判定で攻撃実行 (距離: ${distance})`);
-          // 攻撃決定をAI状態に保存
-          state.lastDecision = {
-            action: 'attack',
-            target,
-            priority: 10
-          };
-          return state.lastDecision;
-        }
-      }
-      
-      // Move towards target
-      const movePosition = this.getNextMoveTowards(entity.position, target.position);
-      if (movePosition) {
-        console.log(`[AI] ${entity.id}: プレイヤーに向かって移動 (${entity.position.x},${entity.position.y}) -> (${movePosition.x},${movePosition.y})`);
-        return {
-          action: 'move',
-          position: movePosition,
-          priority: 8
-        };
-      } else {
-        console.log(`[AI] ${entity.id}: 移動先が見つからない - 現在位置(${entity.position.x},${entity.position.y}), 目標(${target.position.x},${target.position.y})`);
-        // 移動できない理由を調査
-        this.debugMoveFailure(entity.position, target.position);
-        
-        // 移動できない場合は待機（攻撃の準備）
-        return { action: 'wait', priority: 5 };
-      }
-    } else {
-      console.log(`[AI] ${entity.id}: ターゲットが見つからない (範囲: ${config.aggroRange})`);
-    }
-    
-    // No target found, wait or patrol
-    if (entity instanceof MonsterEntity) {
-      // 敵の場合は、ターゲットが見つからなくてもランダムに移動
-      const randomPos = this.getRandomAdjacentPosition(entity.position);
-      if (randomPos) {
-        console.log(`[AI] ${entity.id}: ターゲットなし、ランダム移動 (${entity.position.x},${entity.position.y}) -> (${randomPos.x},${randomPos.y})`);
-        return {
-          action: 'move',
-          position: randomPos,
-          priority: 3
-        };
-      }
-    }
-    
-    return { action: 'wait', priority: 1 };
-  }
+  // 旧 Aggressive AI 行動は削除
 
-  /**
-   * Defensive AI behavior
-   */
-  private makeDefensiveDecision(
-    entity: GameEntity,
-    config: AIBehaviorConfig,
-    state: AIState
-  ): AIDecision {
-    // Check if being attacked
-    const nearbyEnemies = this.findNearbyEnemies(entity, config.aggroRange);
-    
-    if (nearbyEnemies.length > 0) {
-      const target = nearbyEnemies[0];
-      const distance = this.getDistance(entity.position, target.position);
-      
-      // Attack if enemy is very close
-      if (distance <= config.attackRange && this.combatSystem.canAttack(entity, target)) {
-        return {
-          action: 'attack',
-          target,
-          priority: 9
-        };
-      }
-      
-      // Move away from enemy if too close
-      if (distance < config.followDistance) {
-        const fleePosition = this.getFleePosition(entity.position, target.position);
-        if (fleePosition) {
-          return {
-            action: 'move',
-            position: fleePosition,
-            priority: 7
-          };
-        }
-      }
-    }
-    
-    // Return to home position if far away
-    const homeDistance = this.getDistance(entity.position, state.homePosition);
-    if (homeDistance > config.patrolRadius) {
-      const movePosition = this.getNextMoveTowards(entity.position, state.homePosition);
-      if (movePosition) {
-        return {
-          action: 'move',
-          position: movePosition,
-          priority: 5
-        };
-      }
-    }
-    
-    return { action: 'wait', priority: 1 };
-  }
+  // 旧 Defensive 行動は削除
 
-  /**
-   * Follow AI behavior (for companions)
-   */
-  private makeFollowDecision(
-    entity: GameEntity,
-    config: AIBehaviorConfig,
-    state: AIState
-  ): AIDecision {
-    // Find player to follow
-    const player = this.findPlayer();
-    if (!player) {
-      return { action: 'wait', priority: 1 };
-    }
-    
-    const distance = this.getDistance(entity.position, player.position);
-    
-    // Attack nearby enemies if companion is in attack mode
-    if (entity instanceof CompanionEntity && entity.behaviorMode === 'attack') {
-      const nearbyEnemies = this.findNearbyEnemies(entity, config.aggroRange);
-      if (nearbyEnemies.length > 0) {
-        const target = nearbyEnemies[0];
-        const targetDistance = this.getDistance(entity.position, target.position);
-        
-        if (targetDistance <= config.attackRange && this.combatSystem.canAttack(entity, target)) {
-          return {
-            action: 'attack',
-            target,
-            priority: 9
-          };
-        }
-      }
-    }
-    
-    // Follow player if too far
-    if (distance > config.followDistance) {
-      const movePosition = this.getNextMoveTowards(entity.position, player.position);
-      if (movePosition) {
-        return {
-          action: 'move',
-          position: movePosition,
-          priority: 6
-        };
-      }
-    }
-    
-    // Stay close but not too close
-    if (distance < 2) {
-      const positions = this.dungeonManager.getAdjacentPositions(player.position);
-      const validPositions = positions.filter(pos => 
-        this.dungeonManager.isWalkable(pos) && 
-        this.isPositionAvailableForMovement(pos)
-      );
-      
-      if (validPositions.length > 0) {
-        return {
-          action: 'move',
-          position: validPositions[0],
-          priority: 4
-        };
-      }
-    }
-    
-    return { action: 'wait', priority: 1 };
-  }
+  // 旧 Follow/Passive/Patrol 行動は削除
 
-  /**
-   * Passive AI behavior
-   */
-  private makePassiveDecision(
-    entity: GameEntity,
-    config: AIBehaviorConfig,
-    state: AIState
-  ): AIDecision {
-    // Only react if directly attacked
-    const stats = (entity as any).stats;
-    if (stats && stats.hp < stats.maxHp * 0.8) {
-      // Find attacker and flee
-      const nearbyEnemies = this.findNearbyEnemies(entity, config.aggroRange);
-      if (nearbyEnemies.length > 0) {
-        const fleePosition = this.getFleePosition(entity.position, nearbyEnemies[0].position);
-        if (fleePosition) {
-          return {
-            action: 'move',
-            position: fleePosition,
-            priority: 8
-          };
-        }
-      }
-    }
-    
-    return { action: 'wait', priority: 1 };
-  }
-
-  /**
-   * Patrol AI behavior
-   */
-  private makePatrolDecision(
-    entity: GameEntity,
-    config: AIBehaviorConfig,
-    state: AIState
-  ): AIDecision {
-    // Check for enemies first
-    const target = this.findNearestEnemy(entity, config.aggroRange);
-    if (target) {
-      const distance = this.getDistance(entity.position, target.position);
-      if (distance <= config.attackRange && this.combatSystem.canAttack(entity, target)) {
-        return {
-          action: 'attack',
-          target,
-          priority: 10
-        };
-      }
-    }
-    
-    // Continue patrol
-    if (state.patrolPoints.length > 0) {
-      const currentTarget = state.patrolPoints[state.currentPatrolIndex];
-      const distance = this.getDistance(entity.position, currentTarget);
-      
-      if (distance <= 1) {
-        // Reached patrol point, move to next
-        state.currentPatrolIndex = (state.currentPatrolIndex + 1) % state.patrolPoints.length;
-      }
-      
-      const movePosition = this.getNextMoveTowards(entity.position, currentTarget);
-      if (movePosition) {
-        return {
-          action: 'move',
-          position: movePosition,
-          priority: 5
-        };
-      }
-    }
-    
-    return { action: 'wait', priority: 1 };
-  }
-
-  /**
-   * Guard AI behavior
-   */
-  private makeGuardDecision(
-    entity: GameEntity,
-    config: AIBehaviorConfig,
-    state: AIState
-  ): AIDecision {
-    // Attack enemies in range
-    const target = this.findNearestEnemy(entity, config.aggroRange);
-    if (target) {
-      const distance = this.getDistance(entity.position, target.position);
-      if (distance <= config.attackRange && this.combatSystem.canAttack(entity, target)) {
-        return {
-          action: 'attack',
-          target,
-          priority: 10
-        };
-      }
-    }
-    
-    // Return to guard position if too far
-    const homeDistance = this.getDistance(entity.position, state.homePosition);
-    if (homeDistance > 2) {
-      const movePosition = this.getNextMoveTowards(entity.position, state.homePosition);
-      if (movePosition) {
-        return {
-          action: 'move',
-          position: movePosition,
-          priority: 6
-        };
-      }
-    }
-    
-    return { action: 'wait', priority: 1 };
-  }
-
-  /**
-   * Flee AI behavior
-   */
-  private makeFleeDecision(
-    entity: GameEntity,
-    config: AIBehaviorConfig,
-    state: AIState
-  ): AIDecision {
-    const nearbyEnemies = this.findNearbyEnemies(entity, config.aggroRange);
-    
-    if (nearbyEnemies.length > 0) {
-      // Flee from nearest enemy
-      const fleePosition = this.getFleePosition(entity.position, nearbyEnemies[0].position);
-      if (fleePosition) {
-        return {
-          action: 'move',
-          position: fleePosition,
-          priority: 9
-        };
-      }
-    }
-    
-    return { action: 'wait', priority: 1 };
-  }
-
-  /**
-   * Random AI behavior
-   */
-  private makeRandomDecision(
-    entity: GameEntity,
-    config: AIBehaviorConfig,
-    state: AIState
-  ): AIDecision {
-    const randomPos = this.getRandomAdjacentPosition(entity.position) || undefined;
-    const actions: AIDecision[] = [
-      { action: 'wait', priority: 3 },
-      { action: 'move', position: randomPos, priority: 2 }
-    ];
-    
-    // Sometimes attack if enemies nearby
-    const nearbyEnemies = this.findNearbyEnemies(entity, config.attackRange);
-    if (nearbyEnemies.length > 0 && Math.random() < 0.3) {
-      actions.push({
-        action: 'attack',
-        target: nearbyEnemies[0],
-        priority: 5
-      });
-    }
-    
-    // Return random action
-    return actions[Math.floor(Math.random() * actions.length)];
-  }
+  // 旧 Guard/Flee/Random 行動は削除
 
   /**
    * Find nearest enemy
@@ -899,40 +650,13 @@ export class AISystem {
    * Check if entity has AI support
    */
   private hasAISupport(entity: GameEntity): boolean {
-    return 'aiType' in entity;
+    return entity instanceof MonsterEntity || entity instanceof CompanionEntity;
   }
 
   /**
    * Get AI type from entity
    */
-  private getAIType(entity: GameEntity): string {
-    return (entity as any).aiType || 'passive';
-  }
-
-  /**
-   * Register AI behavior configuration
-   */
-  registerBehavior(aiType: string, config: AIBehaviorConfig): void {
-    this.behaviorConfigs.set(aiType, config);
-  }
-
-  /**
-   * Set behavior override for entity
-   */
-  setBehaviorOverride(entity: GameEntity, behavior: AIBehaviorType): void {
-    const state = this.getOrCreateAIState(entity);
-    state.behaviorOverride = behavior;
-  }
-
-  /**
-   * Clear behavior override for entity
-   */
-  clearBehaviorOverride(entity: GameEntity): void {
-    const state = this.aiStates.get(entity.id);
-    if (state) {
-      state.behaviorOverride = undefined;
-    }
-  }
+  // 旧 API（aiType やビヘイビア設定）は削除
 
   /**
    * Process entity movement based on AI decision
@@ -1115,73 +839,7 @@ export class AISystem {
   /**
    * Initialize default AI behaviors
    */
-  private initializeDefaultBehaviors(): void {
-    // Aggressive monster (プレイヤーを積極的に追跡・攻撃)
-    this.registerBehavior('aggressive', {
-      type: 'aggressive',
-      aggroRange: 12,       // より遠くからプレイヤーを発見
-      attackRange: 1,        // 隣接時のみ攻撃
-      fleeThreshold: 0.1,    // ほぼ逃げない
-      patrolRadius: 0,       // パトロールしない
-      followDistance: 1,     // プレイヤーに近づく
-      decisionCooldown: 100  // より頻繁に行動
-    });
-
-    // Simple aggressive monster (シンプルで分かりやすい行動)
-    this.registerBehavior('simple-aggressive', {
-      type: 'aggressive',
-      aggroRange: 15,       // 非常に遠くからプレイヤーを発見
-      attackRange: 1,        // 隣接時のみ攻撃
-      fleeThreshold: 0.05,   // ほぼ絶対に逃げない
-      patrolRadius: 0,       // パトロールしない
-      followDistance: 1,     // プレイヤーに近づく
-      decisionCooldown: 50   // 非常に頻繁に行動
-    });
-
-    // Basic hostile monster (後方互換性のため残す)
-    this.registerBehavior('basic-hostile', {
-      type: 'aggressive',
-      aggroRange: 5,
-      attackRange: 1,
-      fleeThreshold: 0.2,
-      patrolRadius: 3,
-      followDistance: 2,
-      decisionCooldown: 500
-    });
-
-    // Defensive monster
-    this.registerBehavior('defensive', {
-      type: 'defensive',
-      aggroRange: 3,
-      attackRange: 1,
-      fleeThreshold: 0.3,
-      patrolRadius: 2,
-      followDistance: 3,
-      decisionCooldown: 600
-    });
-
-    // Companion follow
-    this.registerBehavior('companion-follow', {
-      type: 'follow',
-      aggroRange: 4,
-      attackRange: 1,
-      fleeThreshold: 0.1,
-      patrolRadius: 0,
-      followDistance: 3,
-      decisionCooldown: 400
-    });
-
-    // Passive creature
-    this.registerBehavior('passive-neutral', {
-      type: 'passive',
-      aggroRange: 2,
-      attackRange: 1,
-      fleeThreshold: 0.5,
-      patrolRadius: 1,
-      followDistance: 0,
-      decisionCooldown: 1000
-    });
-  }
+  // 旧デフォルトビヘイビアは削除
 
   /**
    * Check if an entity is alive

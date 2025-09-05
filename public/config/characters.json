@@ -177,7 +177,7 @@
           "defense": 2,
           "evasionRate": 0.05
         },
-        "aiType": "simple-aggressive",
+        "movementPattern": "approach",
         "experienceValue": 15,
         "dropRate": 0.3,
         "dropTableId": "common-drops",
@@ -197,7 +197,8 @@
           "defense": 4,
           "evasionRate": 0.08
         },
-        "aiType": "aggressive-chase",
+        "movementPattern": "approach",
+        "movementConfig": { "minDistance": 1, "maxDistance": 2 },
         "experienceValue": 35,
         "dropRate": 0.6,
         "dropTableId": "common-drops",
@@ -217,7 +218,8 @@
           "defense": 8,
           "evasionRate": 0.12
         },
-        "aiType": "boss-aggressive",
+        "movementPattern": "approach",
+        "movementConfig": { "minDistance": 1, "maxDistance": 2 },
         "experienceValue": 100,
         "dropRate": 1.0,
         "dropTableId": "common-drops",

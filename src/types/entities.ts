@@ -4,6 +4,7 @@
  */
 
 import { GameEntity, Position, Component, EntityStats, EntityFlags } from './core';
+import { MovementPattern, MovementPatternConfig } from './ai';
 
 // Re-export core GameEntity for modules that import from types/entities
 export { GameEntity } from './core';
@@ -79,7 +80,8 @@ export interface Monster extends GameEntity {
   monsterType: string;
   stats: CharacterStats;
   attributes: CharacterAttributes;
-  aiType: string;
+  movementPattern?: MovementPattern;
+  movementConfig?: MovementPatternConfig;
   dropTable: DropTableEntry[];
   spawnWeight: number;
   spawnConditions: SpawnCondition[];
@@ -93,7 +95,8 @@ export interface Companion extends GameEntity {
   companionType: string;
   stats: CharacterStats;
   attributes: CharacterAttributes;
-  aiType: string;
+  movementPattern?: MovementPattern;
+  movementConfig?: MovementPatternConfig;
   behaviorMode: 'follow' | 'attack' | 'defend' | 'explore' | 'wait';
   equipment: {
     weapon?: Item;

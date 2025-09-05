@@ -5,13 +5,15 @@
 import { Position, Component, EntityFlags } from '../types/core';
 import { Companion, CharacterStats, CharacterAttributes, StatusEffect, Item } from '../types/entities';
 import { BaseGameEntity, createDefaultCharacterStats, createDefaultCharacterAttributes } from './GameEntity';
+import { MovementPattern, MovementPatternConfig } from '../types/ai';
 
 export class CompanionEntity extends BaseGameEntity implements Companion {
   public name: string;
   public companionType: string;
   public stats: CharacterStats;
   public attributes: CharacterAttributes;
-  public aiType: string;
+  public movementPattern?: MovementPattern;
+  public movementConfig?: MovementPatternConfig;
   public behaviorMode: 'follow' | 'attack' | 'defend' | 'explore' | 'wait';
   public equipment: {
     weapon?: Item;
@@ -27,7 +29,8 @@ export class CompanionEntity extends BaseGameEntity implements Companion {
     position: Position,
     stats?: CharacterStats,
     attributes?: CharacterAttributes,
-    aiType: string = 'companion-follow',
+    movementPattern?: MovementPattern,
+    movementConfig?: MovementPatternConfig,
     components: Component[] = [],
     flags: EntityFlags = {}
   ) {
@@ -38,7 +41,8 @@ export class CompanionEntity extends BaseGameEntity implements Companion {
     this.companionType = companionType;
     this.stats = companionStats;
     this.attributes = attributes || createDefaultCharacterAttributes('neutral');
-    this.aiType = aiType;
+    this.movementPattern = movementPattern;
+    this.movementConfig = movementConfig;
     this.behaviorMode = 'follow'; // Default behavior
     this.equipment = {};
     this.statusEffects = [];
@@ -149,12 +153,7 @@ export class CompanionEntity extends BaseGameEntity implements Companion {
     return this.statusEffects.some(effect => effect.type === type);
   }
 
-  /**
-   * Update AI type
-   */
-  setAIType(aiType: string): void {
-    this.aiType = aiType;
-  }
+  // aiType は廃止
 
   /**
    * Check if companion is following player

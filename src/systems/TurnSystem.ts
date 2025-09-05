@@ -1322,7 +1322,8 @@ export class TurnSystem {
       position,
       monsterTemplate.stats ? { ...monsterTemplate.stats } : { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
       undefined, // attributes
-      monsterTemplate.aiType || 'basic-hostile',
+      monsterTemplate.movementPattern || 'approach',
+      monsterTemplate.movementConfig,
       monsterTemplate.spriteId
     );
     
@@ -1347,7 +1348,7 @@ export class TurnSystem {
       monsterType: 'basic',
       spriteId: 'enemy-1-0',
       stats: { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
-      aiType: 'simple-aggressive'
+      movementPattern: 'approach'
     };
   }
 

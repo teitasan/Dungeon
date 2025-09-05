@@ -228,7 +228,8 @@ export class GameInitializer {
             randomPosition,
             template.stats ? { ...template.stats } : { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
             undefined, // attributes
-            template.aiType || 'basic-hostile',
+            template.movementPattern || 'approach',
+            template.movementConfig,
             template.spriteId,
             template.experienceValue,
             template.dropRate,
