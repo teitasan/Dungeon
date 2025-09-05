@@ -45,10 +45,8 @@ export class DungeonGenerator {
     params: DungeonGenerationParams
   ): Dungeon {
     try {
-      console.log('[DEBUG] generateDungeon: 開始, ID:', dungeonId, 'フロア:', floor);
       
       // Initialize empty dungeon
-      console.log('[DEBUG] ダンジョン初期化中...');
       const dungeon: Dungeon = {
         id: dungeonId,
         name: dungeonName,
@@ -60,44 +58,30 @@ export class DungeonGenerator {
         playerSpawn: { x: 0, y: 0 },
         generationSeed: this.seed
       };
-      console.log('[DEBUG] ダンジョン初期化完了, サイズ:', dungeon.width, 'x', dungeon.height);
 
       // Generate rooms using new grid-based algorithm
-      console.log('[DEBUG] 部屋生成開始...');
       // グリッド仕様と占有キャッシュを初期化
       const { cols, rows } = this.getGridColsRows(params.gridDivision || 12);
       this.gridCols = cols;
       this.gridRows = rows;
       this.corridorInCell = Array.from({ length: this.gridRows }, () => Array(this.gridCols).fill(false));
       this.generateGridBasedRooms(dungeon, params);
-      console.log('[DEBUG] 部屋生成完了');
 
       // Connect rooms with corridors
-      console.log('[DEBUG] 部屋接続開始...');
       this.connectRooms(dungeon, params);
-      console.log('[DEBUG] 部屋接続完了');
 
       // Connect up to 0–2 cardinal-adjacent unconnected room pairs
-      console.log('[DEBUG] 隣接部屋追加接続開始...');
       this.addAdjacentRoomCorridors(dungeon, params);
-      console.log('[DEBUG] 隣接部屋追加接続完了');
 
       // Connect skip-neighbor rooms (same row/col with one empty grid between)
-      console.log('[DEBUG] スキップ隣接部屋追加接続開始...');
       this.addSkipNeighborCorridors(dungeon, params);
-      console.log('[DEBUG] スキップ隣接部屋追加接続完了');
 
       // Place stairs
-      console.log('[DEBUG] 階段配置開始...');
       this.placeStairs(dungeon, params);
-      console.log('[DEBUG] 階段配置完了');
 
       // Set player spawn point
-      console.log('[DEBUG] プレイヤースポーン設定開始...');
       this.setPlayerSpawn(dungeon);
-      console.log('[DEBUG] プレイヤースポーン設定完了');
 
-      console.log('[DEBUG] generateDungeon: 完了');
       return dungeon;
     } catch (error) {
       console.error('[ERROR] generateDungeonでエラーが発生:', error);
@@ -131,39 +115,29 @@ export class DungeonGenerator {
    */
   private generateGridBasedRooms(dungeon: Dungeon, params: DungeonGenerationParams): void {
     try {
-      console.log('[DEBUG] generateGridBasedRooms: 開始, サイズ:', dungeon.width, 'x', dungeon.height);
       
       // Create configurable division grid
       const gridDivision = params.gridDivision || 12; // デフォルト値12
       const grid = this.createDivisionGrid(dungeon.width, dungeon.height, gridDivision);
-      console.log(`[DEBUG] ${gridDivision}分割グリッド作成完了, グリッド数:`, grid.length);
 
       // Use floor-specific room count parameters
       const roomCount = this.randomInt(params.minRooms, params.maxRooms);
-      console.log('[DEBUG] 作成する部屋数:', roomCount);
 
       // Shuffle grid cells for random selection
-      console.log('[DEBUG] グリッドシャッフル開始...');
       const shuffledGrid = this.shuffleArray([...grid]);
-      console.log('[DEBUG] グリッドシャッフル完了');
 
       // Generate rooms in selected grid cells
-      console.log('[DEBUG] 部屋生成開始...');
       for (let i = 0; i < roomCount && i < shuffledGrid.length; i++) {
         const gridCell = shuffledGrid[i];
-        console.log(`[DEBUG] 部屋${i}生成中, グリッドセル:`, gridCell);
         const room = this.createRoomInGridCell(gridCell, i, params);
 
         if (room) {
-          console.log(`[DEBUG] 部屋${i}生成完了:`, room);
           this.carveRoom(dungeon, room);
           dungeon.rooms.push(room);
           gridCell.occupied = true;
         } else {
-          console.log(`[DEBUG] 部屋${i}生成失敗`);
         }
       }
-      console.log('[DEBUG] 部屋生成完了, 総部屋数:', dungeon.rooms.length);
     } catch (error) {
       console.error('[ERROR] generateGridBasedRoomsでエラーが発生:', error);
       throw error;
@@ -206,13 +180,11 @@ export class DungeonGenerator {
       // デフォルト: 4x3 grid (12分割)
       cols = 4;
       rows = 3;
-      console.log(`[DEBUG] 未対応のグリッド分割数: ${gridDivision}, デフォルト4x3を使用`);
     }
 
     const cellWidth = Math.floor(dungeonWidth / cols);
     const cellHeight = Math.floor(dungeonHeight / rows);
 
-    console.log(`[DEBUG] グリッド作成: ${cols}x${rows} (${gridDivision}分割)`);
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
@@ -236,22 +208,18 @@ export class DungeonGenerator {
    */
   private createRoomInGridCell(gridCell: GridCell, roomIndex: number, params: DungeonGenerationParams): Room | null {
     try {
-      console.log(`[DEBUG] createRoomInGridCell: 開始, 部屋${roomIndex}, グリッドセル:`, gridCell);
       
       // Minimum room size (ensure rooms are not too small)
       const minSize = Math.max(params.minRoomSize, 5);
       const maxSize = params.maxRoomSize;
-      console.log('[DEBUG] 部屋サイズ制約:', minSize, 'to', maxSize);
 
       // Calculate available space in grid cell (with padding)
       const padding = 2;
       const availableWidth = gridCell.width - padding * 2;
       const availableHeight = gridCell.height - padding * 2;
-      console.log('[DEBUG] 利用可能サイズ:', availableWidth, 'x', availableHeight);
 
       // Check if we can fit minimum room size
       if (availableWidth < minSize || availableHeight < minSize) {
-        console.log('[DEBUG] 最小サイズに収まりません');
         return null;
       }
 
@@ -264,14 +232,12 @@ export class DungeonGenerator {
         minSize,
         Math.min(maxSize, availableHeight)
       );
-      console.log('[DEBUG] 部屋サイズ決定:', roomWidth, 'x', roomHeight);
 
       // Position room randomly within grid cell
       const maxX = gridCell.x + gridCell.width - roomWidth - padding;
       const maxY = gridCell.y + gridCell.height - roomHeight - padding;
       const roomX = this.randomInt(gridCell.x + padding, maxX);
       const roomY = this.randomInt(gridCell.y + padding, maxY);
-      console.log('[DEBUG] 部屋位置決定:', roomX, roomY);
 
       const room = {
         id: `room-${roomIndex}`,
@@ -286,7 +252,6 @@ export class DungeonGenerator {
         gridCol: gridCell.col
       };
       
-      console.log(`[DEBUG] 部屋${roomIndex}生成完了:`, room);
       return room;
     } catch (error) {
       console.error(`[ERROR] createRoomInGridCellでエラーが発生:`, error);
@@ -299,10 +264,8 @@ export class DungeonGenerator {
    */
   private shuffleArray<T>(array: T[]): T[] {
     try {
-      console.log('[DEBUG] shuffleArray: 開始, 配列長:', array.length);
       
       if (array.length === 0) {
-        console.log('[DEBUG] shuffleArray: 空配列のためスキップ');
         return array;
       }
       
@@ -311,7 +274,6 @@ export class DungeonGenerator {
         [array[i], array[j]] = [array[j], array[i]];
       }
       
-      console.log('[DEBUG] shuffleArray: 完了');
       return array;
     } catch (error) {
       console.error('[ERROR] shuffleArrayでエラーが発生:', error);
@@ -341,10 +303,8 @@ export class DungeonGenerator {
    */
   private connectRooms(dungeon: Dungeon, params: DungeonGenerationParams): void {
     try {
-      console.log('[DEBUG] connectRooms: 開始, 部屋数:', dungeon.rooms.length);
       
       if (dungeon.rooms.length === 0) {
-        console.log('[DEBUG] 部屋がないためスキップ');
         return;
       }
 
@@ -352,11 +312,9 @@ export class DungeonGenerator {
       const roomGroups: Room[][] = dungeon.rooms.map(room => [room]);
       let connectionCount = 0;
       
-      console.log('[DEBUG] 初期状態: 各部屋が独立したグループ, グループ数:', roomGroups.length);
 
       // Continue until all rooms are connected (only one group remains)
       while (roomGroups.length > 1) {
-        console.log(`[DEBUG] 接続処理${connectionCount + 1}回目, グループ数:`, roomGroups.length);
         
         let bestConnection: { 
           fromGroup: Room[]; 
@@ -392,7 +350,6 @@ export class DungeonGenerator {
         }
 
         if (bestConnection) {
-          console.log(`[DEBUG] 最適な接続を発見: グループ${roomGroups.indexOf(bestConnection.fromGroup)} → グループ${roomGroups.indexOf(bestConnection.toGroup)}, 部屋${bestConnection.fromRoom.id} → 部屋${bestConnection.toRoom.id}, 距離: ${bestConnection.distance}`);
           
           // Create corridor between rooms
           const corridor = this.createCorridor(dungeon, bestConnection.fromRoom, bestConnection.toRoom, params);
@@ -419,16 +376,13 @@ export class DungeonGenerator {
           roomGroups.push(mergedGroup);
           
           connectionCount++;
-          console.log(`[DEBUG] グループ統合完了: 新しいグループサイズ: ${mergedGroup.length}, 残りグループ数: ${roomGroups.length}`);
         } else {
           console.error('[ERROR] 最適な接続が見つかりません');
           break;
         }
       }
 
-      console.log('[DEBUG] 部屋接続完了, 総接続数:', connectionCount, '最終グループ数:', roomGroups.length);
       
-      console.log('[DEBUG] connectRooms: 完了');
     } catch (error) {
       console.error('[ERROR] connectRoomsでエラーが発生:', error);
       throw error;
@@ -442,28 +396,22 @@ export class DungeonGenerator {
    */
   private groupAdjacentEmptyGrids(emptyCells: { row: number; col: number; x: number; y: number }[], gridSize: number): { row: number; col: number; x: number; y: number }[][] {
     try {
-      console.log('[DEBUG] groupAdjacentEmptyGrids: 開始, 空セル数:', emptyCells.length);
       
       const groups: { row: number; col: number; x: number; y: number }[][] = [];
       const visited = new Set<string>();
       
       for (let i = 0; i < emptyCells.length; i++) {
         const cell = emptyCells[i];
-        console.log(`[DEBUG] セル${i}処理中: (${cell.row},${cell.col})`);
         
         if (visited.has(`${cell.row},${cell.col}`)) {
-          console.log(`[DEBUG] セル${i}は既に訪問済み, スキップ`);
           continue;
         }
         
         const group: { row: number; col: number; x: number; y: number }[] = [];
-        console.log(`[DEBUG] セル${i}からグループ作成開始`);
         this.dfsGroupAdjacent(cell, emptyCells, visited, group, gridSize);
         groups.push(group);
-        console.log(`[DEBUG] セル${i}のグループ作成完了, グループサイズ:`, group.length);
       }
       
-      console.log('[DEBUG] groupAdjacentEmptyGrids: 完了, グループ数:', groups.length);
       return groups;
     } catch (error) {
       console.error('[ERROR] groupAdjacentEmptyGridsでエラーが発生:', error);
@@ -482,13 +430,11 @@ export class DungeonGenerator {
     try {
       const key = `${cell.row},${cell.col}`;
       if (visited.has(key)) {
-        console.log(`[DEBUG] dfsGroupAdjacent: 既に訪問済み (${cell.row},${cell.col}), スキップ`);
         return;
       }
       
       visited.add(key);
       group.push(cell);
-      console.log(`[DEBUG] dfsGroupAdjacent: セル追加 (${cell.row},${cell.col}), グループサイズ:`, group.length);
       
       // Check 4 adjacent directions
       const directions = [
@@ -502,7 +448,6 @@ export class DungeonGenerator {
         if (dir.row >= 0 && dir.row < gridSize && dir.col >= 0 && dir.col < gridSize) {
           const adjacentCell = allCells.find(c => c.row === dir.row && c.col === dir.col);
           if (adjacentCell) {
-            console.log(`[DEBUG] dfsGroupAdjacent: 隣接セル発見 (${dir.row},${dir.col}), 再帰呼び出し`);
             this.dfsGroupAdjacent(adjacentCell, allCells, visited, group, gridSize);
           }
         }

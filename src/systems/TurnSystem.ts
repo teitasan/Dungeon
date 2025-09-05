@@ -25,6 +25,10 @@ export class TurnSystem {
   private hungerSystem: any; // HungerSystemの参照
   private statusSystem: any; // StatusSystemの参照
   private playerEntity: any; // プレイヤーエンティティの参照
+  // 敵の再試行用（一時キュー; フェーズ内限定）
+  private enemyRetryQueue: GameEntity[] = [];
+  private enemyRetriedThisPhase: Set<string> = new Set();
+  
 
   constructor(
     config: TurnSystemConfig,
@@ -63,6 +67,8 @@ export class TurnSystem {
   setPlayerEntity(playerEntity: any): void {
     this.playerEntity = playerEntity;
   }
+
+  
 
   /**
    * Initialize turn system with entities
@@ -239,7 +245,22 @@ export class TurnSystem {
    * 特定のフェーズを実行
    */
   private executePhase(phaseConfig: TurnPhaseConfig): void {
-    const relevantEntities = this.getEntitiesForPhase(phaseConfig.phase);
+    let relevantEntities = this.getEntitiesForPhase(phaseConfig.phase);
+    const isEnemyPhase = (phaseConfig.phase === 'enemy-action-1' || phaseConfig.phase === 'enemy-action-2');
+    if (isEnemyPhase) {
+      // フェーズ開始時に再試行キューを初期化
+      this.enemyRetryQueue = [];
+      this.enemyRetriedThisPhase.clear();
+      // プレイヤーに近い順に処理（渋滞緩和）
+      if (this.playerEntity) {
+        const p = this.playerEntity.position;
+        relevantEntities = [...relevantEntities].sort((a: any, b: any) => {
+          const da = Math.abs(a.position.x - p.x) + Math.abs(a.position.y - p.y);
+          const db = Math.abs(b.position.x - p.x) + Math.abs(b.position.y - p.y);
+          return da - db;
+        });
+      }
+    }
     
     for (const entity of relevantEntities) {
       // フェーズの実行条件をチェック
@@ -264,6 +285,16 @@ export class TurnSystem {
         if (speedState) {
           console.log(`[TurnSystem] 敵${entity.id}の行動状況: 移動=${speedState.action1State.hasMoved}, 攻撃=${speedState.action1State.hasAttacked}, 行動済み=${speedState.action1State.hasActed}`);
         }
+      }
+    }
+
+    // 敵フェーズのみ：移動失敗者を一回だけ再試行
+    if (isEnemyPhase && this.enemyRetryQueue.length > 0) {
+      const retryList = [...this.enemyRetryQueue];
+      this.enemyRetryQueue = [];
+      for (const entity of retryList) {
+        if (!this.turnManager.entitySpeedStates.get(entity.id)) continue; // 既にいない
+        this.executeEnemyAction(entity, phaseConfig.phase === 'enemy-action-1' ? 1 : 2);
       }
     }
   }
@@ -325,6 +356,15 @@ export class TurnSystem {
     if (this.isEnemy(entity) && this.playerEntity && (entity as any).updateDirection) {
       (entity as any).updateDirection(this.playerEntity.position);
       // console.log(`  ${entity.id}: 方向更新 - ${(entity as any).currentDirection}`);
+    }
+
+    // 敵AIの基本行動（approach/patrol）をターン開始時に決定
+    if (this.isEnemy(entity) && this.dungeonManager?.aiSystem) {
+      try {
+        this.dungeonManager.aiSystem.decidePatternForTurn(entity);
+      } catch (e) {
+        console.warn(`[TurnSystem] decidePatternForTurn でエラー:`, e);
+      }
     }
   }
 
@@ -405,6 +445,12 @@ export class TurnSystem {
             // 1回目行動後の隣接チェック
             if (actionNumber === 1) {
               speedState.action2State.wasAdjacentAfterAction1 = this.isAdjacentToPlayerOrAlly(entity);
+            }
+          } else {
+            // 移動失敗 → 同一フェーズ内で1回だけ再試行
+            if (this.enemyRetryQueue && !this.enemyRetriedThisPhase.has(entity.id)) {
+              this.enemyRetryQueue.push(entity);
+              this.enemyRetriedThisPhase.add(entity.id);
             }
           }
         } else if (aiDecision.action === 'attack' && aiDecision.target && !actionState.hasMoved && this.canEntityActInAction(entity, actionNumber, 'attack')) {

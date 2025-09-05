@@ -123,6 +123,7 @@ export class GameInitializer {
       undefined, // statusSystem - 後で設定
       undefined  // playerEntity - 後で設定
     );
+    // 自然スポーンはデフォルト設定のまま利用
     
     // AISystemを作成（TurnSystemの参照を渡す）
     const { AISystem } = await import('../systems/AISystem.js');
@@ -195,28 +196,20 @@ export class GameInitializer {
   ): Promise<void> {
     const { dungeonManager } = systems;
     const spawn = player.position;
-    
-    console.log('[DEBUG] addTestMonsters called');
-    console.log('[DEBUG] Player position:', spawn);
-    console.log('[DEBUG] Config monsters:', config.monsters);
 
     // 設定ファイルのモンスターテンプレートを使用
     if (config.monsters?.templates) {
-      console.log('[DEBUG] Using monster templates from config');
       
       // スポーン数を計算
       const spawnCount = this.calculateMonsterSpawnCount(dungeonManager, config);
-      console.log(`[DEBUG] Calculated spawn count: ${spawnCount}`);
       
       // 各テンプレートから指定された数だけ作成
       for (const template of config.monsters.templates) {
-        console.log('[DEBUG] Processing template:', template);
         
         for (let i = 0; i < spawnCount; i++) {
           // フロア全体のランダムな位置を取得
           const randomPosition = this.getRandomFloorPosition(dungeonManager, player);
           if (!randomPosition) {
-            console.log(`[DEBUG] No valid position found for monster ${i + 1}`);
             break; // 位置が見つからない場合は終了
           }
           
@@ -255,7 +248,6 @@ export class GameInitializer {
           // 初期方向を設定
           monster.currentDirection = 'front';
           
-          console.log(`[DEBUG] Created monster ${i + 1}:`, monster);
           
           // モンスターをダンジョンに追加
           dungeonManager.addEntity(monster as any, randomPosition);
@@ -263,10 +255,8 @@ export class GameInitializer {
         }
       }
     } else {
-      console.log('[DEBUG] No monster templates found');
     }
     
-    console.log('[DEBUG] addTestMonsters completed');
   }
 
   /**
@@ -275,7 +265,6 @@ export class GameInitializer {
   private calculateMonsterSpawnCount(dungeonManager: any, config: any): number {
     // 部屋の数を取得
     const roomCount = dungeonManager.currentDungeon?.rooms?.length || 0;
-    console.log(`[DEBUG] Room count: ${roomCount}`);
     
     // 基本スポーン数（部屋の数）
     const baseSpawnCount = roomCount;
@@ -294,7 +283,6 @@ export class GameInitializer {
     // 最小値チェック（最低1体）
     finalSpawnCount = Math.max(finalSpawnCount, 1);
     
-    console.log(`[DEBUG] Spawn calculation: base=${baseSpawnCount}, variation=${variation}, final=${finalSpawnCount}, max=${maxPerFloor}`);
     
     return finalSpawnCount;
   }
@@ -321,7 +309,6 @@ export class GameInitializer {
     
     // 部屋内の位置がない場合
     if (roomPositions.length === 0) {
-      console.log('[DEBUG] No room positions found');
       return null;
     }
     
@@ -331,7 +318,6 @@ export class GameInitializer {
     );
     
     if (availablePositions.length === 0) {
-      console.log('[DEBUG] No available room positions for monster');
       return null;
     }
     

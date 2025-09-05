@@ -10,7 +10,8 @@ import {
   DungeonCell, 
   DungeonGenerationParams, 
   DungeonTemplate,
-  CellType 
+  CellType,
+  Room
 } from '../types/dungeon';
 import { DungeonGenerator } from './DungeonGenerator.js';
 import { SyncConfigLoader, DungeonTemplateConfig } from '../core/SyncConfigLoader.js';
@@ -21,6 +22,9 @@ export class DungeonManager {
   private generator: DungeonGenerator;
   private currentTemplateId: string | null = null;
   public aiSystem: any = null; // AISystemの参照
+  // プレイヤー視界をターン単位で共有
+  private playerVision: Set<string> = new Set();
+  private lastVisionTurn: number | null = null;
 
   constructor() {
     this.generator = new DungeonGenerator();
@@ -28,30 +32,159 @@ export class DungeonManager {
   }
 
   /**
+   * Get room that contains the given position (if any)
+   */
+  getRoomAt(position: Position): Room | null {
+    if (!this.currentDungeon) return null;
+    const cell = this.getCellAt(position);
+    if (!cell) return null;
+    // そのセルが部屋タイプである場合のみ、部屋矩形内判定
+    if (cell.type !== 'room') return null;
+    for (const room of this.currentDungeon.rooms) {
+      if (
+        position.x >= room.x &&
+        position.x < room.x + room.width &&
+        position.y >= room.y &&
+        position.y < room.y + room.height
+      ) {
+        return room;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Check if two positions are in the same room
+   */
+  isSameRoom(pos1: Position, pos2: Position): boolean {
+    const r1 = this.getRoomAt(pos1);
+    if (!r1) return false;
+    const r2 = this.getRoomAt(pos2);
+    if (!r2) return false;
+    return r1.id === r2.id;
+  }
+
+  /**
+   * 指定した部屋内に存在するドアセルの座標一覧を返す
+   */
+  getRoomDoorPositions(room: Room): Position[] {
+    const result: Position[] = [];
+    if (!this.currentDungeon) return result;
+    for (let y = room.y; y < room.y + room.height; y++) {
+      for (let x = room.x; x < room.x + room.width; x++) {
+        const pos = { x, y };
+        const cell = this.getCellAt(pos);
+        if (!cell) continue;
+        if (cell.type === 'door') {
+          result.push(pos);
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
+   * 部屋の外周セルのうち、上下左右のいずれかが通路に隣接しているセルを出口として列挙
+   * 斜めは判定に含めない。
+   */
+  getRoomExitPositions(room: Room): Position[] {
+    const result: Position[] = [];
+    if (!this.currentDungeon) return result;
+    const isEdge = (x: number, y: number) =>
+      x === room.x || x === room.x + room.width - 1 || y === room.y || y === room.y + room.height - 1;
+
+    for (let y = room.y; y < room.y + room.height; y++) {
+      for (let x = room.x; x < room.x + room.width; x++) {
+        if (!isEdge(x, y)) continue; // 外周のみ
+        const pos = { x, y };
+        const cell = this.getCellAt(pos);
+        if (!cell || cell.type !== 'room') continue;
+        const neighbors: Position[] = [
+          { x: x, y: y - 1 }, // N
+          { x: x + 1, y: y }, // E
+          { x: x, y: y + 1 }, // S
+          { x: x - 1, y: y }  // W
+        ];
+        for (const np of neighbors) {
+          if (!this.isValidPosition(np)) continue;
+          const nc = this.getCellAt(np);
+          if (nc && nc.type === 'corridor') {
+            result.push(pos);
+            break;
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
+   * 現在のターンにおけるプレイヤー視界を計算・キャッシュ
+   * 視界ルール: 同じ部屋 OR プレイヤー周囲1マス（斜め含む）
+   */
+  ensurePlayerVisionForTurn(playerPos: Position, currentTurn: number): void {
+    if (this.lastVisionTurn === currentTurn) return;
+    this.playerVision.clear();
+
+    // 同じ部屋の全セルを追加
+    const room = this.getRoomAt(playerPos);
+    if (room) {
+      for (let y = room.y; y < room.y + room.height; y++) {
+        for (let x = room.x; x < room.x + room.width; x++) {
+          const pos = { x, y };
+          if (this.isValidPosition(pos)) {
+            this.playerVision.add(this.posKey(pos));
+          }
+        }
+      }
+    }
+
+    // プレイヤー周囲1マス（斜め含む）
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const pos = { x: playerPos.x + dx, y: playerPos.y + dy };
+        if (this.isValidPosition(pos)) {
+          this.playerVision.add(this.posKey(pos));
+        }
+      }
+    }
+
+    // 自身の位置も視界に含めておく（利便性）
+    this.playerVision.add(this.posKey(playerPos));
+
+    this.lastVisionTurn = currentTurn;
+  }
+
+  /** 指定位置がプレイヤー視界に含まれるか */
+  isInPlayerVision(pos: Position): boolean {
+    return this.playerVision.has(this.posKey(pos));
+  }
+
+  /** 位置キー化 */
+  private posKey(pos: Position): string {
+    return `${pos.x},${pos.y}`;
+  }
+
+  /**
    * Generate a new dungeon from template
    */
   generateDungeon(templateId: string, floor: number, seed?: number): Dungeon {
     try {
-      console.log('[DEBUG] generateDungeon: 開始, templateId:', templateId, 'floor:', floor);
-      
       const template = this.dungeonTemplates.get(templateId);
       if (!template) {
         console.error('[ERROR] ダンジョンテンプレートが見つかりません:', templateId);
         throw new Error(`Dungeon template not found: ${templateId}`);
       }
-      console.log('[DEBUG] テンプレート取得完了:', template.name);
 
       this.currentTemplateId = templateId;
 
       if (seed !== undefined) {
         this.generator.setSeed(seed);
-        console.log('[DEBUG] シード設定:', seed);
       }
 
-      console.log('[DEBUG] ダンジョン生成中...');
       // Get floor-specific generation parameters
       const floorParams = this.getFloorGenerationParams(floor);
-      console.log('[DEBUG] 使用する生成パラメータ:', floorParams);
       
       const dungeon = this.generator.generateDungeon(
         `${templateId}-floor-${floor}`,
@@ -59,10 +192,8 @@ export class DungeonManager {
         floor,
         floorParams
       );
-      console.log('[DEBUG] ダンジョン生成完了, サイズ:', dungeon.width, 'x', dungeon.height);
 
       this.currentDungeon = dungeon;
-      console.log('[DEBUG] currentDungeon設定完了');
 
       return dungeon;
     } catch (error) {
@@ -312,7 +443,16 @@ export class DungeonManager {
         return path;
       }
       
-      for (const adjacent of this.getAdjacentPositions(pos)) {
+      for (const adjacent of this.getAdjacentPositions(pos, true)) {
+        // 斜め移動の角抜けを防ぐ: 斜めの場合、両サイドが共に非歩行ならスキップ
+        const diag = (adjacent.x !== pos.x) && (adjacent.y !== pos.y);
+        if (diag) {
+          const side1 = { x: pos.x, y: adjacent.y };
+          const side2 = { x: adjacent.x, y: pos.y };
+          if (!this.isWalkable(side1) && !this.isWalkable(side2)) {
+            continue;
+          }
+        }
         if (!visited.has(`${adjacent.x},${adjacent.y}`) && this.isWalkable(adjacent)) {
           queue.push({
             pos: adjacent,
@@ -363,12 +503,8 @@ export class DungeonManager {
    */
   private loadTemplatesFromSyncConfig(): void {
     try {
-      console.log('[DEBUG] 同期的な設定ローダーからダンジョンテンプレートを読み込み中...');
-      
       const configLoader = SyncConfigLoader.getInstance();
       const templates = configLoader.getDungeonTemplates();
-      
-      console.log('[DEBUG] 設定からテンプレートを読み込み:', Object.keys(templates));
       
       // Convert DungeonTemplateConfig to DungeonTemplate and register
       for (const [templateId, templateConfig] of Object.entries(templates)) {
@@ -430,13 +566,9 @@ export class DungeonManager {
         };
         
         this.registerTemplate(template);
-        console.log(`[DEBUG] テンプレート登録完了: ${template.name}`);
       }
-      
-      console.log('[DEBUG] 同期的な設定読み込み完了');
     } catch (error) {
       console.error('[ERROR] 同期的な設定読み込みに失敗:', error);
-      console.log('[DEBUG] デフォルトテンプレートを使用');
       this.initializeDefaultTemplates();
     }
   }
@@ -491,41 +623,26 @@ export class DungeonManager {
       throw new Error(`Template not found: ${this.currentTemplateId}`);
     }
 
-    console.log(`[DEBUG] テンプレート ${this.currentTemplateId} のパラメータを確認:`, {
-      hasFloorRangeParams: !!tpl.floorRangeParams,
-      floorRangeParamsLength: tpl.floorRangeParams?.length || 0,
-      hasFloorSpecificParams: !!tpl.floorSpecificParams,
-      floorSpecificParamsLength: tpl.floorSpecificParams?.length || 0,
-      generationParams: tpl.generationParams
-    });
-
     // Check for floor range parameters first (new system)
     if (tpl.floorRangeParams) {
-      console.log(`[DEBUG] floorRangeParams をチェック:`, tpl.floorRangeParams);
       const rangeParams = tpl.floorRangeParams.find(rp => {
         const isInRange = this.isFloorInRange(floor, rp.floorRange);
-        console.log(`[DEBUG] 範囲チェック: ${rp.floorRange} for floor ${floor} = ${isInRange}`);
         return isInRange;
       });
       if (rangeParams) {
-        console.log(`[DEBUG] 階層${floor}用の範囲設定を使用: ${rangeParams.floorRange}`, rangeParams);
         return rangeParams;
       }
-    } else {
-      console.log(`[DEBUG] floorRangeParams が存在しません`);
     }
 
     // Check for floor-specific parameters (legacy system)
     if (tpl.floorSpecificParams) {
       const floorParams = tpl.floorSpecificParams.find(fp => fp.floor === floor);
       if (floorParams) {
-        console.log(`[DEBUG] 階層${floor}用の設定を使用:`, floorParams);
         return floorParams;
       }
     }
 
     // Fall back to default parameters
-    console.log(`[DEBUG] 階層${floor}用の設定が見つからないため、デフォルト設定を使用:`, tpl.generationParams);
     return tpl.generationParams;
   }
 
@@ -533,7 +650,6 @@ export class DungeonManager {
    * Initialize default dungeon templates (fallback)
    */
   private initializeDefaultTemplates(): void {
-    console.log('[DEBUG] デフォルトテンプレートを初期化中...');
     
     // Fallback to basic template if sync config fails
     const basicDungeon: DungeonTemplate = {
@@ -602,4 +718,3 @@ export class DungeonManager {
     };
   }
 }
-

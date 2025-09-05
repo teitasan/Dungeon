@@ -53,7 +53,6 @@ export class MonsterSpriteManager {
   async load(): Promise<void> {
     if (this.loaded) return;
 
-    console.log(`[DEBUG] Loading monster spritesheets...`);
 
     const loadPromises: Promise<void>[] = [];
     
@@ -63,13 +62,11 @@ export class MonsterSpriteManager {
     for (const type of types) {
       const spritesheet = this.spritesheets[type];
       if (spritesheet && spritesheet.imagePath) {
-        console.log(`[DEBUG] Loading ${type}: ${spritesheet.imagePath}`);
         
         const loadPromise = new Promise<void>((resolve, reject) => {
           const image = new Image();
           image.onload = () => {
             this.images.set(type, image);
-            console.log(`[DEBUG] Loaded ${type}: ${spritesheet.imagePath}`);
             resolve();
           };
           image.onerror = () => {
@@ -83,7 +80,6 @@ export class MonsterSpriteManager {
 
     try {
       await Promise.all(loadPromises);
-      console.log(`[DEBUG] All spritesheets loaded:`, Array.from(this.images.keys()));
       this.loaded = true;
     } catch (error) {
       console.error(`[DEBUG] Error loading spritesheets:`, error);

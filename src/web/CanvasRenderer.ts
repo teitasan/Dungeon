@@ -196,18 +196,6 @@ export class CanvasRenderer {
       entity.identified !== undefined && 
       entity.cursed !== undefined;
     
-    // デバッグ用ログ
-    // if (entity && entity.id) {
-    //   console.log(`[DEBUG] Entity ${entity.id}:`, {
-    //     name: entity.name,
-    //     itemType: entity.itemType,
-    //     effects: entity.effects,
-    //     identified: entity.identified,
-    //     cursed: entity.cursed,
-    //     spriteId: entity.spriteId,
-    //     isItem: isItem
-    //   });
-    // }
     
     return isItem;
   }
@@ -224,10 +212,7 @@ export class CanvasRenderer {
    * Render item sprite
    */
   private renderItem(entity: any, x: number, y: number): void {
-    // console.log(`[DEBUG] renderItem called for ${entity.id}, spriteId: ${entity.spriteId}`);
-    
     if (!this.itemSpriteManager || !this.itemSpriteManager.isLoaded()) {
-      // console.log(`[DEBUG] ItemSpriteManager not available or not loaded`);
       // フォールバック: 文字で描画
       this.renderItemFallback(entity, x, y);
       return;
@@ -235,13 +220,11 @@ export class CanvasRenderer {
 
     const spriteId = entity.spriteId;
     if (!spriteId || !this.itemSpriteManager.hasSprite(spriteId)) {
-      // console.log(`[DEBUG] Sprite not available: spriteId=${spriteId}, hasSprite=${this.itemSpriteManager.hasSprite(spriteId)}`);
       // スプライトIDがない場合や存在しない場合はフォールバック
       this.renderItemFallback(entity, x, y);
       return;
     }
 
-    // console.log(`[DEBUG] Drawing sprite ${spriteId} at (${x}, ${y})`);
     // スプライトで描画
     this.itemSpriteManager.drawItemSprite(
       this.ctx,
@@ -275,10 +258,7 @@ export class CanvasRenderer {
    * Render monster sprite
    */
   private renderMonster(entity: any, x: number, y: number): void {
-    // console.log(`[DEBUG] renderMonster called for ${entity.id}, spriteId: ${entity.spriteId}`);
-    
     if (!this.monsterSpriteManager || !this.monsterSpriteManager.isLoaded()) {
-      console.log(`[DEBUG] MonsterSpriteManager not available or not loaded: manager=${!!this.monsterSpriteManager}, loaded=${this.monsterSpriteManager?.isLoaded()}`);
       // フォールバック: 文字で描画
       this.renderMonsterFallback(entity, x, y);
       return;
@@ -286,19 +266,15 @@ export class CanvasRenderer {
 
     const spriteId = entity.spriteId;
     const monsterType = (entity as any).spritesheet || 'basic';
-    console.log(`[DEBUG] Rendering monster: ${entity.id}, spriteId=${spriteId}, monsterType=${monsterType}`);
     
     if (!spriteId || !this.monsterSpriteManager.hasSprite(spriteId, monsterType)) {
-      console.log(`[DEBUG] Monster sprite not available: spriteId=${spriteId}, monsterType=${monsterType}, hasSprite=${this.monsterSpriteManager.hasSprite(spriteId, monsterType)}`);
       // スプライトIDがない場合や存在しない場合はフォールバック
       this.renderMonsterFallback(entity, x, y);
       return;
     }
 
-    // console.log(`[DEBUG] Drawing monster sprite ${spriteId} at (${x}, ${y})`);
     // スプライトで描画（保存された方向を使用）
     const direction = (entity as any).currentDirection || 'front';
-    // console.log(`[CanvasRenderer] 敵${entity.id}の描画: 方向=${direction}, スプライトID=${spriteId}, 種類=${monsterType}`);
     this.monsterSpriteManager.drawMonsterSprite(
       this.ctx,
       spriteId,
@@ -345,8 +321,6 @@ export class CanvasRenderer {
     const deltaX = relativeX - viewportCenterX;
     const deltaY = relativeY - viewportCenterY;
     
-    // デバッグ用ログ
-    // console.log(`[DEBUG] Monster direction calc: monster(${monsterX}, ${monsterY}), viewport(${viewportCenterX}, ${viewportCenterY}), delta(${deltaX}, ${deltaY})`);
     
     // 8方向の判定（座標系を修正）
     if (Math.abs(deltaX) < 0.5 && deltaY > 0) return 'front';      // 南（正面）
@@ -379,7 +353,6 @@ export class CanvasRenderer {
 
     // Dungeon change → explored リセット + 効果リセット
     if (this.currentDungeonId !== dungeon.id) {
-      // console.log(`[DEBUG] ダンジョン変更: ${this.currentDungeonId} → ${dungeon.id}`);
       this.currentDungeonId = dungeon.id;
       this.explored = Array.from({ length: dungeon.height }, () =>
         Array<boolean>(dungeon.width).fill(false)
@@ -387,7 +360,6 @@ export class CanvasRenderer {
       
       // ダンジョン変更時は効果もリセット
       if (this.activeEffectsFloor !== null) {
-        // console.log(`[DEBUG] ダンジョン変更による効果リセット`);
         this.clairvoyanceActive = false;
         this.remillaActive = false;
         this.trapDetectionActive = false;
@@ -404,8 +376,6 @@ export class CanvasRenderer {
       const px = player.position.x;
       const py = player.position.y;
       const room = this.findRoomAt(dungeon, px, py);
-      
-      // console.log(`Player at (${px}, ${py}), room: ${room ? `(${room.x},${room.y}) ${room.width}x${room.height}` : 'none'}`);
       
       if (room) {
         // 部屋内なら部屋全体をマッピング
@@ -431,7 +401,6 @@ export class CanvasRenderer {
         
         const roomArea = room.width * room.height;
         const surroundingArea = (room.width + 2) * (room.height + 2) - roomArea;
-        // console.log(`Room exploration: room=${roomArea}, surrounding=${surroundingArea}, total=${roomArea + surroundingArea}`);
       } else {
         // 通路内：プレイヤー位置と周囲8マス
         this.explored[py][px] = true;
@@ -449,8 +418,6 @@ export class CanvasRenderer {
             this.explored[cy][cx] = true;
           }
         }
-        
-        // console.log(`Corridor exploration: player + 8 surrounding tiles = 9`);
       }
     }
 
@@ -458,14 +425,11 @@ export class CanvasRenderer {
     const [camX, camY, viewW, viewH] = this.computeCamera(dungeon, player);
 
     // 背景クリア
-    // console.log(`[DEBUG] Canvas size: ${this.canvas.width}x${this.canvas.height}`);
     ctx.fillStyle = '#0c0c0f';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    // console.log(`[DEBUG] Background cleared`);
 
     // タイル描画（ビューポート内のみ）
     // 0.5マス分のオフセットを考慮して描画範囲を2マス拡張
-    // console.log(`[DEBUG] Starting tile rendering: viewW=${viewW}, viewH=${viewH}, camX=${camX}, camY=${camY}`);
     for (let vy = 0; vy < viewH + 2; vy++) {
       const y = camY + vy;
       for (let vx = 0; vx < viewW + 2; vx++) {
@@ -577,7 +541,6 @@ export class CanvasRenderer {
 
     // エンティティ描画（可視セルのみ）
     const entities = dungeonManager.getAllEntities();
-    // console.log(`[DEBUG] Rendering ${entities.length} entities`);
     for (const entity of entities) {
       const ex = entity.position.x;
       const ey = entity.position.y;
@@ -792,7 +755,6 @@ export class CanvasRenderer {
         }
       }
       
-      // console.log(`Room visibility: room=${roomVisibleCount}, surrounding=${surroundingVisibleCount}, total=${roomVisibleCount + surroundingVisibleCount}`);
     } else {
       // 廊下内：プレイヤー位置と周囲8マス
       visible[py][px] = true;
@@ -813,8 +775,6 @@ export class CanvasRenderer {
         }
       }
       
-      // デバッグ：周囲8マスの可視化確認
-      // console.log(`Corridor visibility: player at (${px}, ${py}), visible tiles: ${visibleCount}`);
     }
 
     return visible;
@@ -868,10 +828,6 @@ export class CanvasRenderer {
         
         // レミーラ効果が有効な場合は全エリア表示
         if (this.remillaActive && !isExplored) {
-          // デバッグ：レミーラ効果で表示されるセルをログ出力（最初のセルのみ）
-          // if (x === 0 && y === 0) {
-          //   console.log(`[DEBUG] レミーラ効果: 未探索セル(${x}, ${y})を表示, セルタイプ: ${cell.type}`);
-          // }
         }
         
         // セルタイプの統計
@@ -945,10 +901,6 @@ export class CanvasRenderer {
           mm.fillRect(offsetX + x * mmTile, offsetY + y * mmTile, mmTile, mmTile);
         }
         
-        // デバッグ：色の使用状況を追跡
-        if (x === 0 && y === 0) { // 最初のセルのみログ出力
-          console.log(`Minimap colors: wall=${cell.type === 'wall' ? 'used' : 'not used'}, floor=${cell.type === 'floor' ? 'used' : 'not used'}, stairs-down=${cell.type === 'stairs-down' ? 'used' : 'not used'}, stairs-up=${cell.type === 'stairs-up' ? 'used' : 'not used'}`);
-        }
       }
     }
 
@@ -1066,8 +1018,6 @@ export class CanvasRenderer {
              (entity as any).name?.includes('巻物') || (entity as any).name?.includes('アイテム');
     });
 
-    console.log('[DEBUG] 千里眼効果: アイテム数:', items.length);
-    console.log('[DEBUG] 千里眼効果: アイテム詳細:', items);
 
     // アイテムを表示（4x4ピクセルをフル活用）
     for (const item of items) {
@@ -1090,8 +1040,6 @@ export class CanvasRenderer {
         // 4行目: 0110
         mm.fillRect(x + 1, y + 3, 2, 1);
         
-        // デバッグ用：アイテム位置をコンソールに表示
-        console.log(`[DEBUG] アイテム位置: ${item.id} at (${item.position.x}, ${item.position.y})`);
       }
     }
   }
@@ -1121,8 +1069,6 @@ export class CanvasRenderer {
              (entity as any).name?.includes('モンスター') || (entity as any).name?.includes('敵');
     });
 
-    console.log('[DEBUG] 透視効果: モンスター数:', monsters.length);
-    console.log('[DEBUG] 透視効果: モンスター詳細:', monsters);
 
     // モンスターを表示（4x4ピクセルをフル活用）
     for (const monster of monsters) {
@@ -1145,8 +1091,6 @@ export class CanvasRenderer {
         // 4行目: 0110
         mm.fillRect(x + 1, y + 3, 2, 1);
         
-        // デバッグ用：モンスター位置をコンソールに表示
-        console.log(`[DEBUG] モンスター位置: ${monster.id} at (${monster.position.x}, ${monster.position.y})`);
       }
     }
   }
@@ -1157,8 +1101,6 @@ export class CanvasRenderer {
   public activateClairvoyance(floor: number): void {
     this.clairvoyanceActive = true;
     this.activeEffectsFloor = floor;
-    console.log(`[DEBUG] 千里眼効果有効化: フロア${floor}`);
-    console.log(`[DEBUG] 千里眼効果状態: ${this.clairvoyanceActive}`);
     
     // ミニマップが接続されている場合は即座に更新
     this.forceMinimapUpdate();
@@ -1184,7 +1126,6 @@ export class CanvasRenderer {
   public activateRemilla(floor: number): void {
     this.remillaActive = true;
     this.activeEffectsFloor = floor;
-    console.log(`[DEBUG] レミーラ効果有効化: フロア${floor}`);
     
     // ミニマップが接続されている場合は即座に更新
     this.forceMinimapUpdate();
@@ -1203,7 +1144,6 @@ export class CanvasRenderer {
   public activateTrapDetection(floor: number): void {
     this.trapDetectionActive = true;
     this.activeEffectsFloor = floor;
-    console.log(`[DEBUG] 罠探知効果有効化: フロア${floor}`);
     
     // ミニマップが接続されている場合は即座に更新
     this.forceMinimapUpdate();
@@ -1222,8 +1162,6 @@ export class CanvasRenderer {
   public activateMonsterVision(floor: number): void {
     this.monsterVisionActive = true;
     this.activeEffectsFloor = floor;
-    console.log(`[DEBUG] 透視効果有効化: フロア${floor}`);
-    console.log(`[DEBUG] 透視効果状態: ${this.monsterVisionActive}`);
     
     // ミニマップが接続されている場合は即座に更新
     this.forceMinimapUpdate();
@@ -1241,29 +1179,23 @@ export class CanvasRenderer {
    */
   private forceMinimapUpdate(): void {
     if (!this.minimapCtx || !this.minimapCanvas) {
-      console.log('[DEBUG] ミニマップが接続されていません');
       return;
     }
     
     // 現在のダンジョンとプレイヤー情報がない場合は更新できない
     if (!this.dungeonManager) {
-      console.log('[DEBUG] DungeonManagerが設定されていません');
       return;
     }
     
     const currentDungeon = this.dungeonManager.getCurrentDungeon();
     if (!currentDungeon) {
-      console.log('[DEBUG] 現在のダンジョンが取得できません');
       return;
     }
     
     const player = this.dungeonManager.getAllEntities().find(e => e.id === 'player-1') as PlayerEntity;
     if (!player) {
-      console.log('[DEBUG] プレイヤーが見つかりません');
       return;
     }
-    
-    console.log('[DEBUG] ミニマップ強制更新実行');
     
     // 可視性を計算してミニマップを更新
     const visible = this.computeVisibility(currentDungeon, player);
@@ -1276,26 +1208,14 @@ export class CanvasRenderer {
    */
   
   public checkFloorChange(currentFloor: number): void {
-    console.log(`[DEBUG] 効果チェック: 現在のフロア = ${currentFloor}, 効果が有効なフロア = ${this.activeEffectsFloor}`);
-    console.log(`[DEBUG] 効果状態: 千里眼=${this.clairvoyanceActive}, レミーラ=${this.remillaActive}, 罠探知=${this.trapDetectionActive}, 透視=${this.monsterVisionActive}`);
-    
     // フロアが変更された場合、すべての効果を無効化
     if (this.activeEffectsFloor !== null && this.activeEffectsFloor !== currentFloor) {
-      console.log(`[DEBUG] フロア変更: ${this.activeEffectsFloor} → ${currentFloor}, 効果を無効化`);
       this.clairvoyanceActive = false;
       this.remillaActive = false;
       this.trapDetectionActive = false;
       this.monsterVisionActive = false;
       this.activeEffectsFloor = null;
-      console.log(`[DEBUG] 効果無効化完了: 千里眼=${this.clairvoyanceActive}, レミーラ=${this.remillaActive}, 罠探知=${this.trapDetectionActive}, 透視=${this.monsterVisionActive}`);
-    } else if (this.activeEffectsFloor === null) {
-      console.log(`[DEBUG] 効果が有効なフロアが設定されていません`);
-    } else {
-      console.log(`[DEBUG] 同じフロア内です: ${currentFloor}`);
     }
-    
-    // フロア変更後の状態をログ出力
-    console.log(`[DEBUG] フロア変更後の効果状態: 千里眼=${this.clairvoyanceActive}, レミーラ=${this.remillaActive}, 罠探知=${this.trapDetectionActive}, 透視=${this.monsterVisionActive}`);
   }
 
   // 簡易カラー合成

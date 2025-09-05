@@ -69,7 +69,6 @@ export class WebConfigLoader {
    */
   async loadConfigFile(filename: string): Promise<any> {
     const filePath = `${this.basePath}/${filename}`;
-    console.log(`[DEBUG] Loading config file: ${filePath}`);
     
     try {
       const response = await fetch(filePath);
