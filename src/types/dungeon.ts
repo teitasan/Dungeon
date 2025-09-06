@@ -138,6 +138,28 @@ export interface DungeonTemplate {
    */
   itemSpawnDefault?: { min: number; max: number };
   itemSpawnRanges?: Array<{ floorRange: string; min: number; max: number }>;
+  /**
+   * 階層別モンスター出現設定
+   */
+  floorMonsterSpawns?: FloorMonsterSpawnConfig[];
+  /**
+   * モンスタースポーンのデフォルト設定
+   */
+  monsterSpawnDefault?: {
+    minSpawnCount: number;
+    maxSpawnCount: number;
+    spawnLimits: {
+      maxPerFloor: number;
+      baseSpawnPerRoom: number;
+      randomVariation: number;
+    };
+  };
+  /**
+   * ドロップテーブルのマッピング設定
+   */
+  dropTableMapping?: {
+    [key: string]: string;
+  };
 }
 
 // Monster spawn entry
@@ -194,3 +216,16 @@ export const OppositeDirection: Record<Direction, Direction> = {
   [Direction.South]: Direction.North,
   [Direction.West]: Direction.East
 };
+
+// Floor-specific monster spawn configuration
+export interface FloorMonsterSpawnConfig {
+  floorRange: string; // "1-3", "4-5" などの範囲指定
+  minSpawnCount: number;
+  maxSpawnCount: number;
+  monsterEntries: MonsterSpawnEntry[];
+  spawnLimits?: {
+    maxPerFloor: number;
+    baseSpawnPerRoom: number;
+    randomVariation: number;
+  };
+}

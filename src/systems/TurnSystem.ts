@@ -3,6 +3,8 @@
  */
 
 import { GameEntity } from '../types/entities';
+import { MonsterEntity } from '../entities/Monster';
+import { Position } from '../types/core';
 import { 
   TurnManager, 
   TurnPhase, 
@@ -22,19 +24,26 @@ export class TurnSystem {
   private combatSystem: any; // CombatSystemの参照
   private hungerSystem: any; // HungerSystemの参照
   private statusSystem: any; // StatusSystemの参照
+  private playerEntity: any; // プレイヤーエンティティの参照
+  // 敵の再試行用（一時キュー; フェーズ内限定）
+  private enemyRetryQueue: GameEntity[] = [];
+  private enemyRetriedThisPhase: Set<string> = new Set();
+  
 
   constructor(
     config: TurnSystemConfig,
     dungeonManager?: any,
     combatSystem?: any,
     hungerSystem?: any,
-    statusSystem?: any
+    statusSystem?: any,
+    playerEntity?: any
   ) {
     this.config = config;
     this.dungeonManager = dungeonManager;
     this.combatSystem = combatSystem;
     this.hungerSystem = hungerSystem;
     this.statusSystem = statusSystem;
+    this.playerEntity = playerEntity;
 
     this.turnManager = {
       currentTurn: 1,
@@ -51,6 +60,15 @@ export class TurnSystem {
     };
     this.turnListeners = new Map();
   }
+
+  /**
+   * Set player entity reference
+   */
+  setPlayerEntity(playerEntity: any): void {
+    this.playerEntity = playerEntity;
+  }
+
+  
 
   /**
    * Initialize turn system with entities
@@ -102,13 +120,27 @@ export class TurnSystem {
       
       // 速度に基づいて行動可能性を設定
       const speedConfig = this.config.speedSystem[speedState.speedState];
-      speedState.action1State.canAct = speedConfig.action1.enabled;
-      speedState.action2State.canAct = speedConfig.action2.enabled;
+      if (!speedConfig) {
+        console.warn(`[TurnSystem] 速度設定が見つかりません: ${speedState.speedState}`);
+        // デフォルト設定を使用
+        speedState.action1State.canAct = true;
+        speedState.action2State.canAct = false;
+      } else {
+        speedState.action1State.canAct = speedConfig.action1.enabled;
+        speedState.action2State.canAct = speedConfig.action2.enabled;
+      }
       
       // 鈍足エンティティの場合、最初のターンは行動できない可能性がある
       if (speedState.speedState === 'slow') {
         speedState.turnsUntilNextAction = speedConfig.action1.skipTurns || 1;
         speedState.action1State.canAct = false;
+      }
+      
+      // デバッグログ
+      if (this.isEnemy(entity)) {
+        // 敵は常に行動可能にする
+        speedState.action1State.canAct = true;
+        speedState.action2State.canAct = false; // 2回目行動は無効
       }
       
       this.turnManager.entitySpeedStates.set(entity.id, speedState);
@@ -180,7 +212,7 @@ export class TurnSystem {
    * ドキュメントに従った順序でターンを進行
    */
   executeTurn(): void {
-    console.log(`=== ターン ${this.turnManager.currentTurn} 開始 ===`);
+    // console.log(`=== ターン ${this.turnManager.currentTurn} 開始 ===`);
     
     // フェーズ状態をリセット
     this.resetPhaseStates();
@@ -191,7 +223,7 @@ export class TurnSystem {
       this.turnManager.currentPhaseIndex = phaseIndex;
       this.turnManager.turnPhase = phaseConfig.phase;
       
-      console.log(`--- フェーズ: ${phaseConfig.phase} ---`);
+      // console.log(`--- フェーズ: ${phaseConfig.phase} ---`);
       
       // フェーズを実行
       this.executePhase(phaseConfig);
@@ -200,34 +232,70 @@ export class TurnSystem {
     // ターン終了処理
     this.executeEndTurnProcessing();
     
+    // 自然スポーンの判定（30ターンおき）
+    this.checkNaturalSpawn();
+    
     // 次のターンの準備
     this.prepareNextTurn();
     
-    console.log(`=== ターン ${this.turnManager.currentTurn - 1} 終了 ===\n`);
+    // console.log(`=== ターン ${this.turnManager.currentTurn - 1} 終了 ===\n`);
   }
 
   /**
    * 特定のフェーズを実行
    */
   private executePhase(phaseConfig: TurnPhaseConfig): void {
-    const relevantEntities = this.getEntitiesForPhase(phaseConfig.phase);
+    let relevantEntities = this.getEntitiesForPhase(phaseConfig.phase);
+    const isEnemyPhase = (phaseConfig.phase === 'enemy-action-1' || phaseConfig.phase === 'enemy-action-2');
+    if (isEnemyPhase) {
+      // フェーズ開始時に再試行キューを初期化
+      this.enemyRetryQueue = [];
+      this.enemyRetriedThisPhase.clear();
+      // プレイヤーに近い順に処理（渋滞緩和）
+      if (this.playerEntity) {
+        const p = this.playerEntity.position;
+        relevantEntities = [...relevantEntities].sort((a: any, b: any) => {
+          const da = Math.abs(a.position.x - p.x) + Math.abs(a.position.y - p.y);
+          const db = Math.abs(b.position.x - p.x) + Math.abs(b.position.y - p.y);
+          return da - db;
+        });
+      }
+    }
     
     for (const entity of relevantEntities) {
       // フェーズの実行条件をチェック
       if (!this.checkPhaseConditions(entity, phaseConfig)) {
-        console.log(`  ${entity.id}: 条件により ${phaseConfig.phase} をスキップ`);
+        // console.log(`  ${entity.id}: 条件により ${phaseConfig.phase} をスキップ`);
         continue;
       }
       
       // 速度システムによる行動制限をチェック
       // エンティティがこのフェーズで行動可能かチェック
       if (!this.checkPhaseConditions(entity, phaseConfig)) {
-        console.log(`  ${entity.id}: 速度制限により ${phaseConfig.phase} をスキップ`);
+        // console.log(`  ${entity.id}: 速度制限により ${phaseConfig.phase} をスキップ`);
         continue;
       }
       
       // フェーズ固有の処理を実行
       this.executeEntityPhaseAction(entity, phaseConfig.phase);
+      
+      // 敵の行動状況をログ出力（デバッグ用）
+      if (this.isEnemy(entity)) {
+        const speedState = this.turnManager.entitySpeedStates.get(entity.id);
+        if (speedState) {
+          console.log(`[TurnSystem] 敵${entity.id}の行動状況: 移動=${speedState.action1State.hasMoved}, 攻撃=${speedState.action1State.hasAttacked}, 行動済み=${speedState.action1State.hasActed}`);
+        }
+      }
+    }
+
+    // 敵フェーズのみ：移動失敗者を一回だけ再試行
+    if (isEnemyPhase && this.enemyRetryQueue.length > 0) {
+      const retryList = [...this.enemyRetryQueue];
+      this.enemyRetryQueue = [];
+      for (const entity of retryList) {
+        if (!this.turnManager.entitySpeedStates.get(entity.id)) continue; // 既にいない
+        this.executeEnemyAction(entity, phaseConfig.phase === 'enemy-action-1' ? 1 : 2);
+      }
     }
   }
 
@@ -282,7 +350,29 @@ export class TurnSystem {
    */
   private executeTurnStart(entity: GameEntity): void {
     // ターン開始時の処理（新規敵出現など）
-    console.log(`  ターン開始処理: ${entity.id}`);
+    // console.log(`  ターン開始処理: ${entity.id}`);
+    
+    // 敵の場合、プレイヤーに対する方向を更新
+    if (this.isEnemy(entity) && this.playerEntity && (entity as any).updateDirection) {
+      (entity as any).updateDirection(this.playerEntity.position);
+      // console.log(`  ${entity.id}: 方向更新 - ${(entity as any).currentDirection}`);
+    }
+
+    // プレイヤーの残り香を記録
+    if (this.isPlayer(entity) && this.dungeonManager) {
+      try {
+        this.dungeonManager.setPlayerScent(entity.position, this.getCurrentTurn());
+      } catch {}
+    }
+
+    // 敵AIの基本行動（approach/patrol）をターン開始時に決定
+    if (this.isEnemy(entity) && this.dungeonManager?.aiSystem) {
+      try {
+        this.dungeonManager.aiSystem.decidePatternForTurn(entity);
+      } catch (e) {
+        console.warn(`[TurnSystem] decidePatternForTurn でエラー:`, e);
+      }
+    }
   }
 
   /**
@@ -298,17 +388,17 @@ export class TurnSystem {
     
     // 行動可能かチェック
     if (!actionState.canAct) {
-      console.log(`  ${entity.id}: プレイヤー${actionNumber}回目行動 - 行動不可`);
+      // console.log(`  ${entity.id}: プレイヤー${actionNumber}回目行動 - 行動不可`);
       return;
     }
     
     // 隣接ルールチェック（2回目行動のみ）
     if (actionNumber === 2 && this.shouldSkipAction2DueToAdjacency(entity)) {
-      console.log(`  ${entity.id}: プレイヤー2回目行動 - 隣接によりスキップ`);
+      // console.log(`  ${entity.id}: プレイヤー2回目行動 - 隣接によりスキップ`);
       return;
     }
     
-    console.log(`  ${entity.id}: プレイヤー${actionNumber}回目行動実行`);
+    // console.log(`  ${entity.id}: プレイヤー${actionNumber}回目行動実行`);
     // プレイヤー行動は外部から制御されるため、ここでは状態更新のみ
     actionState.hasActed = true;
   }
@@ -326,39 +416,66 @@ export class TurnSystem {
     
     // 行動可能かチェック
     if (!actionState.canAct) {
-      console.log(`  ${entity.id}: 敵${actionNumber}回目行動 - 行動不可`);
+      // console.log(`  ${entity.id}: 敵${actionNumber}回目行動 - 行動不可`);
       return;
     }
     
     // 隣接ルールチェック（2回目行動のみ）
     if (actionNumber === 2 && this.shouldSkipAction2DueToAdjacency(entity)) {
-      console.log(`  ${entity.id}: 敵2回目行動 - 隣接によりスキップ`);
+      // console.log(`  ${entity.id}: 敵2回目行動 - 隣接によりスキップ`);
       return;
     }
     
-    console.log(`  ${entity.id}: 敵${actionNumber}回目行動処理`);
+    // ターン開始時に方向を更新（その場での方向転換）
+    if (entity instanceof MonsterEntity && this.dungeonManager?.aiSystem) {
+      this.dungeonManager.aiSystem.updateMonsterDirectionForPlayer(entity);
+    }
+    
+    // console.log(`  ${entity.id}: 敵${actionNumber}回目行動処理`);
     
     // AI による行動処理
     if (this.dungeonManager && this.dungeonManager.aiSystem) {
-      // 移動可能かチェック
-      if (this.canEntityActInAction(entity, actionNumber, 'move')) {
-        const moveResult = this.dungeonManager.aiSystem.processEntityMovement(entity);
-        if (moveResult?.moved) {
-          actionState.hasMoved = true;
-          // 1回目行動後の隣接チェック
-          if (actionNumber === 1) {
-            speedState.action2State.wasAdjacentAfterAction1 = this.isAdjacentToPlayerOrAlly(entity);
-          }
-        }
-      }
+      console.log(`[TurnSystem] 敵${actionNumber}回目行動: ${entity.id} - 移動可能=${this.canEntityActInAction(entity, actionNumber, 'move')}, 攻撃可能=${this.canEntityActInAction(entity, actionNumber, 'attack')}`);
       
-      // 攻撃可能かチェック（移動していない場合のみ）
-      if (!actionState.hasMoved && this.canEntityActInAction(entity, actionNumber, 'attack')) {
-        const attackResult = this.dungeonManager.aiSystem.processEntityAttack(entity);
-        if (attackResult?.attacked) {
-          actionState.hasAttacked = true;
+      // AI決定を1回だけ取得
+      const aiDecision = this.dungeonManager.aiSystem.processAI(entity);
+      console.log(`[TurnSystem] 敵のAI決定: ${entity.id} - ${JSON.stringify(aiDecision)}`);
+      
+      if (aiDecision) {
+        // 移動可能かチェック
+        if (aiDecision.action === 'move' && aiDecision.position && this.canEntityActInAction(entity, actionNumber, 'move')) {
+          console.log(`[TurnSystem] 敵の移動処理開始: ${entity.id}`);
+          const moveResult = this.dungeonManager.aiSystem.processEntityMovementWithDecision(entity, aiDecision);
+          console.log(`[TurnSystem] 敵の移動結果: ${entity.id} - ${JSON.stringify(moveResult)}`);
+          if (moveResult?.moved) {
+            actionState.hasMoved = true;
+            // 1回目行動後の隣接チェック
+            if (actionNumber === 1) {
+              speedState.action2State.wasAdjacentAfterAction1 = this.isAdjacentToPlayerOrAlly(entity);
+            }
+          } else {
+            // 移動失敗 → 同一フェーズ内で1回だけ再試行
+            if (this.enemyRetryQueue && !this.enemyRetriedThisPhase.has(entity.id)) {
+              this.enemyRetryQueue.push(entity);
+              this.enemyRetriedThisPhase.add(entity.id);
+            }
+          }
+        } else if (aiDecision.action === 'attack' && aiDecision.target && !actionState.hasMoved && this.canEntityActInAction(entity, actionNumber, 'attack')) {
+          // 攻撃可能かチェック（移動していない場合のみ）
+          console.log(`[TurnSystem] 敵の攻撃処理開始: ${entity.id}`);
+          const attackResult = this.dungeonManager.aiSystem.processEntityAttackWithDecision(entity, aiDecision);
+          console.log(`[TurnSystem] 敵の攻撃結果: ${entity.id} - ${JSON.stringify(attackResult)}`);
+          if (attackResult?.attacked) {
+            actionState.hasAttacked = true;
+          }
+        } else {
+          console.log(`[TurnSystem] 敵の行動が無効: ${entity.id} - AI決定=${aiDecision.action}, 移動済み=${actionState.hasMoved}, 移動可能=${this.canEntityActInAction(entity, actionNumber, 'move')}, 攻撃可能=${this.canEntityActInAction(entity, actionNumber, 'attack')}`);
         }
+      } else {
+        console.log(`[TurnSystem] AI決定なし: ${entity.id}`);
       }
+    } else {
+      console.log(`[TurnSystem] AIシステムが利用できません: ${entity.id} - dungeonManager=${!!this.dungeonManager}, aiSystem=${!!this.dungeonManager?.aiSystem}`);
     }
     
     actionState.hasActed = true;
@@ -377,17 +494,17 @@ export class TurnSystem {
     
     // 行動可能かチェック
     if (!actionState.canAct) {
-      console.log(`  ${entity.id}: 味方${actionNumber}回目行動 - 行動不可`);
+      // console.log(`  ${entity.id}: 味方${actionNumber}回目行動 - 行動不可`);
       return;
     }
     
     // 隣接ルールチェック（2回目行動のみ）
     if (actionNumber === 2 && this.shouldSkipAction2DueToAdjacency(entity)) {
-      console.log(`  ${entity.id}: 味方2回目行動 - 隣接によりスキップ`);
+      // console.log(`  ${entity.id}: 味方2回目行動 - 隣接によりスキップ`);
       return;
     }
     
-    console.log(`  ${entity.id}: 味方${actionNumber}回目行動処理`);
+    // console.log(`  ${entity.id}: 味方${actionNumber}回目行動処理`);
     
     // AI による行動処理
     if (this.dungeonManager && this.dungeonManager.aiSystem) {
@@ -769,13 +886,12 @@ export class TurnSystem {
   private executeEndTurnProcessing(): void {
     console.log('--- ターン終了処理 ---');
     
-    // 設定に基づいて順序通りに処理
-    const sortedProcesses = [...this.config.endTurnProcessing].sort((a, b) => a.order - b.order);
-    
-    for (const process of sortedProcesses) {
-      console.log(`  ${process.process}: ${process.description}`);
-      
+    // 設定された順序で処理を実行
+    for (const process of this.config.endTurnProcessing) {
       switch (process.process) {
+        case 'death-check':
+          this.processDeathCheck();
+          break;
         case 'status-recovery':
           this.processStatusRecovery();
           break;
@@ -959,22 +1075,7 @@ export class TurnSystem {
     }
   }
 
-  /**
-   * エンティティを削除
-   */
-  removeEntity(entity: GameEntity): void {
-    const index = this.turnManager.turnOrder.indexOf(entity);
-    if (index !== -1) {
-      this.turnManager.turnOrder.splice(index, 1);
-      this.turnManager.entitySpeedStates.delete(entity.id);
-      this.turnManager.phaseEntityStates.delete(entity.id);
-      
-      // Adjust current index if necessary
-      if (this.turnManager.currentEntityIndex >= index) {
-        this.turnManager.currentEntityIndex = Math.max(0, this.turnManager.currentEntityIndex - 1);
-      }
-    }
-  }
+
 
   /**
    * プレイヤー行動を記録（外部から呼び出される）
@@ -1050,6 +1151,27 @@ export class TurnSystem {
   }
 
   /**
+   * Remove entity from turn system
+   */
+  removeEntity(entity: GameEntity): void {
+    // ターン順序から削除
+    this.turnManager.turnOrder = this.turnManager.turnOrder.filter(e => e.id !== entity.id);
+    
+    // 速度状態から削除
+    this.turnManager.entitySpeedStates.delete(entity.id);
+    
+    // フェーズ状態から削除
+    this.turnManager.phaseEntityStates.delete(entity.id);
+    
+    // 現在のエンティティインデックスを調整
+    if (this.turnManager.currentEntityIndex >= this.turnManager.turnOrder.length) {
+      this.turnManager.currentEntityIndex = Math.max(0, this.turnManager.turnOrder.length - 1);
+    }
+    
+    console.log(`[TurnSystem] エンティティを削除: ${entity.id}`);
+  }
+
+  /**
    * Reset turn system
    */
   reset(): void {
@@ -1066,5 +1188,268 @@ export class TurnSystem {
         trapTriggered: boolean;
       }>()
     };
+  }
+
+  /**
+   * 自然スポーンの判定（30ターンおき）
+   */
+  private checkNaturalSpawn(): void {
+    // 30ターンおきに判定
+    if (this.turnManager.currentTurn % 30 !== 0) {
+      return;
+    }
+
+    // フロア内の敵の数をカウント
+    const enemyCount = this.countEnemiesOnFloor();
+    console.log(`[TurnSystem] 自然スポーン判定: ターン${this.turnManager.currentTurn}, 現在の敵数: ${enemyCount}`);
+
+    // 敵の数が20未満の場合、自然スポーンを実行
+    if (enemyCount < 20) {
+      this.executeNaturalSpawn();
+    }
+  }
+
+  /**
+   * フロア内の敵の数をカウント
+   */
+  private countEnemiesOnFloor(): number {
+    if (!this.dungeonManager) return 0;
+    
+    const allEntities = this.dungeonManager.getAllEntities();
+    return allEntities.filter((entity: GameEntity) => this.isEnemy(entity)).length;
+  }
+
+  /**
+   * 自然スポーンを実行
+   */
+  private executeNaturalSpawn(): void {
+    if (!this.dungeonManager) return;
+
+    // プレイヤーが居る部屋以外の部屋を取得
+    const playerRoom = this.getPlayerRoom();
+    if (!playerRoom) return;
+
+    // 利用可能な部屋を取得（プレイヤーが居る部屋以外）
+    const availableRooms = this.getAvailableRoomsForSpawn(playerRoom);
+    if (availableRooms.length === 0) return;
+
+    // スポーン数を決定（0〜2体）
+    const spawnCount = Math.floor(Math.random() * 3);
+    console.log(`[TurnSystem] 自然スポーン実行: ${spawnCount}体を${availableRooms.length}個の部屋に配置`);
+
+    // 各部屋にランダムにスポーン
+    for (let i = 0; i < spawnCount; i++) {
+      const randomRoom = availableRooms[Math.floor(Math.random() * availableRooms.length)];
+      const spawnPosition = this.getRandomPositionInRoom(randomRoom);
+      
+      if (spawnPosition) {
+        this.spawnMonsterAtPosition(spawnPosition);
+      }
+    }
+  }
+
+  /**
+   * プレイヤーが居る部屋を取得
+   */
+  private getPlayerRoom(): any {
+    if (!this.dungeonManager || !this.playerEntity) return null;
+    
+    const playerPos = this.playerEntity.position;
+    const cell = this.dungeonManager.getCellAt(playerPos);
+    
+    // 部屋の情報を取得（ダンジョンマネージャーから部屋のリストを取得）
+    if (this.dungeonManager.currentDungeon?.rooms) {
+      for (const room of this.dungeonManager.currentDungeon.rooms) {
+        if (this.isPositionInRoom(playerPos, room)) {
+          return room;
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * 位置が部屋内かどうかを判定
+   */
+  private isPositionInRoom(position: Position, room: any): boolean {
+    return position.x >= room.x && 
+           position.x < room.x + room.width &&
+           position.y >= room.y && 
+           position.y < room.y + room.height;
+  }
+
+  /**
+   * スポーン可能な部屋のリストを取得（プレイヤーが居る部屋以外）
+   */
+  private getAvailableRoomsForSpawn(excludeRoom: any): any[] {
+    if (!this.dungeonManager?.currentDungeon?.rooms) return [];
+    
+    return this.dungeonManager.currentDungeon.rooms.filter((room: any) => 
+      room !== excludeRoom && 
+      this.isRoomSuitableForSpawn(room)
+    );
+  }
+
+  /**
+   * 部屋がスポーンに適しているかチェック
+   */
+  private isRoomSuitableForSpawn(room: any): boolean {
+    // 部屋のサイズが適切かチェック
+    if (room.width < 3 || room.height < 3) return false;
+    
+    // 部屋内に既に多くの敵がいないかチェック
+    const enemyCountInRoom = this.countEnemiesInRoom(room);
+    return enemyCountInRoom < 5; // 1部屋あたり最大5体まで
+  }
+
+  /**
+   * 部屋内の敵の数をカウント
+   */
+  private countEnemiesInRoom(room: any): number {
+    if (!this.dungeonManager) return 0;
+    
+    let count = 0;
+    for (let x = room.x; x < room.x + room.width; x++) {
+      for (let y = room.y; y < room.y + room.height; y++) {
+        const entities = this.dungeonManager.getEntitiesAt({ x, y });
+        count += entities.filter((entity: GameEntity) => this.isEnemy(entity)).length;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * 部屋内のランダムな位置を取得
+   */
+  private getRandomPositionInRoom(room: any): Position | null {
+    const maxAttempts = 10;
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const x = room.x + Math.floor(Math.random() * room.width);
+      const y = room.y + Math.floor(Math.random() * room.height);
+      const position = { x, y };
+      
+      // 位置が有効かチェック
+      if (this.isValidSpawnPosition(position)) {
+        return position;
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * スポーン位置が有効かチェック
+   */
+  private isValidSpawnPosition(position: Position): boolean {
+    if (!this.dungeonManager) return false;
+    
+    // 歩行可能かチェック
+    if (!this.dungeonManager.isWalkable(position)) return false;
+    
+    // 部屋内かチェック
+    const cell = this.dungeonManager.getCellAt(position);
+    if (!cell || cell.type !== 'room') return false;
+    
+    // 他のエンティティと重ならないかチェック
+    const entities = this.dungeonManager.getEntitiesAt(position);
+    return entities.length === 0;
+  }
+
+  /**
+   * 指定位置にモンスターをスポーン
+   */
+  private spawnMonsterAtPosition(position: Position): void {
+    if (!this.dungeonManager) return;
+    
+    // モンスターテンプレートを取得（設定から）
+    const monsterTemplate = this.getMonsterTemplate();
+    if (!monsterTemplate) return;
+    
+    // モンスターを作成
+    const monster = new MonsterEntity(
+      `${monsterTemplate.id}-natural-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      monsterTemplate.name,
+      monsterTemplate.monsterType,
+      position,
+      monsterTemplate.stats ? { ...monsterTemplate.stats } : { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
+      undefined, // attributes
+      monsterTemplate.movementPattern || 'approach',
+      monsterTemplate.movementConfig,
+      monsterTemplate.spriteId
+    );
+    
+    // 初期方向を設定
+    monster.currentDirection = 'front';
+    
+    // ダンジョンに追加
+    this.dungeonManager.addEntity(monster as any, position);
+    
+    console.log(`[TurnSystem] 自然スポーン完了: ${monster.name} at (${position.x}, ${position.y})`);
+  }
+
+  /**
+   * モンスターテンプレートを取得
+   */
+  private getMonsterTemplate(): any {
+    // 設定からモンスターテンプレートを取得
+    // 現在はハードコード、後で設定ローダーから取得するように改善
+    return {
+      id: 'simple-enemy',
+      name: 'Simple Enemy',
+      monsterType: 'basic',
+      spriteId: 'enemy-1-0',
+      stats: { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
+      movementPattern: 'approach'
+    };
+  }
+
+  /**
+   * 死亡エンティティのチェックと削除
+   */
+  private processDeathCheck(): void {
+    // 現在のターン順序から死亡したエンティティを削除
+    const entitiesToRemove: GameEntity[] = [];
+    
+    console.log(`[TurnSystem] 死亡チェック開始: ターン順序内のエンティティ数: ${this.turnManager.turnOrder.length}`);
+    
+    for (const entity of this.turnManager.turnOrder) {
+      const hp = entity.stats?.hp;
+      const maxHp = entity.stats?.maxHp;
+      const isDead = this.isEntityDead(entity);
+      
+      console.log(`[TurnSystem] エンティティ${entity.id}: HP=${hp}/${maxHp}, 死亡判定=${isDead}`);
+      
+      if (isDead) {
+        entitiesToRemove.push(entity);
+        console.log(`[TurnSystem] 死亡エンティティを検出: ${entity.id}`);
+      }
+    }
+    
+    console.log(`[TurnSystem] 削除対象エンティティ数: ${entitiesToRemove.length}`);
+    
+    // 死亡したエンティティをターンシステムから削除
+    for (const deadEntity of entitiesToRemove) {
+      this.removeEntity(deadEntity);
+      console.log(`[TurnSystem] 死亡エンティティをターンシステムから削除: ${deadEntity.id}`);
+    }
+  }
+
+  /**
+   * エンティティが死亡しているかチェック
+   */
+  private isEntityDead(entity: GameEntity): boolean {
+    // プレイヤーとモンスターのHPチェック
+    if (entity.stats && entity.stats.hp !== undefined) {
+      return entity.stats.hp <= 0;
+    }
+    
+    // アイテムの場合はHPが1以下で削除対象
+    if (entity.stats && entity.stats.hp !== undefined && entity.stats.hp <= 1) {
+      return true;
+    }
+    
+    return false;
   }
 }

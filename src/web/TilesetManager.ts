@@ -37,11 +37,9 @@ export class TilesetManager {
   async load(): Promise<void> {
     if (this.loaded) return;
 
-    console.log('Loading tileset image from:', this.config.imagePath);
     return new Promise((resolve, reject) => {
       this.image = new Image();
       this.image.onload = () => {
-        console.log('Tileset image loaded successfully');
         this.loaded = true;
         resolve();
       };
@@ -89,13 +87,11 @@ export class TilesetManager {
     tileSize: number
   ): void {
     if (!this.isLoaded() || !this.image) {
-      console.log('Tileset not loaded or image missing');
       return;
     }
 
     const tileDef = this.config.tiles[tileType];
     if (!tileDef) {
-      console.log(`Tile definition not found for type: ${tileType}`);
       // タイル定義がない場合はデフォルトの床タイルを使用
       const defaultTile = this.config.tiles['floor'] || { x: 0, y: 0, width: 1, height: 1 };
       this.drawTileInternal(ctx, defaultTile, x, y, tileSize);
@@ -179,7 +175,6 @@ export class TilesetManager {
     const overlayDef = this.config.overlay[tileType];
     if (!overlayDef) return;
 
-    console.log(`Drawing overlay: ${tileType} at (${x}, ${y})`);
     this.drawTileInternal(ctx, overlayDef, x, y, tileSize);
   }
 }

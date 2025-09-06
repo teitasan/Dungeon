@@ -14,7 +14,8 @@ import {
   CombatConfig,
   CombatAction,
   CombatLogEntry,
-  CombatState
+  CombatState,
+  CombatActionType
 } from '../types/combat';
 import { AttributeSystem } from './AttributeSystem';
 import { ActionResult } from '../types/movement';
@@ -164,19 +165,52 @@ export class CombatSystem {
       target: defender
     }, result);
 
+    // 死亡チェック
+    if (defender.stats && defender.stats.hp <= 0) {
+      this.handleEntityDeath(defender);
+    }
+
     return result;
   }
 
   /**
-   * 攻撃範囲内かチェック
+   * 攻撃範囲内かチェック（角を挟んだ斜め攻撃は禁止）
    */
   private isInAttackRange(attacker: GameEntity, defender: GameEntity): boolean {
-    // 現在は隣接攻撃のみ対応
+    // 隣接攻撃（上下左右 + 斜め）に対応
     const attackerPos = attacker.position;
     const defenderPos = defender.position;
     
-    const distance = Math.abs(attackerPos.x - defenderPos.x) + Math.abs(attackerPos.y - defenderPos.y);
-    return distance <= 1; // 隣接（マンハッタン距離1以下）
+    const dx = Math.abs(attackerPos.x - defenderPos.x);
+    const dy = Math.abs(attackerPos.y - defenderPos.y);
+    
+    // 隣接判定: 上下左右(距離1) + 斜め(距離√2 ≈ 1.414)
+    const isAdjacent = dx <= 1 && dy <= 1 && (dx + dy > 0); // 同じ位置は除外
+    
+    if (!isAdjacent) {
+      return false;
+    }
+    
+    // 斜め隣接の場合、角を挟んでいないかチェック
+    if (dx === 1 && dy === 1) {
+      // 斜め隣接の場合、角の位置が歩行可能かチェック
+      // 攻撃者と防御者の間の角をチェック
+      const cornerPos1 = { x: attackerPos.x, y: defenderPos.y };
+      const cornerPos2 = { x: defenderPos.x, y: attackerPos.y };
+      
+      // ダンジョンマネージャーが利用可能な場合のみチェック
+      if (this.dungeonManager && typeof this.dungeonManager.isWalkable === 'function') {
+        const isCorner1Walkable = this.dungeonManager.isWalkable(cornerPos1);
+        const isCorner2Walkable = this.dungeonManager.isWalkable(cornerPos2);
+        
+        // 両方の角が歩行可能でなければ攻撃禁止
+        if (!isCorner1Walkable || !isCorner2Walkable) {
+          return false; // 角が歩行不可のため攻撃禁止
+        }
+      }
+    }
+    
+    return true;
   }
 
   /**
@@ -359,10 +393,70 @@ export class CombatSystem {
     
     if (attackerStats.hp <= 0) return false;
     if (targetStats.hp <= 0) return false;
-
-    // TODO: Add range checks, line of sight, etc.
+    // 近接レンジ・角抜け禁止のチェック（DungeonManagerがある場合）
+    if (this.dungeonManager) {
+      if (!this.isInAttackRange(attacker, target)) {
+        return false;
+      }
+    }
     
     return true;
+  }
+
+  /**
+   * Process combat action between entities
+   */
+  private processCombatAction(attacker: GameEntity, target: GameEntity, actionType: string): CombatResult | null {
+    // ダメージ計算
+    const damage = this.calculateDamage(attacker, target, 0, 1.0, false);
+    
+    // ターゲットのHPを減少
+    if (target.stats && target.stats.hp !== undefined) {
+      target.stats.hp = Math.max(0, target.stats.hp - damage.finalDamage);
+    }
+    
+    // 戦闘結果を作成
+    const result: CombatResult = {
+      success: true,
+      damage: damage.finalDamage,
+      actualDamage: damage.finalDamage,
+      critical: false,
+      evaded: false,
+      blocked: false,
+      attacker,
+      defender: target,
+      effects: [],
+      message: `${attacker.id}が${target.id}に${damage.finalDamage}ダメージを与えた！`
+    };
+    
+    // 戦闘ログに記録
+    this.logCombatAction({ type: 'attack' as CombatActionType, attacker, target }, result);
+    
+    // 死亡チェック
+    if (target.stats && target.stats.hp <= 0) {
+      this.handleEntityDeath(target);
+    }
+    
+    return result;
+  }
+
+  /**
+   * Process attack between entities
+   */
+  processAttack(attacker: GameEntity, target: GameEntity): CombatResult | null {
+    if (!this.canAttack(attacker, target)) {
+      return null;
+    }
+
+    // 攻撃処理を実行
+    const result = this.processCombatAction(attacker, target, 'attack');
+    
+    // メッセージシンクがあれば通知
+    if (this.messageSink && result) {
+      this.messageSink(result.message);
+    }
+
+    return result;
   }
 
   /**
@@ -492,5 +586,81 @@ export class CombatSystem {
    */
   getAttributeSystem(): AttributeSystem {
     return this.attributeSystem;
+  }
+
+  /**
+   * Handle entity death (enemy defeat, item drops, etc.)
+   */
+  private handleEntityDeath(entity: GameEntity): void {
+    // 敵の死亡処理
+    if (this.isEnemy(entity)) {
+      this.handleEnemyDeath(entity);
+    }
+    
+    // プレイヤーの死亡処理
+    if (this.isPlayer(entity)) {
+      this.handlePlayerDeath(entity);
+    }
+  }
+
+    /**
+   * Handle enemy death
+   */
+  private handleEnemyDeath(enemy: GameEntity): void {
+    console.log(`[CombatSystem] 敵${enemy.id}が倒された`);
+    console.log(`[CombatSystem] 敵${enemy.id}の現在位置: (${enemy.position.x}, ${enemy.position.y})`);
+    
+    // ドロップアイテムの生成（実装予定）
+    // TODO: DropSystemと連携してドロップアイテムを生成
+    
+    // エンティティをダンジョンから削除
+    if (this.dungeonManager) {
+      console.log(`[CombatSystem] 敵${enemy.id}をダンジョンから削除開始`);
+      const removed = this.dungeonManager.removeEntity(enemy);
+      console.log(`[CombatSystem] 敵${enemy.id}の削除結果: ${removed ? '成功' : '失敗'}`);
+      
+      if (removed) {
+        console.log(`[CombatSystem] 敵${enemy.id}をダンジョンから削除完了`);
+      } else {
+        console.log(`[CombatSystem] 警告: 敵${enemy.id}の削除に失敗しました`);
+      }
+    } else {
+      console.log(`[CombatSystem] 警告: dungeonManagerが設定されていません`);
+    }
+    
+    // メッセージを出力
+    if (this.messageSink) {
+      this.messageSink(`${enemy.id}を倒した！`);
+    }
+  }
+
+  /**
+   * Handle player death
+   */
+  private handlePlayerDeath(player: GameEntity): void {
+    console.log(`[CombatSystem] プレイヤー${player.id}が倒された`);
+    
+          // メッセージを出力
+      if (this.messageSink) {
+        this.messageSink(`${player.id}は力尽きた...`);
+      }
+    
+    // TODO: DeathSystemと連携してゲームオーバー処理
+  }
+
+  /**
+   * Check if entity is an enemy
+   */
+  private isEnemy(entity: GameEntity): boolean {
+    // MonsterEntityの判定（暫定的な実装）
+    return entity.id.includes('enemy') || entity.id.includes('monster');
+  }
+
+  /**
+   * Check if entity is a player
+   */
+  private isPlayer(entity: GameEntity): boolean {
+    // PlayerEntityの判定（暫定的な実装）
+    return entity.id.includes('player') || entity.id === 'player-1';
   }
 }

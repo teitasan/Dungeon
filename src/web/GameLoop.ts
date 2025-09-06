@@ -21,7 +21,7 @@ export class GameLoop {
   }
 
   public start(): void {
-    console.log(`[DEBUG] ゲームループ開始: ${this.FPS}FPS (${this.FRAME_INTERVAL.toFixed(1)}ms間隔)`);
+    // console.log(`[DEBUG] ゲームループ開始: ${this.FPS}FPS (${this.FRAME_INTERVAL.toFixed(1)}ms間隔)`);
     this.gameLoop(0);
   }
 
@@ -74,16 +74,16 @@ export class GameLoop {
   }
 
   public handlePlayerAction(action: 'move' | 'attack' | 'item', success: boolean, data?: any): void {
-    console.log(`[DEBUG] handlePlayerAction呼び出し: action=${action}, success=${success}`);
+    // console.log(`[DEBUG] handlePlayerAction呼び出し: action=${action}, success=${success}`);
     
     if (success || action === 'attack') { // 攻撃は常にターン消費
-      console.log(`[DEBUG] ターン処理開始: ${action}`);
+      // console.log(`[DEBUG] ターン処理開始: ${action}`);
       this.systems.turnSystem.recordPlayerAction(this.player, action, false);
-      console.log(`[DEBUG] プレイヤー行動完了: ${action}, ターン実行開始`);
+      // console.log(`[DEBUG] プレイヤー行動完了: ${action}, ターン実行開始`);
       
       // 完全同期処理：即座にターンシステムを実行
       this.systems.turnSystem.executeTurn();
-      console.log(`[DEBUG] ターンシステム実行完了: 次のターン ${this.systems.turnSystem.getCurrentTurn()}`);
+      // console.log(`[DEBUG] ターンシステム実行完了: 次のターン ${this.systems.turnSystem.getCurrentTurn()}`);
       
       // ターンシステム実行後にUIを更新（ターン数表示を更新）
       const current = this.systems.dungeonManager.getCurrentDungeon();
@@ -103,9 +103,9 @@ export class GameLoop {
         this.inputHandler.startTurnControl();
       }
       
-      console.log(`[DEBUG] プレイヤー行動完了: ${action}, ターン実行完了`);
+      // console.log(`[DEBUG] プレイヤー行動完了: ${action}, ターン実行完了`);
     } else {
-      console.log(`[DEBUG] ターン処理スキップ: action=${action}, success=${success}`);
+      // console.log(`[DEBUG] ターン処理スキップ: action=${action}, success=${success}`);
     }
   }
 }

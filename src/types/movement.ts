@@ -107,7 +107,7 @@ export interface TurnSystemConfig {
 }
 
 export interface EndTurnProcess {
-  process: 'status-recovery' | 'slip-damage' | 'hunger-decrease';
+  process: 'death-check' | 'status-recovery' | 'slip-damage' | 'hunger-decrease';
   order: number;
   description: string;
 }

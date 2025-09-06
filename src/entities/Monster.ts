@@ -5,17 +5,23 @@
 import { Position, Component, EntityFlags } from '../types/core';
 import { Monster, CharacterStats, CharacterAttributes, StatusEffect, DropTableEntry, SpawnCondition } from '../types/entities';
 import { BaseGameEntity, createDefaultCharacterStats, createDefaultCharacterAttributes } from './GameEntity.js';
+import { MovementPattern, MovementPatternConfig } from '../types/ai';
 
 export class MonsterEntity extends BaseGameEntity implements Monster {
   public name: string;
   public monsterType: string;
   public stats: CharacterStats;
   public attributes: CharacterAttributes;
-  public aiType: string;
+  public movementPattern?: MovementPattern;
+  public movementConfig?: MovementPatternConfig;
   public dropTable: DropTableEntry[];
   public spawnWeight: number;
   public spawnConditions: SpawnCondition[];
   public statusEffects: StatusEffect[];
+  public spriteId?: string;
+  public spritesheet?: string; // スプライトシートの種類（basic, elite, boss）
+  public currentDirection: string = 'front'; // 現在の向き
+  public speedState: 'normal' | 'fast' | 'slow' = 'normal'; // 速度状態
 
   constructor(
     id: string,
@@ -24,7 +30,15 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
     position: Position,
     stats?: CharacterStats,
     attributes?: CharacterAttributes,
-    aiType: string = 'basic-hostile',
+    movementPattern?: MovementPattern,
+    movementConfig?: MovementPatternConfig,
+    spriteId?: string,
+    experienceValue?: number,
+    dropRate?: number,
+    dropTableId?: string,
+    level?: number,
+    description?: string,
+    spritesheet?: string,
     components: Component[] = [],
     flags: EntityFlags = {}
   ) {
@@ -35,11 +49,27 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
     this.monsterType = monsterType;
     this.stats = monsterStats;
     this.attributes = attributes || createDefaultCharacterAttributes('neutral');
-    this.aiType = aiType;
-    this.dropTable = [];
+    this.movementPattern = movementPattern;
+    this.movementConfig = movementConfig;
+    this.spriteId = spriteId;
+    this.spritesheet = spritesheet;
+    this.dropTable = []; // 初期化時は空、後でdropTableIdから設定
     this.spawnWeight = 1.0; // Default spawn weight
     this.spawnConditions = [];
     this.statusEffects = [];
+    
+    // 新しいパラメータを設定
+    if (experienceValue !== undefined) {
+      this.stats.experienceValue = experienceValue;
+    }
+    if (level !== undefined) {
+      this.stats.level = level;
+    }
+    
+    // ドロップ率とドロップテーブルIDを設定
+    this.setFlag('dropRate', dropRate || 0.0);
+    this.setFlag('dropTableId', dropTableId || '');
+    this.setFlag('description', description || '');
   }
 
   /**
@@ -102,19 +132,7 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
     return this.statusEffects.some(effect => effect.type === type);
   }
 
-  /**
-   * Update AI type
-   */
-  setAIType(aiType: string): void {
-    this.aiType = aiType;
-  }
-
-  /**
-   * Check if monster is hostile
-   */
-  isHostile(): boolean {
-    return this.aiType.includes('hostile');
-  }
+  // aiType は廃止
 
   /**
    * Get experience value based on level
@@ -122,4 +140,6 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
   getExperienceValue(): number {
     return this.stats.experienceValue;
   }
+
+
 }

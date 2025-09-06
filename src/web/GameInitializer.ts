@@ -2,6 +2,9 @@ import { DungeonManager } from '../dungeon/DungeonManager.js';
 import { MultipleDungeonSystem } from '../systems/MultipleDungeonSystem.js';
 import { PlayerEntity } from '../entities/Player.js';
 import { ItemEntity } from '../entities/Item.js';
+import { MonsterEntity } from '../entities/Monster.js';
+import { CompanionEntity } from '../entities/Companion.js';
+import { GameEntity } from '../types/entities.js';
 import { UISystem } from '../systems/UISystem.js';
 import { ItemSystem } from '../systems/ItemSystem.js';
 import { CombatSystem } from '../systems/CombatSystem.js';
@@ -11,6 +14,7 @@ import { TurnSystem } from '../systems/TurnSystem.js';
 import { CanvasRenderer } from './CanvasRenderer.js';
 import { TilesetManager } from './TilesetManager.js';
 import { ItemSpriteManager } from './ItemSpriteManager.js';
+import { MonsterSpriteManager } from './MonsterSpriteManager.js';
 import { WebConfigLoader } from './WebConfigLoader.js';
 import { UIManager } from './ui/UIManager.js';
 import type { Position } from '../types/core.js';
@@ -54,6 +58,9 @@ export class GameInitializer {
 
     // 非ECSプレイヤーの作成（段階的移行のため残存）
     const player = await this.createPlayer(config);
+
+    // TurnSystemにプレイヤーエンティティを設定
+    systems.turnSystem.setPlayerEntity(player);
 
     // ダンジョンの初期化
     await this.initializeDungeon(systems, player, config);
@@ -107,13 +114,23 @@ export class GameInitializer {
       itemSystem.reloadTemplatesFromRegistry?.();
     } catch {}
     const movementSystem = new MovementSystem(dungeonManager, itemSystem);
+    
     const turnSystem = new TurnSystem(
       config.turnSystem,
       dungeonManager,
       combatSystem,
       undefined, // hungerSystem - 後で追加
-      undefined  // statusSystem - 後で追加
+      undefined, // statusSystem - 後で設定
+      undefined  // playerEntity - 後で設定
     );
+    // 自然スポーンはデフォルト設定のまま利用
+    
+    // AISystemを作成（TurnSystemの参照を渡す）
+    const { AISystem } = await import('../systems/AISystem.js');
+    const aiSystem = new AISystem(dungeonManager, movementSystem, combatSystem, turnSystem);
+    
+    // DungeonManagerにAISystemを設定
+    dungeonManager.aiSystem = aiSystem;
 
     // システム間の依存関係を設定
     uiSystem.setItemSystem(itemSystem);
@@ -180,61 +197,165 @@ export class GameInitializer {
     const { dungeonManager } = systems;
     const spawn = player.position;
 
-    // テスト用：通常速度モンスター
-    const testMonster = {
-      id: 'enemy-test-1',
-      position: { x: spawn.x + 3, y: spawn.y + 1 },
-      components: [],
-      stats: { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.1 },
-      flags: {},
-      speedState: 'normal' as const
-    };
-    
-    // テスト用：倍速モンスター
-    const fastMonster = {
-      id: 'fast-enemy-1',
-      position: { x: spawn.x + 5, y: spawn.y + 2 },
-      components: [],
-      stats: { hp: 15, maxHp: 15, attack: 3, defense: 1, evasionRate: 0.05 },
-      flags: {},
-      speedState: 'fast' as const
-    };
-    
-    // テスト用：鈍足モンスター
-    const slowMonster = {
-      id: 'slow-enemy-1',
-      position: { x: spawn.x + 1, y: spawn.y + 3 },
-      components: [],
-      stats: { hp: 30, maxHp: 30, attack: 8, defense: 3, evasionRate: 0.2 },
-      flags: {},
-      speedState: 'slow' as const
-    };
-    
-    // テスト用：カスタムルール倍速モンスター（攻撃は1回のみ）
-    const customFastMonster = {
-      id: 'custom-fast-enemy-1',
-      position: { x: spawn.x + 2, y: spawn.y + 5 },
-      components: [],
-      stats: { hp: 12, maxHp: 12, attack: 6, defense: 2, evasionRate: 0.1 },
-      flags: {},
-      speedState: 'fast' as const,
-      customRules: {
-        action1: { canMove: true, canAttack: true },
-        action2: { canMove: true, canAttack: false }  // 2回目は移動のみ
+    // 設定ファイルのモンスターテンプレートを使用
+    if (config.monsters?.templates) {
+      
+      // スポーン数を計算
+      const spawnCount = this.calculateMonsterSpawnCount(dungeonManager, config);
+      
+      // 各テンプレートから指定された数だけ作成
+      for (const template of config.monsters.templates) {
+        
+        for (let i = 0; i < spawnCount; i++) {
+          // フロア全体のランダムな位置を取得
+          const randomPosition = this.getRandomFloorPosition(dungeonManager, player);
+          if (!randomPosition) {
+            break; // 位置が見つからない場合は終了
+          }
+          
+          // テンプレートからモンスターを作成
+          const monster = new MonsterEntity(
+            `${template.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            template.name,
+            template.monsterType,
+            randomPosition,
+            template.stats ? { ...template.stats } : { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
+            undefined, // attributes
+            template.movementPattern || 'approach',
+            template.movementConfig,
+            template.spriteId,
+            template.experienceValue,
+            template.dropRate,
+            template.dropTableId,
+            template.level,
+            template.description,
+            template.spritesheet
+          );
+
+          // ドロップテーブルを設定ファイルから取得して設定
+          // まずダンジョンテンプレートのマッピングを確認
+          const currentDungeonId = dungeonManager.getCurrentDungeon()?.id;
+          if (currentDungeonId) {
+            const dungeonTemplate = dungeonManager.getTemplate(currentDungeonId);
+            if (template.dropTableId && dungeonTemplate?.dropTableMapping?.[template.dropTableId]) {
+              const actualDropTableId = dungeonTemplate.dropTableMapping[template.dropTableId];
+              if (config.monsters?.dropTables?.[actualDropTableId]) {
+                monster.dropTable = config.monsters.dropTables[actualDropTableId];
+              }
+            }
+          }
+          
+          // 初期方向を設定
+          monster.currentDirection = 'front';
+          
+          
+          // モンスターをダンジョンに追加
+          dungeonManager.addEntity(monster as any, randomPosition);
+          console.log(`Added test monster: ${monster.name} at (${randomPosition.x}, ${randomPosition.y})`);
+        }
       }
-    };
+    } else {
+    }
     
-    // モンスターをダンジョンに追加
-    const monsters = [testMonster, fastMonster, slowMonster, customFastMonster];
-    monsters.forEach(monster => {
-      if (dungeonManager.isWalkable(monster.position)) {
-        dungeonManager.addEntity(monster as any, monster.position);
+  }
+
+  /**
+   * モンスターのスポーン数を計算
+   */
+  private calculateMonsterSpawnCount(dungeonManager: any, config: any): number {
+    // 部屋の数を取得
+    const roomCount = dungeonManager.currentDungeon?.rooms?.length || 0;
+    
+    // 基本スポーン数（部屋の数）
+    const baseSpawnCount = roomCount;
+    
+    // ランダム変動（-2〜+2）
+    const randomVariation = config.monsters?.spawnLimits?.randomVariation || 2;
+    const variation = Math.floor(Math.random() * (randomVariation * 2 + 1)) - randomVariation;
+    
+    // 最終スポーン数
+    let finalSpawnCount = baseSpawnCount + variation;
+    
+    // 上限チェック
+    const maxPerFloor = config.monsters?.spawnLimits?.maxPerFloor || 50;
+    finalSpawnCount = Math.min(finalSpawnCount, maxPerFloor);
+    
+    // 最小値チェック（最低1体）
+    finalSpawnCount = Math.max(finalSpawnCount, 1);
+    
+    
+    return finalSpawnCount;
+  }
+
+  /**
+   * 部屋内のランダムな位置を取得（プレイヤー、敵、味方と重ならない位置）
+   */
+  private getRandomFloorPosition(dungeonManager: any, player: PlayerEntity): Position | null {
+    // 部屋内の位置のリストを取得
+    const roomPositions: Position[] = [];
+    
+    // フロア全体をスキャンして部屋内の位置を収集
+    for (let x = 0; x < 45; x++) {
+      for (let y = 0; y < 45; y++) {
+        const position = { x, y };
+        const cell = dungeonManager.getCellAt(position);
+        
+        // 部屋内で歩行可能な位置のみ
+        if (cell && cell.type === 'room' && cell.walkable) {
+          roomPositions.push(position);
+        }
       }
-    });
+    }
+    
+    // 部屋内の位置がない場合
+    if (roomPositions.length === 0) {
+      return null;
+    }
+    
+    // プレイヤー、敵、味方がいる位置を除外
+    const availablePositions = roomPositions.filter(position => 
+      this.isValidMonsterPosition(dungeonManager, position, player)
+    );
+    
+    if (availablePositions.length === 0) {
+      return null;
+    }
+    
+    // 利用可能な部屋位置からランダムで選択
+    const randomIndex = Math.floor(Math.random() * availablePositions.length);
+    return availablePositions[randomIndex];
+  }
+
+  /**
+   * モンスターの位置が有効かチェック
+   */
+  private isValidMonsterPosition(dungeonManager: any, position: Position, player: PlayerEntity): boolean {
+    // 歩行可能な位置かチェック
+    if (!dungeonManager.isWalkable(position)) {
+      return false;
+    }
+    
+    // プレイヤーと重ならないかチェック
+    if (position.x === player.position.x && position.y === player.position.y) {
+      return false;
+    }
+    
+    // 他の敵や味方と重ならないかチェック
+    const entitiesAtPosition = dungeonManager.getEntitiesAt(position);
+    const hasEnemyOrAlly = entitiesAtPosition.some((entity: GameEntity) => 
+      entity instanceof MonsterEntity || 
+      entity instanceof CompanionEntity
+    );
+    
+    if (hasEnemyOrAlly) {
+      return false;
+    }
+    
+    return true;
   }
 
   private async addTestItems(systems: GameSystems, player: PlayerEntity, spawn: Position): Promise<void> {
-    // テスト用アイテムを初期インベントリに追加（レミーラ5個）
+    // テスト用アイテムを初期インベントリに追加（レミーラ5個 + 透視3個 + 千里眼2個）
     const testItems = [
       {
         id: 'scroll-remilla-1',
@@ -260,6 +381,31 @@ export class GameInitializer {
         id: 'scroll-remilla-5',
         name: 'レミーラの巻物',
         effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
+      },
+      {
+        id: 'scroll-monster-vision-1',
+        name: '透視の巻物',
+        effect: { type: 'reveal-monsters', value: 1, description: 'フロア全体のモンスターの位置を表示' }
+      },
+      {
+        id: 'scroll-monster-vision-2',
+        name: '透視の巻物',
+        effect: { type: 'reveal-monsters', value: 1, description: 'フロア全体のモンスターの位置を表示' }
+      },
+      {
+        id: 'scroll-monster-vision-3',
+        name: '透視の巻物',
+        effect: { type: 'reveal-monsters', value: 1, description: 'フロア全体のモンスターの位置を表示' }
+      },
+      {
+        id: 'scroll-clairvoyance-1',
+        name: '千里眼の巻物',
+        effect: { type: 'reveal-items', value: 1, description: 'フロア全体のアイテムの位置を表示' }
+      },
+      {
+        id: 'scroll-clairvoyance-2',
+        name: '千里眼の巻物',
+        effect: { type: 'reveal-items', value: 1, description: 'フロア全体のアイテムの位置を表示' }
       }
     ];
 
@@ -360,6 +506,34 @@ export class GameInitializer {
       }
     } catch (error) {
       console.warn('Failed to load item spritesheet:', error);
+    }
+
+    // 敵のスプライトマネージャーの初期化
+    let monsterSpriteManager: MonsterSpriteManager | null = null;
+    try {
+      if (config.monsters?.spritesheets) {
+        console.log('Monster spritesheets config found');
+        
+        // 複数スプライトシートとアニメーション設定を渡す
+        const monsterConfig = {
+          ...config.monsters.spritesheets,
+          animations: config.monsters.animations
+        };
+        
+        monsterSpriteManager = new MonsterSpriteManager(monsterConfig);
+        
+        // 画像の読み込み完了を待ってからレンダラーに設定
+        try {
+          await monsterSpriteManager.load();
+          console.log('Monster spritesheets loaded successfully');
+          renderer.setMonsterSpriteManager(monsterSpriteManager);
+        } catch (error) {
+          console.warn('Failed to load monster spritesheets:', error);
+          renderer.setMonsterSpriteManager(monsterSpriteManager);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load monster spritesheets:', error);
     }
     
     // 設定からビューポートを設定

@@ -3,6 +3,7 @@ import type { GameConfig } from '../types/core.js';
 /**
  * Web環境用の設定ローダー
  * ブラウザ環境でfetch APIを使用して設定ファイルを読み込む
+ * 複数の設定ファイルを統合してGameConfigを構築する
  */
 export class WebConfigLoader {
   private configCache: Map<string, any> = new Map();
@@ -15,7 +16,7 @@ export class WebConfigLoader {
   }
 
   /**
-   * メインゲーム設定を読み込み
+   * メインゲーム設定を読み込み（複数ファイルを統合）
    */
   async loadGameConfig(): Promise<GameConfig> {
     const configKey = 'game-config';
@@ -25,7 +26,35 @@ export class WebConfigLoader {
     }
 
     try {
-      const config = await this.loadConfigFile('game.json');
+      // 複数の設定ファイルを並行読み込み
+      const [
+        dungeonConfig,
+        charactersConfig,
+        itemsConfig,
+        effectsConfig,
+        systemConfig
+      ] = await Promise.all([
+        this.loadConfigFile('dungeon.json'),
+        this.loadConfigFile('characters.json'),
+        this.loadConfigFile('items.json'),
+        this.loadConfigFile('effects.json'),
+        this.loadConfigFile('system.json')
+      ]);
+
+      // 設定を統合
+      const config: GameConfig = {
+        ...systemConfig,
+        dungeon: dungeonConfig,
+        player: charactersConfig.player,
+        monsters: charactersConfig.monsters,
+        items: itemsConfig,
+        attributes: effectsConfig.attributes,
+        combat: {
+          ...systemConfig.combat,
+          statusEffects: effectsConfig.statusEffects
+        }
+      };
+
       const validatedConfig = this.validateGameConfig(config);
       this.configCache.set(configKey, validatedConfig);
       return validatedConfig;
@@ -40,7 +69,6 @@ export class WebConfigLoader {
    */
   async loadConfigFile(filename: string): Promise<any> {
     const filePath = `${this.basePath}/${filename}`;
-    console.log(`[DEBUG] Loading config file: ${filePath}`);
     
     try {
       const response = await fetch(filePath);
@@ -71,7 +99,7 @@ export class WebConfigLoader {
    * ゲーム設定の構造を検証
    */
   private validateGameConfig(config: any): GameConfig {
-    const requiredSections = ['player', 'combat', 'dungeon', 'items', 'monsters', 'attributes', 'ui'];
+    const requiredSections = ['player', 'combat', 'dungeon', 'items', 'monsters', 'attributes', 'ui', 'turnSystem'];
     
     for (const section of requiredSections) {
       if (!config[section]) {
@@ -87,6 +115,16 @@ export class WebConfigLoader {
     // 入力設定の検証
     if (!config.input?.keys?.movement || !config.input?.keys?.actions) {
       throw new Error('Invalid input configuration structure');
+    }
+
+    // プレイヤー設定の検証
+    if (!config.player.initialStats || !config.player.levelUpConfig) {
+      throw new Error('Invalid player configuration structure');
+    }
+
+    // モンスター設定の検証
+    if (!config.monsters.templates || !config.monsters.spritesheets) {
+      throw new Error('Invalid monsters configuration structure');
     }
 
     return config as GameConfig;
