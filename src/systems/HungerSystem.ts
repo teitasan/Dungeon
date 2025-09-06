@@ -76,6 +76,8 @@ export interface FoodEffect {
 
 export class HungerSystem {
   private config: HungerConfig;
+  private messageSink?: (message: string) => void;
+  private turnCounters: Map<string, number> = new Map();
 
   constructor(config?: Partial<HungerConfig>) {
     this.config = {
@@ -141,8 +143,8 @@ export class HungerSystem {
           effects: [
             {
               type: 'damage-over-time',
-              value: 5,
-              description: 'Takes 5 damage per turn'
+              value: 1,
+              description: 'Takes 1 damage per turn'
             },
             {
               type: 'stat-modifier',
@@ -157,6 +159,13 @@ export class HungerSystem {
   }
 
   /**
+   * メッセージ出力先を設定（UI ログなど）
+   */
+  setMessageSink(sink: (message: string) => void): void {
+    this.messageSink = sink;
+  }
+
+  /**
    * Process hunger for entity (typically called each turn)
    */
   processHunger(entity: GameEntity): HungerResult | null {
@@ -168,15 +177,26 @@ export class HungerSystem {
     const previousHunger = player.hunger;
     const previousState = this.getHungerState(previousHunger);
 
-    // Decrease hunger
-    player.hunger = Math.max(
-      this.config.minValue,
-      player.hunger - this.config.decreaseRate
-    );
+    // per-entity カウンタを用いて 10 ターンに 1 減少
+    const currentCount = (this.turnCounters.get(player.id) || 0) + 1;
+    this.turnCounters.set(player.id, currentCount);
+    const shouldDecrease = currentCount % 10 === 0;
+
+    if (shouldDecrease) {
+      player.hunger = Math.max(
+        this.config.minValue,
+        player.hunger - this.config.decreaseRate
+      );
+    }
 
     const currentState = this.getHungerState(player.hunger);
     const effects = this.applyHungerEffects(player, currentState);
     const messages = this.generateHungerMessages(player, previousState, currentState);
+
+    // メッセージを出力
+    if (this.messageSink && messages.length > 0) {
+      for (const m of messages) this.messageSink(m);
+    }
 
     return {
       entity,
@@ -225,6 +245,11 @@ export class HungerSystem {
       `${player.name} ate ${food.name}`,
       ...this.generateHungerMessages(player, previousState, currentState)
     ];
+
+    // メッセージを出力
+    if (this.messageSink && messages.length > 0) {
+      for (const m of messages) this.messageSink(m);
+    }
 
     return {
       entity,

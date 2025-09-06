@@ -20,7 +20,7 @@
       "maxValue": 100,
       "decreaseRate": 1,
       "minValue": 0,
-      "damageAmount": 5,
+      "damageAmount": 1,
       "recoveryAmount": 20,
       "maxOverfeedTime": 10
     },

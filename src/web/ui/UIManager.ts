@@ -315,6 +315,12 @@ export class UIManager {
           <span class="hp-text">100/100</span>
         </div>
       </div>
+      <div class="info-item hunger-bar-container">
+        <div class="hunger-bar">
+          <div class="hunger-fill"></div>
+          <span class="hunger-text">100/100</span>
+        </div>
+      </div>
       <div class="info-item gold-info">0 G</div>
     `;
     
@@ -333,6 +339,8 @@ export class UIManager {
     level: number;
     currentHp: number;
     maxHp: number;
+    hungerCurrent: number;
+    hungerMax: number;
     gold: number;
     turn: number;
   }): void {
@@ -374,6 +382,25 @@ export class UIManager {
       }
       
       hpText.textContent = `${data.currentHp}/${data.maxHp}`;
+    }
+
+    // 満腹度バー
+    const hungerFill = overlay.querySelector('.hunger-fill');
+    const hungerText = overlay.querySelector('.hunger-text');
+    if (hungerFill && hungerText) {
+      const hungerRatio = Math.max(0, Math.min(1, data.hungerCurrent / data.hungerMax));
+      (hungerFill as HTMLElement).style.width = `${hungerRatio * 100}%`;
+      
+      // 満腹度に応じて色を変更（満腹=緑 → 空腹=赤）
+      if (hungerRatio > 0.5) {
+        (hungerFill as HTMLElement).style.backgroundColor = '#66cc66';
+      } else if (hungerRatio > 0.25) {
+        (hungerFill as HTMLElement).style.backgroundColor = '#ffcc66';
+      } else {
+        (hungerFill as HTMLElement).style.backgroundColor = '#ff6666';
+      }
+      
+      hungerText.textContent = `${data.hungerCurrent}/${data.hungerMax}`;
     }
 
     // 所持金

@@ -89,7 +89,7 @@ export class CanvasRenderer {
       ctx.fillStyle = `rgba(255,255,255,${Math.min(1, alpha * 1.2).toFixed(3)})`;
       ctx.textBaseline = 'middle';
 
-      // 文字間隔を少し広げて描画するユーティリティ
+      // 文字間隔を少し広げて描画するユーティリティ（ふちどり付き）
       const drawTextWithTracking = (text: string, centerX: number, y: number, spacing: number) => {
         ctx.textAlign = 'left';
         // 文字ごとの幅を計測
@@ -104,6 +104,13 @@ export class CanvasRenderer {
         let x = centerX - total / 2;
         for (let i = 0; i < text.length; i++) {
           const ch = text[i];
+          // ふちどり（黒）を4方向に描画
+          ctx.fillStyle = '#000000';
+          ctx.fillText(ch, x - 1, y - 1);
+          ctx.fillText(ch, x + 1, y - 1);
+          ctx.fillText(ch, x - 1, y + 1);
+          ctx.fillText(ch, x + 1, y + 1);
+          // メインの文字（元の色）
           ctx.fillText(ch, x, y);
           x += widths[i] + spacing;
         }
@@ -245,13 +252,24 @@ export class CanvasRenderer {
     this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
     this.ctx.fillRect(x + 3, y + 3, this.tileSize - 6, this.tileSize - 6);
     
-    // 文字
-    this.ctx.fillStyle = '#d0d0d0';
+    // 文字（ふちどり付き）
     const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
     this.ctx.font = `${Math.floor(this.tileSize * 0.7)}px '${fontFamily}', ui-monospace, Menlo, monospace`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(glyph, x + this.tileSize / 2, y + this.tileSize / 2 + 1);
+    const centerX = x + this.tileSize / 2;
+    const centerY = y + this.tileSize / 2 + 1;
+    
+    // ふちどり（黒）を4方向に描画
+    this.ctx.fillStyle = '#000000';
+    this.ctx.fillText(glyph, centerX - 1, centerY - 1);
+    this.ctx.fillText(glyph, centerX + 1, centerY - 1);
+    this.ctx.fillText(glyph, centerX - 1, centerY + 1);
+    this.ctx.fillText(glyph, centerX + 1, centerY + 1);
+    
+    // メインの文字
+    this.ctx.fillStyle = '#d0d0d0';
+    this.ctx.fillText(glyph, centerX, centerY);
   }
 
   /**
@@ -296,13 +314,24 @@ export class CanvasRenderer {
     this.ctx.fillStyle = 'rgba(255,0,0,0.1)';
     this.ctx.fillRect(x + 3, y + 3, this.tileSize - 6, this.tileSize - 6);
     
-    // 文字
-    this.ctx.fillStyle = '#ff4444';
+    // 文字（ふちどり付き）
     const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
     this.ctx.font = `${Math.floor(this.tileSize * 0.7)}px '${fontFamily}', ui-monospace, Menlo, monospace`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(glyph, x + this.tileSize / 2, y + this.tileSize / 2 + 1);
+    const centerX = x + this.tileSize / 2;
+    const centerY = y + this.tileSize / 2 + 1;
+    
+    // ふちどり（黒）を4方向に描画
+    this.ctx.fillStyle = '#000000';
+    this.ctx.fillText(glyph, centerX - 1, centerY - 1);
+    this.ctx.fillText(glyph, centerX + 1, centerY - 1);
+    this.ctx.fillText(glyph, centerX - 1, centerY + 1);
+    this.ctx.fillText(glyph, centerX + 1, centerY + 1);
+    
+    // メインの文字
+    this.ctx.fillStyle = '#ff4444';
+    this.ctx.fillText(glyph, centerX, centerY);
   }
 
   /**
@@ -563,12 +592,25 @@ export class CanvasRenderer {
           const glyph = (entity as any).name ? ((entity as any).name as string).charAt(0).toUpperCase() : 'E';
           this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
           this.ctx.fillRect(gx + 3, gy + 3, tileSize - 6, tileSize - 6);
-          this.ctx.fillStyle = '#d0d0d0';
+          
+          // 文字（ふちどり付き）
           const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
           this.ctx.font = `${Math.floor(tileSize * 0.7)}px '${fontFamily}', ui-monospace, Menlo, monospace`;
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
-          this.ctx.fillText(glyph, gx + tileSize / 2, gy + tileSize / 2 + 1);
+          const centerX = gx + tileSize / 2;
+          const centerY = gy + tileSize / 2 + 1;
+          
+          // ふちどり（黒）を4方向に描画
+          this.ctx.fillStyle = '#000000';
+          this.ctx.fillText(glyph, centerX - 1, centerY - 1);
+          this.ctx.fillText(glyph, centerX + 1, centerY - 1);
+          this.ctx.fillText(glyph, centerX - 1, centerY + 1);
+          this.ctx.fillText(glyph, centerX + 1, centerY + 1);
+          
+          // メインの文字
+          this.ctx.fillStyle = '#d0d0d0';
+          this.ctx.fillText(glyph, centerX, centerY);
         }
       } catch (error) {
         console.error(`[ERROR] Failed to render entity ${entity.id}:`, error);

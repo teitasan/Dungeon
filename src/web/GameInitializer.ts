@@ -11,6 +11,7 @@ import { CombatSystem } from '../systems/CombatSystem.js';
 import { InputSystem } from '../systems/InputSystem.js';
 import { MovementSystem } from '../systems/MovementSystem.js';
 import { TurnSystem } from '../systems/TurnSystem.js';
+import { HungerSystem } from '../systems/HungerSystem.js';
 import { CanvasRenderer } from './CanvasRenderer.js';
 import { TilesetManager } from './TilesetManager.js';
 import { ItemSpriteManager } from './ItemSpriteManager.js';
@@ -115,11 +116,14 @@ export class GameInitializer {
     } catch {}
     const movementSystem = new MovementSystem(dungeonManager, itemSystem);
     
+    // 満腹度システムの生成
+    const hungerSystem = new HungerSystem(config.player?.hungerConfig);
+
     const turnSystem = new TurnSystem(
       config.turnSystem,
       dungeonManager,
       combatSystem,
-      undefined, // hungerSystem - 後で追加
+      hungerSystem, // hungerSystem を注入
       undefined, // statusSystem - 後で設定
       undefined  // playerEntity - 後で設定
     );
@@ -139,6 +143,9 @@ export class GameInitializer {
     // 戦闘結果のメッセージや撃破時の取り除きに必要な参照を設定
     combatSystem.setDungeonManager(dungeonManager);
     combatSystem.setMessageSink((msg: string) => uiSystem.pushMessage(msg));
+
+    // 満腹度のメッセージをUIへ
+    hungerSystem.setMessageSink?.((msg: string) => uiSystem.pushMessage(msg));
 
     // DropSystem を MultipleDungeonSystem に登録（フロア生成時の床アイテムスポーン用）
     const { DropSystem } = await import('../systems/DropSystem.js');

@@ -79,6 +79,7 @@ export function openChoiceModal(params: {
   header.style.fontFamily = 'PixelMplus';
   header.style.fontWeight = '600';
   header.style.marginBottom = '8px';
+  header.style.textShadow = '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000';
 
   const opts = document.createElement('div');
   // 縦並びの選択肢
@@ -93,6 +94,7 @@ export function openChoiceModal(params: {
     item.style.padding = '8px 12px';
     item.style.borderRadius = '8px';
     item.style.width = '100%';
+    item.style.textShadow = '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000';
     opts.appendChild(item);
   });
 
@@ -102,6 +104,7 @@ export function openChoiceModal(params: {
   hint.style.opacity = '0.8';
   hint.style.fontSize = '12px';
   hint.style.marginTop = '8px';
+  hint.style.textShadow = '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000';
 
   panel.appendChild(header);
   panel.appendChild(opts);

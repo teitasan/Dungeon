@@ -59,6 +59,8 @@ export class GameLoop {
       level: this.player.stats.level,
       currentHp: this.player.stats.hp,
       maxHp: this.player.stats.maxHp,
+      hungerCurrent: this.player.hunger,
+      hungerMax: this.player.maxHunger,
       gold: 0, // プレイヤーの所持金（現在は0で固定）
       turn: this.systems.turnSystem.getCurrentTurn()
     });
@@ -93,6 +95,8 @@ export class GameLoop {
           level: this.player.stats.level,
           currentHp: this.player.stats.hp,
           maxHp: this.player.stats.maxHp,
+          hungerCurrent: this.player.hunger,
+          hungerMax: this.player.maxHunger,
           gold: 0,
           turn: this.systems.turnSystem.getCurrentTurn()
         });

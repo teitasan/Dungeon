@@ -212,6 +212,11 @@ a {
   -moz-osx-font-smoothing: none; /* Firefoxでスムージングオフ */
   font-smooth: never; /* 標準プロパティ（対応ブラウザのみ） */
   white-space: nowrap;
+  text-shadow: 
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    1px 1px 0 #000;
 }
 
 .hp-bar-container {
@@ -238,6 +243,50 @@ a {
 }
 
 .hp-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  font-family: 'PixelMplus';
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: none;
+  font-smooth: never;
+  text-shadow: 
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    1px 1px 0 #000;
+  white-space: nowrap;
+}
+
+/* 満腹度バー */
+.hunger-bar-container {
+  display: flex;
+  align-items: center;
+}
+
+.hunger-bar {
+  position: relative;
+  width: 120px;
+  height: 16px;
+  background-color: rgba(255, 165, 0, 0.25);
+  border: 2px solid white;
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+.hunger-fill {
+  height: 100%;
+  background-color: #66cc66; /* 実際の色はJSで上書き */
+  transition: width 0.2s ease, background-color 0.2s ease;
+  border-radius: 1px;
+}
+
+.hunger-text {
   position: absolute;
   top: 50%;
   left: 50%;
