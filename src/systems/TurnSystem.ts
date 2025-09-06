@@ -358,6 +358,13 @@ export class TurnSystem {
       // console.log(`  ${entity.id}: 方向更新 - ${(entity as any).currentDirection}`);
     }
 
+    // プレイヤーの残り香を記録
+    if (this.isPlayer(entity) && this.dungeonManager) {
+      try {
+        this.dungeonManager.setPlayerScent(entity.position, this.getCurrentTurn());
+      } catch {}
+    }
+
     // 敵AIの基本行動（approach/patrol）をターン開始時に決定
     if (this.isEnemy(entity) && this.dungeonManager?.aiSystem) {
       try {

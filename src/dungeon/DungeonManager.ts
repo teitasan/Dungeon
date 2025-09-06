@@ -25,6 +25,8 @@ export class DungeonManager {
   // プレイヤー視界をターン単位で共有
   private playerVision: Set<string> = new Set();
   private lastVisionTurn: number | null = null;
+  // プレイヤーの残り香（最後にいたターンを保持するグリッド）
+  private scentTurns: number[][] | null = null;
 
   constructor() {
     this.generator = new DungeonGenerator();
@@ -166,6 +168,48 @@ export class DungeonManager {
     return `${pos.x},${pos.y}`;
   }
 
+  /** 残り香グリッド初期化 */
+  private initScentGrid(width: number, height: number): void {
+    this.scentTurns = Array.from({ length: height }, () => Array<number>(width).fill(0));
+  }
+
+  /** 残り香の記録（プレイヤーが現在いるセルにターン番号を刻む） */
+  setPlayerScent(position: Position, turn: number): void {
+    if (!this.currentDungeon || !this.scentTurns) return;
+    if (!this.isValidPosition(position)) return;
+    this.scentTurns[position.y][position.x] = turn;
+  }
+
+  /** 指定セルの残り香ターン番号を取得（0=未記録） */
+  getScentTurn(position: Position): number {
+    if (!this.currentDungeon || !this.scentTurns) return 0;
+    if (!this.isValidPosition(position)) return 0;
+    return this.scentTurns[position.y][position.x] || 0;
+  }
+
+  /** Nターン以内の残り香か */
+  isScentFresh(position: Position, currentTurn: number, horizon: number): boolean {
+    const t = this.getScentTurn(position);
+    return t > 0 && (currentTurn - t) <= horizon;
+  }
+
+  /** 最も新しい残り香セルを返す（Nターン以内）。見つからなければnull */
+  getFreshestScentPosition(currentTurn: number, horizon: number): Position | null {
+    if (!this.currentDungeon || !this.scentTurns) return null;
+    let bestTurn = 0;
+    let bestPos: Position | null = null;
+    for (let y = 0; y < this.currentDungeon.height; y++) {
+      for (let x = 0; x < this.currentDungeon.width; x++) {
+        const t = this.scentTurns[y][x] || 0;
+        if (t > 0 && (currentTurn - t) <= horizon && t > bestTurn) {
+          bestTurn = t;
+          bestPos = { x, y };
+        }
+      }
+    }
+    return bestPos;
+  }
+
   /**
    * Generate a new dungeon from template
    */
@@ -194,6 +238,8 @@ export class DungeonManager {
       );
 
       this.currentDungeon = dungeon;
+      // 残り香グリッド初期化
+      this.initScentGrid(dungeon.width, dungeon.height);
 
       return dungeon;
     } catch (error) {
@@ -215,6 +261,7 @@ export class DungeonManager {
    */
   setCurrentDungeon(dungeon: Dungeon): void {
     this.currentDungeon = dungeon;
+    this.initScentGrid(dungeon.width, dungeon.height);
   }
 
   /**
@@ -444,12 +491,12 @@ export class DungeonManager {
       }
       
       for (const adjacent of this.getAdjacentPositions(pos, true)) {
-        // 斜め移動の角抜けを防ぐ: 斜めの場合、両サイドが共に非歩行ならスキップ
+        // 斜め移動の角抜けを防ぐ: 斜めの場合、いずれか片側でも非歩行ならスキップ
         const diag = (adjacent.x !== pos.x) && (adjacent.y !== pos.y);
         if (diag) {
           const side1 = { x: pos.x, y: adjacent.y };
           const side2 = { x: adjacent.x, y: pos.y };
-          if (!this.isWalkable(side1) && !this.isWalkable(side2)) {
+          if (!this.isWalkable(side1) || !this.isWalkable(side2)) {
             continue;
           }
         }

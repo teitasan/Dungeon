@@ -47,6 +47,9 @@ export interface AIState {
   patrolLastRoomExit?: Position;
   // 連続待機カウント（デッドロック緩和用）
   waitStreak?: number;
+  // 残り香追跡
+  scentTarget?: Position;
+  lastScentTurn?: number;
 }
 
 export class AISystem {
@@ -55,6 +58,7 @@ export class AISystem {
   private combatSystem: CombatSystem;
   private turnSystem: TurnSystem;
   private aiStates: Map<string, AIState> = new Map();
+  private scentHorizon = 12; // 残り香の有効ターン
 
   constructor(
     dungeonManager: DungeonManager,
@@ -156,6 +160,20 @@ export class AISystem {
         const attackPossible = this.isInAttackRange(entity, target) && this.combatSystem.canAttack(entity, target);
         if (adjacent && !attackPossible) {
           next = this.getStepTowardsAnyAttackableTile(entity, target);
+        }
+        if (!next) {
+          // 残り香ターゲットがある場合はそちらを優先
+          const st = this.getOrCreateAIState(entity);
+          const currentTurn = this.getCurrentTurn();
+          const hasFreshScent = st.scentTarget && this.dungeonManager.isScentFresh(st.scentTarget, currentTurn, this.scentHorizon);
+          if (st.scentTarget && hasFreshScent) {
+            next = this.getNextStepByPathfind(entity.position, st.scentTarget) || this.getNextMoveTowards(entity.position, st.scentTarget);
+            // 到達したらクリア
+            if (next && next.x === st.scentTarget.x && next.y === st.scentTarget.y) {
+              st.scentTarget = undefined;
+              st.lastScentTurn = undefined;
+            }
+          }
         }
         if (!next) {
           next = this.getNextStepByPathfind(entity.position, target.position) || this.getNextMoveTowards(entity.position, target.position);
@@ -639,8 +657,19 @@ export class AISystem {
           state.target = target;
           state.lastKnownTargetPosition = target.position;
         }
+        // プレイヤーを視認できるなら残り香はリセット
+        state.scentTarget = undefined;
+        state.lastScentTurn = undefined;
       } else {
-        state.patternForTurn = 'patrol';
+        // 視界外：残り香を追跡（新鮮なものがあれば）
+        const freshest = this.dungeonManager.getFreshestScentPosition(currentTurn, this.scentHorizon);
+        if (freshest) {
+          state.scentTarget = freshest;
+          state.lastScentTurn = this.dungeonManager.getScentTurn(freshest);
+          state.patternForTurn = 'approach'; // 残り香に向かう
+        } else {
+          state.patternForTurn = 'patrol';
+        }
       }
     } else {
       state.patternForTurn = 'patrol';
@@ -781,7 +810,8 @@ export class AISystem {
     if (!diag) return false;
     const side1 = { x: from.x, y: to.y };
     const side2 = { x: to.x, y: from.y };
-    return !this.dungeonManager.isWalkable(side1) && !this.dungeonManager.isWalkable(side2);
+    // 片側でも非歩行なら斜めは禁止（角抜け禁止を厳密化）
+    return !this.dungeonManager.isWalkable(side1) || !this.dungeonManager.isWalkable(side2);
   }
 
   /**
