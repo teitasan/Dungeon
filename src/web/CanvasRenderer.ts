@@ -110,21 +110,29 @@ export class CanvasRenderer {
           ctx.fillText(ch, x + 1, y - 1);
           ctx.fillText(ch, x - 1, y + 1);
           ctx.fillText(ch, x + 1, y + 1);
-          // メインの文字（元の色）
+          // メインの文字（白色に戻す）
+          ctx.fillStyle = `rgba(255,255,255,${Math.min(1, alpha * 1.2).toFixed(3)})`;
           ctx.fillText(ch, x, y);
           x += widths[i] + spacing;
         }
       };
 
-      // タイトル（文字サイズの8分の1のトラッキング）
-      const titleFontSize = Math.floor(this.tileSize * 1.2);
+      // タイトル（画面サイズと文字列長に応じた文字サイズ）
+      const maxTitleWidth = W * 0.8; // 画面幅の80%以内
+      const baseTitleFontSize = Math.min(Math.floor(W / 20), Math.floor(H / 15), 48);
+      
+      // 文字列の長さを考慮してフォントサイズを調整
+      ctx.font = `bold ${baseTitleFontSize}px '${fontFamily}', ui-monospace, Menlo, monospace`;
+      const titleWidth = ctx.measureText(title).width;
+      const titleFontSize = titleWidth > maxTitleWidth ? Math.floor(baseTitleFontSize * maxTitleWidth / titleWidth) : baseTitleFontSize;
+      
       ctx.font = `bold ${titleFontSize}px '${fontFamily}', ui-monospace, Menlo, monospace`;
-      drawTextWithTracking(title, W / 2, H / 2 - this.tileSize * 0.8, Math.max(1, Math.floor(titleFontSize / 8)));
+      drawTextWithTracking(title, W / 2, H / 2 - titleFontSize * 0.8, Math.max(1, Math.floor(titleFontSize / 8)));
 
-      // サブタイトル（B●F、同様に文字サイズの8分の1）
-      const subFontSize = Math.floor(this.tileSize * 0.9);
+      // サブタイトル（B●F、タイトルより少し小さく）
+      const subFontSize = Math.floor(titleFontSize * 0.75);
       ctx.font = `${subFontSize}px '${fontFamily}', ui-monospace, Menlo, monospace`;
-      drawTextWithTracking(subtitle, W / 2, H / 2 + this.tileSize * 0.2, Math.max(1, Math.floor(subFontSize / 8)));
+      drawTextWithTracking(subtitle, W / 2, H / 2 + titleFontSize * 0.3, Math.max(1, Math.floor(subFontSize / 8)));
       ctx.restore();
     };
 
@@ -374,6 +382,11 @@ export class CanvasRenderer {
 
   render(dungeon: Dungeon, dungeonManager: DungeonManager, player: PlayerEntity, turnSystem?: any): void {
     const { ctx, tileSize } = this;
+
+    // フロア移動中の暗転表示中は通常の描画をスキップ
+    if (this.transitionInProgress) {
+      return;
+    }
 
     // 敵のアニメーション更新
     if (this.monsterSpriteManager) {

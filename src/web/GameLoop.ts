@@ -64,6 +64,9 @@ export class GameLoop {
       gold: 0, // プレイヤーの所持金（現在は0で固定）
       turn: this.systems.turnSystem.getCurrentTurn()
     });
+
+    // マップタイトルを更新
+    this.uiManager.updateMapTitleFromFloor(current.floor, current.name);
     
     // 移動処理を実行（ゲームループ内）
     // 方向転換（Cキー）を許可するため、ターン制御中でも呼び出す。

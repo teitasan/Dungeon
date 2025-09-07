@@ -32,34 +32,39 @@ export class UIManager {
               <canvas id="game" class="map"></canvas>
             </div>
           </div>
-          <div id="status-window" class="status-window window-frame">
-            <h3>Status</h3>
-            <div id="player-stats">
-              <div class="stat-row">
-                <span class="stat-label">HP:</span>
-                <div class="stat-bar">
-                  <div id="hp-bar" class="stat-fill hp-fill"></div>
+          <div id="right-panel" style="display: flex; flex-direction: column; gap: 6px;">
+            <div id="map-title-area" class="map-title-area window-frame">
+              <div id="map-title" class="map-title">Loading...</div>
+            </div>
+            <div id="status-window" class="status-window window-frame">
+              <h3>Status</h3>
+              <div id="player-stats">
+                <div class="stat-row">
+                  <span class="stat-label">HP:</span>
+                  <div class="stat-bar">
+                    <div id="hp-bar" class="stat-fill hp-fill"></div>
+                  </div>
+                  <span id="hp-text" class="stat-text">100/100</span>
                 </div>
-                <span id="hp-text" class="stat-text">100/100</span>
-              </div>
-              <div class="stat-row">
-                <span class="stat-label">Hunger:</span>
-                <div class="stat-bar">
-                  <div id="hunger-bar" class="stat-fill hunger-fill"></div>
+                <div class="stat-row">
+                  <span class="stat-label">Hunger:</span>
+                  <div class="stat-bar">
+                    <div id="hunger-bar" class="stat-fill hunger-fill"></div>
+                  </div>
+                  <span id="hunger-text" class="stat-text">100/100</span>
                 </div>
-                <span id="hunger-text" class="stat-text">100/100</span>
-              </div>
-              <div class="stat-row">
-                <span class="stat-label">Level:</span>
-                <span id="level-text" class="stat-value">1</span>
-              </div>
-              <div class="stat-row">
-                <span class="stat-label">Attack:</span>
-                <span id="attack-text" class="stat-value">10</span>
-              </div>
-              <div class="stat-row">
-                <span class="stat-label">Defense:</span>
-                <span id="defense-text" class="stat-value">5</span>
+                <div class="stat-row">
+                  <span class="stat-label">Level:</span>
+                  <span id="level-text" class="stat-value">1</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Attack:</span>
+                  <span id="attack-text" class="stat-value">10</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Defense:</span>
+                  <span id="defense-text" class="stat-value">5</span>
+                </div>
               </div>
             </div>
           </div>
@@ -517,5 +522,35 @@ export class UIManager {
       hungerBar.style.width = `${hungerRatio * 100}%`;
       hungerText.textContent = `${Math.floor(currentHunger)}/${Math.floor(maxHunger)}`;
     }
+  }
+
+  /**
+   * マップタイトルを更新
+   */
+  updateMapTitle(title: string): void {
+    const mapTitleElement = document.getElementById('map-title');
+    if (mapTitleElement) {
+      mapTitleElement.textContent = title;
+    }
+  }
+
+  /**
+   * フロア情報からマップタイトルを生成して更新
+   */
+  updateMapTitleFromFloor(floor: number, dungeonName?: string): void {
+    let title: string;
+    
+    if (dungeonName) {
+      // ダンジョン名に既にフロア情報が含まれている場合はそのまま使用
+      if (dungeonName.includes('Floor') || dungeonName.includes('階')) {
+        title = dungeonName;
+      } else {
+        title = `${dungeonName} ${floor}階`;
+      }
+    } else {
+      title = `ダンジョン ${floor}階`;
+    }
+    
+    this.updateMapTitle(title);
   }
 }

@@ -45,6 +45,7 @@ html, body {
   background: blue; 
   color: #eee; 
   font-family: 'PixelMplus', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; 
+  letter-spacing: 2px; /* 文字間隔をグローバルに設定 */
 }
 
 /* ========================================
@@ -77,7 +78,7 @@ a {
   display: flex;
   flex-direction: column;
   gap: 12px; 
-  padding: 12px; 
+  padding: 2px; 
   box-sizing: border-box; 
   height: 100%; 
   position: relative;
@@ -117,7 +118,8 @@ a {
    ステータスウィンドウ
    ======================================== */
 .status-window {
-  width: 250px; /* outline分を考慮して4px減らす */
+  width: 246px; /* outline分を考慮して4px減らす */
+  height: calc(100% - 36px); /* 30px分高さを減らす */
   flex-shrink: 0; /* サイズを固定 */
   position: relative;
 }
@@ -190,11 +192,40 @@ a {
 /* .status, .messages, .help のスタイルは削除 - .window-frameクラスで統一 */
 
 /* ========================================
+   マップタイトル表示エリア
+   ======================================== */
+.map-title-area {
+  width: 246px; /* statusウインドウと同じ幅 */
+  height: 30px; /* 30px分の高さ */
+  flex-shrink: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-title {
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  text-shadow: 
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    1px 1px 0 #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ========================================
    ボトムエリア（ミニマップ + メッセージ）
    ======================================== */
 #bottom {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 240px 910px; /* ミニマップ240px、メッセージウィンドウ910px固定 */
   gap: 6px;
   align-items: start;
   height: 180px; /* ミニマップとログの高さを合わせる */
@@ -314,7 +345,6 @@ a {
   font-family: 'PixelMplus';
   font-size: 32px;
   font-weight: bold;
-  letter-spacing: 2px; /* 文字間隔を増やす */
   -webkit-font-smoothing: none; /* Webkit系ブラウザでスムージングオフ */
   -moz-osx-font-smoothing: none; /* Firefoxでスムージングオフ */
   font-smooth: never; /* 標準プロパティ（対応ブラウザのみ） */
