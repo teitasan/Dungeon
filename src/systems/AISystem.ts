@@ -754,19 +754,13 @@ export class AISystem {
    * Check if two entities are enemies
    */
   private isEnemy(entity1: GameEntity, entity2: GameEntity): boolean {
-    const type1 = entity1.constructor.name;
-    const type2 = entity2.constructor.name;
-    
-    // Monsters attack players and companions
-    if (type1 === 'MonsterEntity') {
-      return type2 === 'PlayerEntity' || type2 === 'CompanionEntity';
+    // 本番ビルドのminify対策として instanceof を使用
+    if ((entity1 as any) instanceof MonsterEntity) {
+      return (entity2 as any) instanceof PlayerEntity || (entity2 as any) instanceof CompanionEntity;
     }
-    
-    // Players and companions attack monsters
-    if (type1 === 'PlayerEntity' || type1 === 'CompanionEntity') {
-      return type2 === 'MonsterEntity';
+    if ((entity1 as any) instanceof PlayerEntity || (entity1 as any) instanceof CompanionEntity) {
+      return (entity2 as any) instanceof MonsterEntity;
     }
-    
     return false;
   }
 
