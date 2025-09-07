@@ -223,7 +223,7 @@ export class CanvasRenderer {
     this.minimapCanvas = minimapCanvas;
     this.minimapCtx.imageSmoothingEnabled = false;
     
-    // オーバーレイ表示用にサイズを調整（トルネコの大冒険風）
+    // オーバーレイ表示用にサイズを調整（60×45タイル × 6px）
     minimapCanvas.width = 360;
     minimapCanvas.height = 270;
     
@@ -890,6 +890,9 @@ export class CanvasRenderer {
     const W = this.minimapCanvas.width;
     const H = this.minimapCanvas.height;
 
+    // デバッグ情報を出力
+    console.log(`[DEBUG] ミニマップサイズ: キャンバス=${W}x${H}, ダンジョン=${dungeon.width}x${dungeon.height}, タイルサイズ=8px`);
+
     // ミニマップ描画時はスムージングを無効化（ピクセル境界を明確に）
     mm.imageSmoothingEnabled = false;
 
@@ -903,6 +906,9 @@ export class CanvasRenderer {
       
       const offsetX = Math.floor((W - dungeon.width * mmTile) / 2);
       const offsetY = Math.floor((H - dungeon.height * mmTile) / 2);
+      
+      // デバッグ情報を出力
+      console.log(`[DEBUG] オフセット計算: offsetX=${offsetX}, offsetY=${offsetY}, 必要なサイズ=${dungeon.width * mmTile}x${dungeon.height * mmTile}`);
     
 
     // 描画（探索済みの場所のみ、レミーラ効果が有効な場合は全エリア表示）

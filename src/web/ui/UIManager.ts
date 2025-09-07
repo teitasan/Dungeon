@@ -103,7 +103,7 @@ export class UIManager {
   setupMinimap(): HTMLCanvasElement | null {
     const minimap = document.getElementById('minimap') as HTMLCanvasElement;
     if (minimap) {
-      // オーバーレイ表示用のサイズに固定（トルネコの大冒険風）
+      // オーバーレイ表示用のサイズに固定（60×45タイル × 6px）
       minimap.width = 360;
       minimap.height = 270;
     }

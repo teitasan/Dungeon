@@ -264,10 +264,10 @@ a {
 /* ミニマップオーバーレイ（トルネコの大冒険風） */
 .minimap-overlay {
   position: absolute;
-  top: 30px;
-  left: 30px;
-  width: 432px; /* 360px × 1.2 */
-  height: 324px; /* 270px × 1.2 */
+  top: 50px;
+  left: 20px;
+  width: 360px; /* 60×45タイル × 6px */
+  height: 270px; /* 60×45タイル × 6px */
   background: transparent; /* 背景を透明に */
   border: none; /* 枠線を削除 */
   border-radius: 0; /* 角丸を削除 */
@@ -296,6 +296,8 @@ a {
   height: 100%;
   border-radius: 0; /* 角丸を削除 */
   background: transparent; /* キャンバス背景も透明に */
+  transform: scale(1.2); /* 1.2倍に拡大 */
+  transform-origin: center; /* 中央を基準に拡大 */
 }
 
 #transition-canvas {
