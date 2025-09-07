@@ -4,6 +4,7 @@ import { resolve } from 'path';
 
 export default defineConfig({
   root: '.',
+  base: '/Dungeon/', // GitHub Pages用のbase URL
   define: {
     // ビルド時にJSONファイルを文字列として埋め込み
     __DUNGEON_TEMPLATES__: JSON.stringify(

@@ -50,6 +50,24 @@ export class MonsterSpriteManager {
     this.animations = config.animations;
   }
 
+  /**
+   * 画像パスをGitHub Pagesなどのbase配下でも解決できるように補正
+   */
+  private resolveImagePath(path: string): string {
+    // 既に完全なURL/データURLならそのまま
+    if (/^(https?:)?\/\//.test(path) || path.startsWith('data:')) return path;
+
+    // ViteのベースURL
+    const base = (import.meta as any).env?.BASE_URL || '/';
+
+    // 先頭スラッシュの場合は base を前置
+    if (path.startsWith('/')) {
+      return base.replace(/\/$/, '') + path;
+    }
+    // 相対パスの場合は base 配下に解決
+    return base.replace(/\/$/, '') + '/' + path.replace(/^\//, '');
+  }
+
   async load(): Promise<void> {
     if (this.loaded) return;
 
@@ -72,7 +90,7 @@ export class MonsterSpriteManager {
           image.onerror = () => {
             reject(new Error(`Failed to load ${type}: ${spritesheet.imagePath}`));
           };
-          image.src = spritesheet.imagePath;
+          image.src = this.resolveImagePath(spritesheet.imagePath);
         });
         loadPromises.push(loadPromise);
       }
