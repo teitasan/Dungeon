@@ -122,6 +122,8 @@ a {
   height: calc(100% - 36px); /* 30px分高さを減らす */
   flex-shrink: 0; /* サイズを固定 */
   position: relative;
+  padding: 12px; /* ステータスウィンドウ専用のパディング */
+  font-size: 16px; /* ステータスウィンドウのフォントサイズ */
 }
 
 .status-window h3 {
@@ -143,21 +145,25 @@ a {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 16px;
+  margin-bottom: 4px;
 }
 
 .stat-label {
-  color: #ccc;
+  color: #ffdd44; /* SFC世代の黄色いラベル */
   min-width: 60px;
+  margin: 0 8px;
   font-weight: bold;
+  text-shadow: 1px 1px 0px #000;
+  font-family: 'PixelMplus', monospace;
 }
 
 .stat-bar {
   flex: 1;
-  height: 16px;
-  background: #333;
-  border: 1px solid #555;
-  border-radius: 3px;
+  height: 18px; /* 少し高くして存在感をアップ */
+  background: #000000; /* 完全な黒背景 */
+  border: 2px solid #444; /* 太い枠線 */
+  border-radius: 0px; /* 角丸を削除してピクセルアート風 */
   overflow: hidden;
   position: relative;
 }
@@ -168,24 +174,47 @@ a {
 }
 
 .hp-fill {
-  background: linear-gradient(90deg, #ff4444, #ff6666);
+  background: linear-gradient(90deg, #00aa00, #44cc44, #66ff66); /* デフォルトは緑 */
+}
+
+/* HPが50%以下の時は黄色 */
+.hp-fill.hp-yellow {
+  background: linear-gradient(90deg, #ffaa00, #ffcc44, #ffdd66);
+}
+
+/* HPが25%以下の時は赤 */
+.hp-fill.hp-red {
+  background: linear-gradient(90deg, #ff0000, #ff4444, #ff6666);
 }
 
 .hunger-fill {
-  background: linear-gradient(90deg, #ffaa44, #ffcc66);
+  background: linear-gradient(90deg, #6a0dad, #8a2be2, #ba55d3); /* 紫のグラデーション */
 }
 
 .stat-text {
-  color: #fff;
-  font-weight: bold;
+  color: #ffffff; /* 白い数値 */
   min-width: 50px;
   text-align: right;
+  margin-left: auto;
+  font-weight: bold;
+  text-shadow: 1px 1px 0px #000;
+  font-family: 'PixelMplus', monospace;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid #444;
 }
 
 .stat-value {
-  color: #fff;
-  font-weight: bold;
+  color: #ffffff;
   margin-left: auto;
+  font-weight: bold;
+  text-shadow: 1px 1px 0px #000;
+  font-family: 'PixelMplus', monospace;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid #444;
 }
 
 
@@ -327,122 +356,7 @@ a {
   font-size: 12px;
 }
 
-/* ゲーム情報オーバーレイ */
-.game-info-overlay {
-  position: absolute;
-  top: 20px; /* #layoutのpaddingに合わせる */
-  left: 25px; /* #layoutのpaddingに合わせる */
-  display: flex;
-  align-items: center;
-  gap: 30px;
-  z-index: 1000;
-  pointer-events: none; /* ゲーム操作を妨げない */
-  /* ゲームキャンバスエリア内に制限 */
-  max-width: calc(100vw - 344px); /* サイドバー幅(320px) + パディング(24px)を考慮 */
-}
-
-.info-item {
-  color: white;
-  font-family: 'PixelMplus';
-  font-size: 32px;
-  font-weight: bold;
-  -webkit-font-smoothing: none; /* Webkit系ブラウザでスムージングオフ */
-  -moz-osx-font-smoothing: none; /* Firefoxでスムージングオフ */
-  font-smooth: never; /* 標準プロパティ（対応ブラウザのみ） */
-  white-space: nowrap;
-  text-shadow: 
-    -1px -1px 0 #000,
-    1px -1px 0 #000,
-    -1px 1px 0 #000,
-    1px 1px 0 #000;
-}
-
-.hp-bar-container {
-  display: flex;
-  align-items: center;
-}
-
-.hp-bar {
-  position: relative;
-  width: 120px;
-  height: 16px;
-  background-color: rgba(255, 0, 0, 0.3);
-  border: 2px solid white; /* 枠線を2pxに太くして目立たせる */
-  border-radius: 2px;
-  overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5); /* 追加の枠線効果 */
-}
-
-.hp-fill {
-  height: 100%;
-  background-color: #00ff00;
-  transition: width 0.2s ease, background-color 0.2s ease;
-  border-radius: 1px;
-}
-
-.hp-text {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: white;
-  font-size: 24px;
-  font-weight: bold;
-  font-family: 'PixelMplus';
-  -webkit-font-smoothing: none;
-  -moz-osx-font-smoothing: none;
-  font-smooth: never;
-  text-shadow: 
-    -1px -1px 0 #000,
-    1px -1px 0 #000,
-    -1px 1px 0 #000,
-    1px 1px 0 #000;
-  white-space: nowrap;
-}
-
-/* 満腹度バー */
-.hunger-bar-container {
-  display: flex;
-  align-items: center;
-}
-
-.hunger-bar {
-  position: relative;
-  width: 120px;
-  height: 16px;
-  background-color: rgba(255, 165, 0, 0.25);
-  border: 2px solid white;
-  border-radius: 2px;
-  overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
-}
-
-.hunger-fill {
-  height: 100%;
-  background-color: #66cc66; /* 実際の色はJSで上書き */
-  transition: width 0.2s ease, background-color 0.2s ease;
-  border-radius: 1px;
-}
-
-.hunger-text {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: white;
-  font-size: 24px;
-  font-weight: bold;
-  font-family: 'PixelMplus';
-  -webkit-font-smoothing: none;
-  -moz-osx-font-smoothing: none;
-  font-smooth: never;
-  text-shadow: 
-    -1px -1px 0 #000,
-    1px -1px 0 #000,
-    -1px 1px 0 #000,
-    1px 1px 0 #000;
-  white-space: nowrap;
-}
+/* ゲーム情報オーバーレイ（削除済み） */
 
 /* ========================================
    レスポンシブ対応
@@ -453,8 +367,5 @@ a {
     grid-template-rows: auto auto auto; 
   }
   
-  /* 小画面ではオーバーレイの幅を調整 */
-  .game-info-overlay {
-    max-width: calc(100vw - 24px); /* パディングのみ考慮 */
-  }
+  /* オーバーレイは削除されました */
 }

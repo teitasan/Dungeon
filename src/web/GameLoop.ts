@@ -53,7 +53,7 @@ export class GameLoop {
     const entities = this.systems.dungeonManager.getAllEntities();
     this.systems.turnSystem.initializeTurnOrder(entities);
     
-    // ゲーム情報オーバーレイを更新
+    // ゲーム情報オーバーレイを更新（オーバーレイは廃止済みだが呼び出しは無害）
     this.uiManager.updateGameInfoOverlay({
       floor: current.floor,
       level: this.player.stats.level,
@@ -64,6 +64,9 @@ export class GameLoop {
       gold: 0, // プレイヤーの所持金（現在は0で固定）
       turn: this.systems.turnSystem.getCurrentTurn()
     });
+
+    // サイドのステータスウィンドウを最新化
+    this.uiManager.updateStatusWindow(this.player);
 
     // マップタイトルを更新
     this.uiManager.updateMapTitleFromFloor(current.floor, current.name);
@@ -103,6 +106,9 @@ export class GameLoop {
           gold: 0,
           turn: this.systems.turnSystem.getCurrentTurn()
         });
+
+        // ステータスウィンドウも即時更新
+        this.uiManager.updateStatusWindow(this.player);
       }
       
       // ターン制御フラグを設定（1秒間待機開始）

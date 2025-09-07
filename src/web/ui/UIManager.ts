@@ -40,18 +40,22 @@ export class UIManager {
               <h3>Status</h3>
               <div id="player-stats">
                 <div class="stat-row">
-                  <span class="stat-label">HP:</span>
-                  <div class="stat-bar">
-                    <div id="hp-bar" class="stat-fill hp-fill"></div>
-                  </div>
+                  <span class="stat-label">HP</span>
                   <span id="hp-text" class="stat-text">100/100</span>
                 </div>
                 <div class="stat-row">
-                  <span class="stat-label">Hunger:</span>
+                  <div class="stat-bar">
+                    <div id="hp-bar" class="stat-fill hp-fill"></div>
+                  </div>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Hunger</span>
+                  <span id="hunger-text" class="stat-text">100/100</span>
+                </div>
+                <div class="stat-row">
                   <div class="stat-bar">
                     <div id="hunger-bar" class="stat-fill hunger-fill"></div>
                   </div>
-                  <span id="hunger-text" class="stat-text">100/100</span>
                 </div>
                 <div class="stat-row">
                   <span class="stat-label">Level:</span>
@@ -125,16 +129,14 @@ export class UIManager {
    * プレイヤーのHPを更新
    */
   updatePlayerHealth(current: number, max: number): void {
-    // HP表示の更新処理（必要に応じて実装）
-    console.log(`[UIManager] Player HP: ${current}/${max}`);
+    this.updateStatusHPBar(current, max);
   }
 
   /**
    * プレイヤーの満腹度を更新
    */
   updatePlayerHunger(current: number, max: number): void {
-    // 満腹度表示の更新処理（必要に応じて実装）
-    console.log(`[UIManager] Player Hunger: ${current}/${max}`);
+    this.updateStatusHungerBar(current, max);
   }
 
   /**
@@ -341,41 +343,14 @@ export class UIManager {
   }
 
   /**
-   * ゲーム情報オーバーレイを作成
+   * ゲーム情報オーバーレイを作成（削除済み）
    */
   createGameInfoOverlay(): void {
-    const overlay = document.createElement('div');
-    overlay.id = 'gameInfoOverlay';
-    overlay.className = 'game-info-overlay';
-    
-    overlay.innerHTML = `
-      <div class="info-item floor-info">B1F</div>
-      <div class="info-item level-info">Lv.1</div>
-      <div class="info-item turn-info">T1</div>
-      <div class="info-item hp-bar-container">
-        <div class="hp-bar">
-          <div class="hp-fill"></div>
-          <span class="hp-text">100/100</span>
-        </div>
-      </div>
-      <div class="info-item hunger-bar-container">
-        <div class="hunger-bar">
-          <div class="hunger-fill"></div>
-          <span class="hunger-text">100/100</span>
-        </div>
-      </div>
-      <div class="info-item gold-info">0 G</div>
-    `;
-    
-    // レイアウト要素内に配置（canvasと同じ親要素内）
-    const layout = document.getElementById('layout');
-    if (layout) {
-      layout.appendChild(overlay);
-    }
+    // オーバーレイは削除されました
   }
 
   /**
-   * ゲーム情報オーバーレイを更新
+   * ゲーム情報オーバーレイを更新（削除済み）
    */
   updateGameInfoOverlay(data: {
     floor: number;
@@ -387,89 +362,25 @@ export class UIManager {
     gold: number;
     turn: number;
   }): void {
-    const overlay = document.getElementById('gameInfoOverlay');
-    if (!overlay) return;
-
-    // フロア情報
-    const floorInfo = overlay.querySelector('.floor-info');
-    if (floorInfo) {
-      floorInfo.textContent = `B${data.floor}F`;
-    }
-
-    // レベル情報
-    const levelInfo = overlay.querySelector('.level-info');
-    if (levelInfo) {
-      levelInfo.textContent = `Lv.${data.level}`;
-    }
-
-    // ターン数情報
-    const turnInfo = overlay.querySelector('.turn-info');
-    if (turnInfo) {
-      turnInfo.textContent = `T${data.turn}`;
-    }
-
-    // HPバー
-    const hpFill = overlay.querySelector('.hp-fill');
-    const hpText = overlay.querySelector('.hp-text');
-    if (hpFill && hpText) {
-      const hpRatio = Math.max(0, Math.min(1, data.currentHp / data.maxHp));
-      (hpFill as HTMLElement).style.width = `${hpRatio * 100}%`;
-      
-      // HPに応じて色を変更
-      if (hpRatio > 0.5) {
-        (hpFill as HTMLElement).style.backgroundColor = '#00ff00';
-      } else if (hpRatio > 0.25) {
-        (hpFill as HTMLElement).style.backgroundColor = '#ffff00';
-      } else {
-        (hpFill as HTMLElement).style.backgroundColor = '#ff0000';
-      }
-      
-      hpText.textContent = `${data.currentHp}/${data.maxHp}`;
-    }
-
-    // 満腹度バー
-    const hungerFill = overlay.querySelector('.hunger-fill');
-    const hungerText = overlay.querySelector('.hunger-text');
-    if (hungerFill && hungerText) {
-      const hungerRatio = Math.max(0, Math.min(1, data.hungerCurrent / data.hungerMax));
-      (hungerFill as HTMLElement).style.width = `${hungerRatio * 100}%`;
-      
-      // 満腹度に応じて色を変更（満腹=緑 → 空腹=赤）
-      if (hungerRatio > 0.5) {
-        (hungerFill as HTMLElement).style.backgroundColor = '#66cc66';
-      } else if (hungerRatio > 0.25) {
-        (hungerFill as HTMLElement).style.backgroundColor = '#ffcc66';
-      } else {
-        (hungerFill as HTMLElement).style.backgroundColor = '#ff6666';
-      }
-      
-      hungerText.textContent = `${data.hungerCurrent}/${data.hungerMax}`;
-    }
-
-    // 所持金
-    const goldInfo = overlay.querySelector('.gold-info');
-    if (goldInfo) {
-      goldInfo.textContent = `${data.gold} G`;
-    }
+    // オーバーレイは削除されました
   }
 
   /**
-   * ゲーム情報オーバーレイを表示/非表示
+   * ゲーム情報オーバーレイを表示/非表示（削除済み）
    */
   setGameInfoOverlayVisible(visible: boolean): void {
-    const overlay = document.getElementById('gameInfoOverlay');
-    if (overlay) {
-      overlay.style.display = visible ? 'flex' : 'none';
-    }
+    // オーバーレイは削除されました
   }
 
   /**
    * ステータスウィンドウを更新
    */
   updateStatusWindow(player: any): void {
-    // HP更新
-    if (player.hp !== undefined && player.maxHp !== undefined) {
-      this.updateStatusHPBar(player.hp, player.maxHp);
+    // HP更新（stats優先、フォールバックで直下プロパティ）
+    const currentHp = player?.stats?.hp ?? player?.hp;
+    const maxHp = player?.stats?.maxHp ?? player?.maxHp;
+    if (currentHp !== undefined && maxHp !== undefined) {
+      this.updateStatusHPBar(currentHp, maxHp);
     }
 
     // 空腹度更新
@@ -479,20 +390,23 @@ export class UIManager {
 
     // レベル更新
     const levelText = document.getElementById('level-text');
-    if (levelText && player.level !== undefined) {
-      levelText.textContent = player.level.toString();
+    const levelVal = player?.stats?.level ?? player?.level;
+    if (levelText && levelVal !== undefined) {
+      levelText.textContent = levelVal.toString();
     }
 
     // 攻撃力更新
     const attackText = document.getElementById('attack-text');
-    if (attackText && player.attack !== undefined) {
-      attackText.textContent = player.attack.toString();
+    const attackVal = player?.stats?.attack ?? player?.attack;
+    if (attackText && attackVal !== undefined) {
+      attackText.textContent = attackVal.toString();
     }
 
     // 防御力更新
     const defenseText = document.getElementById('defense-text');
-    if (defenseText && player.defense !== undefined) {
-      defenseText.textContent = player.defense.toString();
+    const defenseVal = player?.stats?.defense ?? player?.defense;
+    if (defenseText && defenseVal !== undefined) {
+      defenseText.textContent = defenseVal.toString();
     }
   }
 
@@ -507,6 +421,18 @@ export class UIManager {
       const hpRatio = Math.max(0, Math.min(1, currentHP / maxHP));
       hpBar.style.width = `${hpRatio * 100}%`;
       hpText.textContent = `${Math.floor(currentHP)}/${Math.floor(maxHP)}`;
+      
+      // HPの割合に応じて色を変更（ポケモン風）
+      hpBar.className = 'stat-fill hp-fill'; // 基本クラスをリセット
+      
+      if (hpRatio <= 0.25) {
+        // 25%以下は赤
+        hpBar.classList.add('hp-red');
+      } else if (hpRatio <= 0.5) {
+        // 50%以下は黄色
+        hpBar.classList.add('hp-yellow');
+      }
+      // 50%以上は緑（デフォルト）
     }
   }
 
