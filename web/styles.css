@@ -261,6 +261,7 @@ a {
   font-size: 20px;
   line-height: 1.4;
   position: relative;
+  padding: 8px 15px; /* 縦8px、横15pxのパディング */
 }
 
 /* タイプライター風アニメーション */
