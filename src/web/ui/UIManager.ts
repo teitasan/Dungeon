@@ -19,22 +19,60 @@ export class UIManager {
     
     this.appElement.innerHTML = `
       <div id="layout" style="
-        grid-template-columns: ${layout.gridTemplateColumns}; 
-        grid-template-rows: ${layout.gridTemplateRows}; 
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
         max-width: ${layout.maxWidth}px; 
         width: 100%; 
         margin: 0 auto;
       ">
-        <canvas id="game" class="map"></canvas>
-        <div id="sidebar">
-          <div id="bottom">
-            <canvas id="minimap"></canvas>
-            <div id="messages" class="messages"></div>
+        <div id="top-row" style="display: flex; gap: 6px;">
+          <div id="game-area">
+            <div id="game-wrapper" class="window-frame">
+              <canvas id="game" class="map"></canvas>
+            </div>
           </div>
+          <div id="status-window" class="status-window window-frame">
+            <h3>Status</h3>
+            <div id="player-stats">
+              <div class="stat-row">
+                <span class="stat-label">HP:</span>
+                <div class="stat-bar">
+                  <div id="hp-bar" class="stat-fill hp-fill"></div>
+                </div>
+                <span id="hp-text" class="stat-text">100/100</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Hunger:</span>
+                <div class="stat-bar">
+                  <div id="hunger-bar" class="stat-fill hunger-fill"></div>
+                </div>
+                <span id="hunger-text" class="stat-text">100/100</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Level:</span>
+                <span id="level-text" class="stat-value">1</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Attack:</span>
+                <span id="attack-text" class="stat-value">10</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Defense:</span>
+                <span id="defense-text" class="stat-value">5</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="bottom">
+          <div id="minimap-wrapper" class="window-frame">
+            <canvas id="minimap"></canvas>
+          </div>
+          <div id="messages" class="messages window-frame"></div>
         </div>
       </div>
       <div id="inventoryModal">
-        <div>
+        <div class="window-frame">
           <div class="title">Inventory</div>
           <ul id="inventoryList"></ul>
           <div class="controls">Z:決定 / X:閉じる</div>
@@ -417,6 +455,67 @@ export class UIManager {
     const overlay = document.getElementById('gameInfoOverlay');
     if (overlay) {
       overlay.style.display = visible ? 'flex' : 'none';
+    }
+  }
+
+  /**
+   * ステータスウィンドウを更新
+   */
+  updateStatusWindow(player: any): void {
+    // HP更新
+    if (player.hp !== undefined && player.maxHp !== undefined) {
+      this.updateStatusHPBar(player.hp, player.maxHp);
+    }
+
+    // 空腹度更新
+    if (player.hunger !== undefined && player.maxHunger !== undefined) {
+      this.updateStatusHungerBar(player.hunger, player.maxHunger);
+    }
+
+    // レベル更新
+    const levelText = document.getElementById('level-text');
+    if (levelText && player.level !== undefined) {
+      levelText.textContent = player.level.toString();
+    }
+
+    // 攻撃力更新
+    const attackText = document.getElementById('attack-text');
+    if (attackText && player.attack !== undefined) {
+      attackText.textContent = player.attack.toString();
+    }
+
+    // 防御力更新
+    const defenseText = document.getElementById('defense-text');
+    if (defenseText && player.defense !== undefined) {
+      defenseText.textContent = player.defense.toString();
+    }
+  }
+
+  /**
+   * ステータスウィンドウのHPバーを更新
+   */
+  private updateStatusHPBar(currentHP: number, maxHP: number): void {
+    const hpBar = document.getElementById('hp-bar') as HTMLElement;
+    const hpText = document.getElementById('hp-text') as HTMLElement;
+    
+    if (hpBar && hpText) {
+      const hpRatio = Math.max(0, Math.min(1, currentHP / maxHP));
+      hpBar.style.width = `${hpRatio * 100}%`;
+      hpText.textContent = `${Math.floor(currentHP)}/${Math.floor(maxHP)}`;
+    }
+  }
+
+  /**
+   * ステータスウィンドウの空腹度バーを更新
+   */
+  private updateStatusHungerBar(currentHunger: number, maxHunger: number): void {
+    const hungerBar = document.getElementById('hunger-bar') as HTMLElement;
+    const hungerText = document.getElementById('hunger-text') as HTMLElement;
+    
+    if (hungerBar && hungerText) {
+      const hungerRatio = Math.max(0, Math.min(1, currentHunger / maxHunger));
+      hungerBar.style.width = `${hungerRatio * 100}%`;
+      hungerText.textContent = `${Math.floor(currentHunger)}/${Math.floor(maxHunger)}`;
     }
   }
 }

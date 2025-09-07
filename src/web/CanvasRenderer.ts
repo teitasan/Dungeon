@@ -844,10 +844,11 @@ export class CanvasRenderer {
     mm.fillRect(0, 0, W, H);
 
     // Canvasのサイズに合わせて適切なタイルサイズを計算
-    // タイルサイズを3pxに固定
+    // タイルサイズを4pxに固定
     const mmTile = 4;
     const offsetX = Math.floor((W - dungeon.width * mmTile) / 2);
     const offsetY = Math.floor((H - dungeon.height * mmTile) / 2);
+    
 
     // 描画（探索済みの場所のみ、レミーラ効果が有効な場合は全エリア表示）
     let exploredCount = 0;

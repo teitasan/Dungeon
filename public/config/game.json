@@ -660,9 +660,9 @@
       "fallback": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
     },
     "viewport": {
-      "tilesX": 20,
+      "tilesX": 14,
       "tilesY": 9,
-      "tileSize": 32
+      "tileSize": 40
     },
     "minimap": {
       "width": 240,

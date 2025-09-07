@@ -47,6 +47,25 @@ html, body {
   font-family: 'PixelMplus', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; 
 }
 
+/* ========================================
+   共通ウィンドウスタイル
+   ======================================== */
+.window-frame {
+  background: #1a1a1a; /* 統一された背景色 */
+  border-radius: 8px;
+  box-sizing: border-box;
+  padding: 4px; /* pudding4（padding 4px）に統一 */
+  /* 角丸を尊重して多層枠を box-shadow で再現 */
+  box-shadow:
+    /* 外側層 */
+    0 0 0 2px #444,
+    0 0 0 4px #222,
+    /* 内側層 */
+    inset 0 0 0 2px #666,
+    inset 0 0 0 4px #333;
+  overflow: hidden; /* コンテンツを角丸内にクリップ */
+}
+
 a { 
   color: #6cf; 
 }
@@ -55,9 +74,9 @@ a {
    メインレイアウト
    ======================================== */
 #layout { 
-  display: grid; 
-  grid-template-columns: 1fr; 
-  gap: 6px; 
+  display: flex;
+  flex-direction: column;
+  gap: 12px; 
   padding: 12px; 
   box-sizing: border-box; 
   height: 100%; 
@@ -69,33 +88,106 @@ a {
    ======================================== */
 .map { 
   background: #000; 
-  border-radius: 8px; 
-  overflow: auto; 
-  box-shadow: 0 0 0 1px #333 inset; 
+  /* 枠の見た目を統一するためスクロールを出さずにクリップ */
+  overflow: hidden; 
   line-height: 1.05; 
   font-size: 12px; 
 }
 
 #game {
-  width: 100%;
+  /* キャンバスはJS側でwidth/height属性を設定。CSSでは伸縮しない */
   image-rendering: pixelated;
+  display: block;
+  width: 896px;  /* 896 * 2 (縦横倍) */
+  height: 576px; /* 576 * 2 (縦横倍) */
 }
 
 /* ========================================
-   サイドバー
+   ゲームエリア
    ======================================== */
-#sidebar { 
-  display: grid; 
-  grid-template-rows: auto 1fr auto; 
-  gap: 12px; 
+#game-area {
+  /* 余白は .window-frame の padding:12px を使用 */
+  display: block;
 }
 
-.status, .messages, .help { 
-  background: #1a1a1a; 
-  padding: 10px; 
-  border-radius: 8px; 
-  box-shadow: 0 0 0 1px #333 inset; 
+/* 旧 #game-wrapper と絶対配置レイアウトは廃止（DOMに存在しないため） */
+
+
+/* ========================================
+   ステータスウィンドウ
+   ======================================== */
+.status-window {
+  width: 250px; /* outline分を考慮して4px減らす */
+  flex-shrink: 0; /* サイズを固定 */
+  position: relative;
 }
+
+.status-window h3 {
+  margin: 0 0 12px 0;
+  color: #fff;
+  font-size: 14px;
+  text-align: center;
+  border-bottom: 1px solid #444;
+  padding-bottom: 8px;
+}
+
+.player-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.stat-label {
+  color: #ccc;
+  min-width: 60px;
+  font-weight: bold;
+}
+
+.stat-bar {
+  flex: 1;
+  height: 16px;
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.stat-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.hp-fill {
+  background: linear-gradient(90deg, #ff4444, #ff6666);
+}
+
+.hunger-fill {
+  background: linear-gradient(90deg, #ffaa44, #ffcc66);
+}
+
+.stat-text {
+  color: #fff;
+  font-weight: bold;
+  min-width: 50px;
+  text-align: right;
+}
+
+.stat-value {
+  color: #fff;
+  font-weight: bold;
+  margin-left: auto;
+}
+
+
+/* .status, .messages, .help のスタイルは削除 - .window-frameクラスで統一 */
 
 /* ========================================
    ボトムエリア（ミニマップ + メッセージ）
@@ -108,13 +200,28 @@ a {
   height: 180px; /* ミニマップとログの高さを合わせる */
 }
 
+/* ミニマップ用のラッパー */
+#minimap-wrapper {
+  padding: 0px; /* ミニマップは特別にパディングなし */
+  display: inline-block;
+  width: 240px;  /* キャンバスサイズと一致 */
+  height: 180px; /* キャンバスサイズと一致 */
+  position: relative;
+  /* 枠をCanvasより上に配置 */
+  z-index: 2;
+}
+
 #minimap {
-  background: #000;
-  border-radius: 6px;
-  box-shadow: 0 0 0 1px #333 inset;
-  /* Canvasの実サイズ(240x160)に合わせてCSSサイズも固定し、引き伸ばしを防ぐ */
-  width: 240px;
-  height: 180px; /* コンテンツに合わせて180pxに拡張 */
+  /* Canvasのサイズを最内側の枠の内側に調整 */
+  width: 232px;  /* 240 - 8 (最内側の枠分) */
+  height: 172px; /* 180 - 8 (最内側の枠分) */
+  /* キャンバスを最内側の枠の内側に配置 */
+  position: absolute;
+  top: 4px;  /* 最内側の枠分を考慮 */
+  left: 4px; /* 最内側の枠分を考慮 */
+  z-index: 1;
+  /* 枠と合わせた角丸 */
+  border-radius: 4px;
 }
 
 #messages {
@@ -122,6 +229,7 @@ a {
   white-space: pre-wrap;
   font-size: 20px;
   line-height: 1.4;
+  position: relative;
 }
 
 /* タイプライター風アニメーション */
@@ -159,7 +267,6 @@ a {
   padding: 16px;
   border-radius: 10px;
   min-width: 280px;
-  box-shadow: 0 0 0 1px #333 inset;
 }
 
 #inventoryModal .title {
