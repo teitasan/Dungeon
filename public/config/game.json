@@ -131,11 +131,6 @@
         "conditions": []
       },
       {
-        "phase": "mid-turn-recovery",
-        "description": "中間回復処理（倍速者のみ）",
-        "conditions": ["fast-entities-only"]
-      },
-      {
         "phase": "player-action-2",
         "description": "プレイヤー2回目行動（倍速のみ）",
         "conditions": ["player-is-fast"]
@@ -347,6 +342,7 @@
           "enemy-0-0": { "x": 0, "y": 0, "width": 1, "height": 1 },
           "enemy-0-1": { "x": 0, "y": 1, "width": 1, "height": 1 },
           "enemy-0-2": { "x": 0, "y": 2, "width": 1, "height": 1 },
+          "enemy-0-3": { "x": 0, "y": 3, "width": 1, "height": 1 },
           "enemy-1-0": { "x": 1, "y": 0, "width": 1, "height": 1 },
           "enemy-1-1": { "x": 1, "y": 1, "width": 1, "height": 1 },
           "enemy-1-2": { "x": 1, "y": 2, "width": 1, "height": 1 },
@@ -376,6 +372,7 @@
           "enemy-0-0": { "x": 0, "y": 0, "width": 1, "height": 1 },
           "enemy-0-1": { "x": 0, "y": 1, "width": 1, "height": 1 },
           "enemy-0-2": { "x": 0, "y": 2, "width": 1, "height": 1 },
+          "enemy-0-3": { "x": 0, "y": 3, "width": 1, "height": 1 },
           "enemy-1-0": { "x": 1, "y": 0, "width": 1, "height": 1 },
           "enemy-1-1": { "x": 1, "y": 1, "width": 1, "height": 1 },
           "enemy-1-2": { "x": 1, "y": 2, "width": 1, "height": 1 },
@@ -405,6 +402,7 @@
           "enemy-0-0": { "x": 0, "y": 0, "width": 1, "height": 1 },
           "enemy-0-1": { "x": 0, "y": 1, "width": 1, "height": 1 },
           "enemy-0-2": { "x": 0, "y": 2, "width": 1, "height": 1 },
+          "enemy-0-3": { "x": 0, "y": 3, "width": 1, "height": 1 },
           "enemy-1-0": { "x": 1, "y": 0, "width": 1, "height": 1 },
           "enemy-1-1": { "x": 1, "y": 1, "width": 1, "height": 1 },
           "enemy-1-2": { "x": 1, "y": 2, "width": 1, "height": 1 },

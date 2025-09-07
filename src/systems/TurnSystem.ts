@@ -38,6 +38,7 @@ export class TurnSystem {
     statusSystem?: any,
     playerEntity?: any
   ) {
+    // 設定取り込み
     this.config = config;
     this.dungeonManager = dungeonManager;
     this.combatSystem = combatSystem;
@@ -336,9 +337,6 @@ export class TurnSystem {
       case 'trap-processing-2':
         this.executeTrapProcessing(entity, 2);
         break;
-      case 'mid-turn-recovery':
-        this.executeMidTurnRecovery(entity);
-        break;
       case 'end-turn-recovery':
         this.executeEndTurnRecovery(entity);
         break;
@@ -565,24 +563,49 @@ export class TurnSystem {
   }
 
   /**
-   * 中間回復処理（倍速者のみ）
-   */
-  private executeMidTurnRecovery(entity: GameEntity): void {
-    const speedState = this.turnManager.entitySpeedStates.get(entity.id);
-    if (!speedState || speedState.speedState !== 'fast') return;
-    
-    console.log(`  ${entity.id}: 中間回復処理（倍速者）`);
-    // HP自然回復などの処理（設定に基づく）
-    // 実装は後で追加
-  }
-
-  /**
    * ターン終了時回復処理
    */
   private executeEndTurnRecovery(entity: GameEntity): void {
     console.log(`  ${entity.id}: ターン終了時回復処理`);
-    // HP自然回復などの処理（設定に基づく）
-    // 実装は後で追加
+    // プレイヤーのみ自然回復を適用
+    if (!this.isPlayer(entity)) return;
+
+    const stats = entity.stats as any;
+    if (!stats || typeof stats.hp !== 'number' || typeof stats.maxHp !== 'number') return;
+
+    // 戦闘不能や満タン時は何もしない
+    if (stats.hp <= 0 || stats.hp >= stats.maxHp) return;
+
+    // 満腹度が0のときは回復しない
+    const playerLike = entity as any;
+    if (typeof playerLike.hunger === 'number' && typeof playerLike.maxHunger === 'number') {
+      if (playerLike.hunger <= 0) {
+        // 進捗は維持（空腹が解消された後に再開）
+        return;
+      }
+    }
+
+    // 仕様:
+    // - 1回復に必要な歩数 = 150 / 現在の最大HP
+    // - 1歩あたりの回復量 = 現在の最大HP / 150
+    // - 1歩あたりの回復上限 = 5
+    const perStepRecovery = Math.min(5, stats.maxHp / 150);
+    if (perStepRecovery <= 0) return;
+
+    // 端数を蓄積して繰り上げ回復する
+    const progressKey = 'hpRegenProgress';
+    const currentProgress: number = typeof stats[progressKey] === 'number' ? stats[progressKey] : 0;
+    let progress = currentProgress + perStepRecovery;
+
+    const wholeHeal = Math.floor(progress);
+    if (wholeHeal > 0) {
+      const actualHeal = Math.min(wholeHeal, stats.maxHp - stats.hp);
+      stats.hp = Math.min(stats.maxHp, stats.hp + actualHeal);
+      progress -= wholeHeal; // 使った分の端数を差し引き
+      console.log(`    自然回復: +${actualHeal} (進捗=${progress.toFixed(2)})`);
+    }
+
+    stats[progressKey] = progress;
   }
 
   /**
@@ -750,7 +773,6 @@ export class TurnSystem {
       'enemy-action-1',
       'ally-action-1',
       'trap-processing-1',
-      'mid-turn-recovery',
       'player-action-2',
       'enemy-action-2',
       'ally-action-2',
@@ -1019,7 +1041,6 @@ export class TurnSystem {
         return this.turnManager.turnOrder.filter(entity => this.isAlly(entity));
       case 'trap-processing-1':
       case 'trap-processing-2':
-      case 'mid-turn-recovery':
       case 'end-turn-recovery':
         return this.turnManager.turnOrder; // 全エンティティ
       default:

@@ -49,7 +49,7 @@ export type TurnPhase =
   | 'enemy-action-1' | 'enemy-action-2' 
   | 'ally-action-1' | 'ally-action-2'
   | 'trap-processing-1' | 'trap-processing-2'
-  | 'mid-turn-recovery' | 'end-turn-recovery'
+  | 'end-turn-recovery'
   | 'end-turn';
 
 // Turn action

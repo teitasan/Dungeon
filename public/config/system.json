@@ -27,11 +27,6 @@
         "conditions": []
       },
       {
-        "phase": "mid-turn-recovery",
-        "description": "中間回復処理（倍速者のみ）",
-        "conditions": ["fast-entities-only"]
-      },
-      {
         "phase": "player-action-2",
         "description": "プレイヤー2回目行動（倍速のみ）",
         "conditions": ["player-is-fast"]

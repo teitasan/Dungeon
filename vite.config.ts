@@ -2,9 +2,10 @@ import { defineConfig } from 'vite';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   root: '.',
-  base: '/Dungeon/', // GitHub Pages用のbase URL
+  // 開発時は相対パス、本番ビルド時はGitHub Pages用のbase URL
+  base: command === 'serve' ? '/' : '/Dungeon/',
   define: {
     // ビルド時にJSONファイルを文字列として埋め込み
     __DUNGEON_TEMPLATES__: JSON.stringify(
@@ -28,6 +29,6 @@ export default defineConfig({
       allow: ['.']
     }
   },
-});
+}));
 
 
