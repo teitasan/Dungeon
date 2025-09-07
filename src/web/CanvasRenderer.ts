@@ -64,10 +64,49 @@ export class CanvasRenderer {
     this.transitionInProgress = true;
     try { window.dispatchEvent(new CustomEvent('ui-transition-start')); } catch {}
 
-    const ctx = this.ctx;
-    const W = this.canvas.width;
-    const H = this.canvas.height;
+    // 暗転用オーバーレイキャンバスを取得
+    const transitionCanvas = document.getElementById('transition-canvas') as HTMLCanvasElement;
+    const transitionOverlay = document.getElementById('transition-overlay') as HTMLElement;
+    
+    if (!transitionCanvas || !transitionOverlay) {
+      console.warn('Transition overlay not found, falling back to main canvas');
+      // フォールバック: メインキャンバスを使用
+      const ctx = this.ctx;
+      const W = this.canvas.width;
+      const H = this.canvas.height;
+      const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
+      return this.playFloorTransitionOnCanvas(ctx, W, H, fontFamily, dungeonName, floor);
+    }
+
+    // オーバーレイを表示
+    transitionOverlay.style.display = 'block';
+    
+    // キャンバスサイズをメインキャンバスに合わせる
+    transitionCanvas.width = this.canvas.width;
+    transitionCanvas.height = this.canvas.height;
+    
+    const ctx = transitionCanvas.getContext('2d')!;
+    const W = transitionCanvas.width;
+    const H = transitionCanvas.height;
     const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
+
+    await this.playFloorTransitionOnCanvas(ctx, W, H, fontFamily, dungeonName, floor);
+    
+    // オーバーレイを非表示
+    transitionOverlay.style.display = 'none';
+  }
+
+  /**
+   * 指定されたキャンバスで暗転演出を実行
+   */
+  private async playFloorTransitionOnCanvas(
+    ctx: CanvasRenderingContext2D, 
+    W: number, 
+    H: number, 
+    fontFamily: string, 
+    dungeonName: string, 
+    floor: number
+  ): Promise<void> {
 
     const title = dungeonName;
     // 階層表記は BnF 形式（例: B3F）
@@ -183,6 +222,11 @@ export class CanvasRenderer {
     this.minimapCtx = mm;
     this.minimapCanvas = minimapCanvas;
     this.minimapCtx.imageSmoothingEnabled = false;
+    
+    // オーバーレイ表示用にサイズを調整（トルネコの大冒険風）
+    minimapCanvas.width = 360;
+    minimapCanvas.height = 270;
+    
   }
 
   /**
@@ -554,10 +598,7 @@ export class CanvasRenderer {
               break;
           }
 
-          // 見えていない範囲は少し暗くする（レミーラ効果が有効な場合は適用しない）
-          if (!isVisible && !this.remillaActive) {
-            color = this.mix(color, '#000000', 0.4);
-          }
+          // 視界外でも色は変更しない（すべて同じ色で表示）
 
           ctx.fillStyle = color;
           ctx.fillRect(drawX, drawY, tileSize, tileSize);
@@ -852,15 +893,16 @@ export class CanvasRenderer {
     // ミニマップ描画時はスムージングを無効化（ピクセル境界を明確に）
     mm.imageSmoothingEnabled = false;
 
-    // 背景
-    mm.fillStyle = '#0b0b0d';
-    mm.fillRect(0, 0, W, H);
+    try {
+      // 背景を透明に（クリア）
+      mm.clearRect(0, 0, W, H);
 
-    // Canvasのサイズに合わせて適切なタイルサイズを計算
-    // タイルサイズを4pxに固定
-    const mmTile = 4;
-    const offsetX = Math.floor((W - dungeon.width * mmTile) / 2);
-    const offsetY = Math.floor((H - dungeon.height * mmTile) / 2);
+      // タイルサイズを固定6pxに設定
+      const mmTile = 6;
+      
+      
+      const offsetX = Math.floor((W - dungeon.width * mmTile) / 2);
+      const offsetY = Math.floor((H - dungeon.height * mmTile) / 2);
     
 
     // 描画（探索済みの場所のみ、レミーラ効果が有効な場合は全エリア表示）
@@ -873,18 +915,14 @@ export class CanvasRenderer {
     for (let y = 0; y < dungeon.height; y++) {
       for (let x = 0; x < dungeon.width; x++) {
         const cell = dungeon.cells[y][x];
-        const isVisible = visible[y][x];
-        const isExplored = this.explored ? this.explored[y][x] : false;
+        const isVisible = visible && visible[y] && visible[y][x] ? visible[y][x] : false;
+        const isExplored = this.explored && this.explored[y] && this.explored[y][x] ? this.explored[y][x] : false;
 
         if (isExplored) exploredCount++;
         if (isVisible) visibleCount++;
 
-        // レミーラ効果が有効でない場合は探索済みの場所のみ表示
-        if (!this.remillaActive && !isExplored) continue;
-        
-        // レミーラ効果が有効な場合は全エリア表示
-        if (this.remillaActive && !isExplored) {
-        }
+        // 探索済みの場所のみ表示
+        if (!isExplored) continue;
         
         // セルタイプの統計
         switch (cell.type) {
@@ -907,50 +945,65 @@ export class CanvasRenderer {
             break;
         }
 
-        let color = '#2a2a35'; // wall base (brighter for minimap)
+        let color = 'rgba(42, 42, 53, 0.7)'; // wall base (半透明)
         let cellType = cell.type;
         switch (cell.type) {
           case 'floor':
-            color = '#4a4a55';
+            color = 'rgba(74, 74, 85, 0.6)'; // 床（半透明）
             break;
           case 'room':
-            color = '#4a4a55'; // 部屋は床と同じ色
+            color = 'rgba(74, 74, 85, 0.6)'; // 部屋（半透明）
             break;
           case 'corridor':
-            color = '#4a4a55'; // 通路も床と同じ色
+            color = 'rgba(74, 74, 85, 0.6)'; // 通路（半透明）
             break;
           case 'stairs-down':
             // 設定ファイルから色を取得、なければデフォルト色
-            color = this.gameConfig?.ui?.minimap?.colors?.['stairs-down'] || '#87CEEB';
+            color = this.gameConfig?.ui?.minimap?.colors?.['stairs-down'] || 'rgba(135, 206, 235, 0.8)'; // 階段下（半透明）
             break;
           case 'stairs-up':
             // 設定ファイルから色を取得、なければデフォルト色
-            color = this.gameConfig?.ui?.minimap?.colors?.['stairs-up'] || '#87CEEB';
+            color = this.gameConfig?.ui?.minimap?.colors?.['stairs-up'] || 'rgba(135, 206, 235, 0.8)'; // 階段上（半透明）
             break;
           default:
             color = '#2a2a35';
             break;
         }
-        // 見えていない範囲は少し暗くする
-        if (!isVisible) {
-          color = this.mix(color, '#000000', 0.4);
-        }
+        // 視界外でも色は変更しない（すべて同じ色で表示）
         
-        // 階段は視認性向上のため、床色で塗った上に枠線を重ねる
-        if (cell.type === 'stairs-down' || cell.type === 'stairs-up') {
-          // まず床色で塗る（黒ベタに見えないように）
-          const floorColor = '#4a4a55';
+        // 壁は描画しない
+        if (cell.type === 'wall') {
+          // 壁は描画をスキップ
+        } else if (cell.type === 'stairs-down' || cell.type === 'stairs-up') {
+          // 階段アイコンを描画（111111, 100001, 100001, 100001, 100001, 111111）
+          const baseX = offsetX + x * mmTile;
+          const baseY = offsetY + y * mmTile;
+          
+          // 床色を取得（階段の背景色）
+          const floorColor = 'rgba(74, 74, 85, 0.6)'; // 床と同じ色
+          
+          // まず床色で全体を塗りつぶし
           mm.fillStyle = floorColor;
-          mm.fillRect(offsetX + x * mmTile, offsetY + y * mmTile, mmTile, mmTile);
-          // その上に階段色の枠を描く
-          mm.strokeStyle = color;
-          mm.lineWidth = 1;
-          mm.strokeRect(
-            offsetX + x * mmTile + 0.5,
-            offsetY + y * mmTile + 0.5,
-            mmTile - 1,
-            mmTile - 1
-          );
+          mm.fillRect(baseX, baseY, 6, 6);
+          
+          // 1の部分を階段色で上書き
+          mm.fillStyle = color;
+          
+          // 1行目: 111111 (全6ピクセル)
+          mm.fillRect(baseX + 0, baseY + 0, 6, 1);
+          
+          // 2-5行目: 100001 (両端のみ)
+          mm.fillRect(baseX + 0, baseY + 1, 1, 1); // 左端
+          mm.fillRect(baseX + 5, baseY + 1, 1, 1); // 右端
+          mm.fillRect(baseX + 0, baseY + 2, 1, 1); // 左端
+          mm.fillRect(baseX + 5, baseY + 2, 1, 1); // 右端
+          mm.fillRect(baseX + 0, baseY + 3, 1, 1); // 左端
+          mm.fillRect(baseX + 5, baseY + 3, 1, 1); // 右端
+          mm.fillRect(baseX + 0, baseY + 4, 1, 1); // 左端
+          mm.fillRect(baseX + 5, baseY + 4, 1, 1); // 右端
+          
+          // 6行目: 111111 (全6ピクセル)
+          mm.fillRect(baseX + 0, baseY + 5, 6, 1);
         } else {
           // その他のセルは塗りつぶしで描画
           mm.fillStyle = color;
@@ -960,7 +1013,61 @@ export class CanvasRenderer {
       }
     }
 
-    // アイテムを表示（視界内のみ、4x4pxの水色の●）
+    // 床の領域境界に白い枠線を描画
+    mm.strokeStyle = 'rgba(255, 255, 255, 0.8)'; // 白い枠線（半透明）
+    mm.lineWidth = 1;
+    
+    // 床系セルの境界を検出して枠線を描画
+    for (let y = 0; y < dungeon.height; y++) {
+      for (let x = 0; x < dungeon.width; x++) {
+        const cell = dungeon.cells[y][x];
+        const isVisible = visible && visible[y] && visible[y][x] ? visible[y][x] : false;
+        const isExplored = this.explored && this.explored[y] && this.explored[y][x] ? this.explored[y][x] : false;
+        
+        // 探索済みの場所のみ表示
+        if (!isExplored) continue;
+        
+        // 床系セルの場合のみ境界線を描画（視界外でも探索済みなら枠線を描画）
+        if (cell.type === 'floor' || cell.type === 'room' || cell.type === 'corridor') {
+          const baseX = offsetX + x * mmTile;
+          const baseY = offsetY + y * mmTile;
+          
+          // 上辺：上のセルが床系でない場合（未探索でも床系なら枠線を描画しない）
+          if (y === 0 || !this.isFloorType(dungeon.cells[y-1][x])) {
+            mm.beginPath();
+            mm.moveTo(baseX, baseY);
+            mm.lineTo(baseX + mmTile, baseY);
+            mm.stroke();
+          }
+          
+          // 下辺：下のセルが床系でない場合（未探索でも床系なら枠線を描画しない）
+          if (y === dungeon.height - 1 || !this.isFloorType(dungeon.cells[y+1][x])) {
+            mm.beginPath();
+            mm.moveTo(baseX, baseY + mmTile);
+            mm.lineTo(baseX + mmTile, baseY + mmTile);
+            mm.stroke();
+          }
+          
+          // 左辺：左のセルが床系でない場合（未探索でも床系なら枠線を描画しない）
+          if (x === 0 || !this.isFloorType(dungeon.cells[y][x-1])) {
+            mm.beginPath();
+            mm.moveTo(baseX, baseY);
+            mm.lineTo(baseX, baseY + mmTile);
+            mm.stroke();
+          }
+          
+          // 右辺：右のセルが床系でない場合（未探索でも床系なら枠線を描画しない）
+          if (x === dungeon.width - 1 || !this.isFloorType(dungeon.cells[y][x+1])) {
+            mm.beginPath();
+            mm.moveTo(baseX + mmTile, baseY);
+            mm.lineTo(baseX + mmTile, baseY + mmTile);
+            mm.stroke();
+          }
+        }
+      }
+    }
+
+    // アイテムを表示（視界内のみ、水色）
     if (this.dungeonManager) {
       const all = this.dungeonManager.getAllEntities();
       const items = all.filter(e => (e as any).constructor?.name === 'ItemEntity');
@@ -973,26 +1080,10 @@ export class CanvasRenderer {
 
         const x = offsetX + ix * mmTile;
         const y = offsetY + iy * mmTile;
-        // 理想の形（0110, 1111, 1111, 0110）を描画
-        
-        // 1行目: 0110
-        mm.fillRect(x + 1, y + 0, 2, 1);
-        
-        // 2行目: 1111
-        mm.fillRect(x + 0, y + 1, 4, 1);
-        
-        // 3行目: 1111
-        mm.fillRect(x + 0, y + 2, 4, 1);
-        
-        // 4行目: 0110
-        mm.fillRect(x + 1, y + 3, 2, 1);
+        this.drawMinimapIcon(mm, x, y);
       }
-      // 敵を表示（視界内のみ、4x4pxの赤い●）
-      // Note:
-      //   ここでは正式な MonsterEntity のみを対象として描画しています。
-      //   テスト用の簡易オブジェクトや別クラス名の敵は対象外になります。
-      //   将来、検出範囲を緩めたい場合は id/name に 'enemy' や 'monster' を含むか等の
-      //   ヘルパー関数（isMonsterLike など）を導入して判定を拡張してください。
+      
+      // 敵を表示（視界内のみ、赤色）
       const monsters = all.filter(e => (e as any).constructor?.name === 'MonsterEntity');
       mm.fillStyle = '#da1809'; // 赤
       for (const m of monsters) {
@@ -1003,50 +1094,58 @@ export class CanvasRenderer {
 
         const x = offsetX + mx * mmTile;
         const y = offsetY + my * mmTile;
-        
-        // 理想の形（0110, 1111, 1111, 0110）を描画
-        
-        // 1行目: 0110
-        mm.fillRect(x + 1, y + 0, 2, 1);
-        
-        // 2行目: 1111
-        mm.fillRect(x + 0, y + 1, 4, 1);
-        
-        // 3行目: 1111
-        mm.fillRect(x + 0, y + 2, 4, 1);
-        
-        // 4行目: 0110
-        mm.fillRect(x + 1, y + 3, 2, 1);
+        this.drawMinimapIcon(mm, x, y);
       }
     }
 
-    // ビューポート枠
-    mm.strokeStyle = 'rgba(255,255,255,0.6)';
-    mm.lineWidth = 1;
-    mm.strokeRect(
-      offsetX + camX * mmTile + 0.5,
-      offsetY + camY * mmTile + 0.5,
-      viewW * mmTile,
-      viewH * mmTile
-    );
 
     // プレイヤー点
-    mm.fillStyle = this.gameConfig?.ui.minimap.playerColor || '#58a6ff'; // 設定ファイルから色を読み取り、デフォルトは青色
-    const playerSize = this.gameConfig?.ui.minimap.playerSize || 0.5; // デフォルトは0.5（mmTileの半分）
-    const playerPixelSize = Math.max(1, Math.floor(mmTile * playerSize));
-    mm.fillRect(
-      offsetX + player.position.x * mmTile + (mmTile - playerPixelSize) / 2,
-      offsetY + player.position.y * mmTile + (mmTile - playerPixelSize) / 2,
-      playerPixelSize,
-      playerPixelSize
-    );
+    mm.fillStyle = this.gameConfig?.ui.minimap.playerColor || 'rgba(88, 166, 255, 0.9)'; // プレイヤー（半透明）
+    const x = offsetX + player.position.x * mmTile;
+    const y = offsetY + player.position.y * mmTile;
+    this.drawMinimapIcon(mm, x, y);
 
-    // 特殊効果による表示（千里眼・透視効果）
-    this.renderMinimapItems(mm, dungeon, mmTile, offsetX, offsetY);
-    this.renderMinimapMonsters(mm, dungeon, mmTile, offsetX, offsetY);
+      // 特殊効果による表示（千里眼・透視効果）
+      this.renderMinimapItems(mm, dungeon, mmTile, offsetX, offsetY);
+      this.renderMinimapMonsters(mm, dungeon, mmTile, offsetX, offsetY);
 
-    // 描画完了後、スムージング設定を元に戻す
-    mm.imageSmoothingEnabled = false;
+      // 描画完了後、スムージング設定を元に戻す
+      mm.imageSmoothingEnabled = false;
+    } catch (error) {
+      console.error('[CanvasRenderer] ミニマップ描画エラー:', error);
+    }
+  }
+
+  /**
+   * 床系セルかどうかを判定（階段も含む）
+   */
+  private isFloorType(cell: any): boolean {
+    return cell && (cell.type === 'floor' || cell.type === 'room' || cell.type === 'corridor' || 
+                   cell.type === 'stairs-down' || cell.type === 'stairs-up');
+  }
+
+
+  /**
+   * ミニマップアイコン描画ヘルパー
+   */
+  private drawMinimapIcon(
+    mm: CanvasRenderingContext2D,
+    x: number,
+    y: number
+  ): void {
+    // アイコン形状の定義（共用）
+    const iconPattern = [
+      { x: 1, y: 0, w: 4, h: 1 }, // 011110
+      { x: 0, y: 1, w: 6, h: 1 }, // 111111
+      { x: 0, y: 2, w: 6, h: 1 }, // 111111
+      { x: 0, y: 3, w: 6, h: 1 }, // 111111
+      { x: 0, y: 4, w: 6, h: 1 }, // 111111
+      { x: 1, y: 5, w: 4, h: 1 }  // 011110
+    ];
+
+    for (const pattern of iconPattern) {
+      mm.fillRect(x + pattern.x, y + pattern.y, pattern.w, pattern.h);
+    }
   }
 
   /**
@@ -1074,28 +1173,13 @@ export class CanvasRenderer {
              (entity as any).name?.includes('巻物') || (entity as any).name?.includes('アイテム');
     });
 
-
-    // アイテムを表示（4x4ピクセルをフル活用）
+    // アイテムを表示（6x6ピクセル）
+    mm.fillStyle = '#0ad4e1'; // 水色
     for (const item of items) {
       if (item.position) {
         const x = offsetX + item.position.x * mmTile;
         const y = offsetY + item.position.y * mmTile;
-        
-        // 理想の形（0110, 1111, 1111, 0110）を描画
-        mm.fillStyle = '#0ad4e1'; // 水色
-        
-        // 1行目: 0110
-        mm.fillRect(x + 1, y + 0, 2, 1);
-        
-        // 2行目: 1111
-        mm.fillRect(x + 0, y + 1, 4, 1);
-        
-        // 3行目: 1111
-        mm.fillRect(x + 0, y + 2, 4, 1);
-        
-        // 4行目: 0110
-        mm.fillRect(x + 1, y + 3, 2, 1);
-        
+        this.drawMinimapIcon(mm, x, y);
       }
     }
   }
@@ -1125,28 +1209,13 @@ export class CanvasRenderer {
              (entity as any).name?.includes('モンスター') || (entity as any).name?.includes('敵');
     });
 
-
-    // モンスターを表示（4x4ピクセルをフル活用）
+    // モンスターを表示（6x6ピクセル）
+    mm.fillStyle = '#da1809'; // 赤色
     for (const monster of monsters) {
       if (monster.position) {
         const x = offsetX + monster.position.x * mmTile;
         const y = offsetY + monster.position.y * mmTile;
-        
-        // 理想の形（0110, 1111, 1111, 0110）を描画
-        mm.fillStyle = '#da1809'; // 赤色
-        
-        // 1行目: 0110
-        mm.fillRect(x + 1, y + 0, 2, 1);
-        
-        // 2行目: 1111
-        mm.fillRect(x + 0, y + 1, 4, 1);
-        
-        // 3行目: 1111
-        mm.fillRect(x + 0, y + 2, 4, 1);
-        
-        // 4行目: 0110
-        mm.fillRect(x + 1, y + 3, 2, 1);
-        
+        this.drawMinimapIcon(mm, x, y);
       }
     }
   }
@@ -1177,11 +1246,26 @@ export class CanvasRenderer {
   }
 
   /**
-   * レミーラ効果を有効化
+   * レミーラ効果を有効化（今のフロアをすべて探索済みにする）
    */
   public activateRemilla(floor: number): void {
     this.remillaActive = true;
     this.activeEffectsFloor = floor;
+    
+    // 現在のフロアをすべて探索済みにする
+    if (this.dungeonManager) {
+      const currentDungeon = this.dungeonManager.getCurrentDungeon();
+      if (currentDungeon && this.explored) {
+        for (let y = 0; y < currentDungeon.height; y++) {
+          for (let x = 0; x < currentDungeon.width; x++) {
+            if (!this.explored[y]) {
+              this.explored[y] = [];
+            }
+            this.explored[y][x] = true;
+          }
+        }
+      }
+    }
     
     // ミニマップが接続されている場合は即座に更新
     this.forceMinimapUpdate();

@@ -20,6 +20,7 @@ export class InputHandler {
   private lastMovementTime = 0;
   private turnMode = false; // 方向転換モード（トグル）
   private shiftDiagonalOnly = false; // Shift押下中は斜め移動のみ許可
+  private gameHidden = false; // ゲーム画面を隠すオーバーレイの表示状態
 
   // 方向転換用に、現在の矢印ビットから向きを更新する
   private updateDirectionFromBits(): void {
@@ -206,6 +207,12 @@ export class InputHandler {
       return;
     }
     
+    // ゲーム画面隠し切り替え（Mキー）
+    if (key === 'm' || key === 'M') {
+      this.toggleGameHide();
+      return;
+    }
+    
     if (key === 'Enter' || key === 'z' || key === 'Z') {
       this.handleAttack();
       return;
@@ -214,6 +221,12 @@ export class InputHandler {
     // 投擲（T）: keydown のみで処理
     if (key === 't' || key === 'T') {
       this.handleThrow();
+      return;
+    }
+
+    // ミニマップ表示/非表示切り替え（Tabキー、トルネコの大冒険のSELECTボタンに相当）: keydown のみで処理
+    if (key === 'Tab') {
+      this.uiManager.toggleMinimap();
       return;
     }
   }
@@ -766,5 +779,20 @@ export class InputHandler {
     });
 
     console.log('[DEBUG] Inventory sorted by ID ascending');
+  }
+
+  /**
+   * ゲーム画面を隠すオーバーレイの表示/非表示を切り替え
+   */
+  private toggleGameHide(): void {
+    this.gameHidden = !this.gameHidden;
+    const overlay = document.getElementById('game-hide-overlay') as HTMLElement;
+    
+    if (overlay) {
+      overlay.style.display = this.gameHidden ? 'block' : 'none';
+      console.log(`[DEBUG] ゲーム画面隠し: ${this.gameHidden ? 'ON' : 'OFF'}`);
+    } else {
+      console.warn('[WARN] game-hide-overlay要素が見つかりません');
+    }
   }
 }

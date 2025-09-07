@@ -668,8 +668,8 @@
       "playerSize": 0.8,
       "playerColor": "#FFFFFF",
       "colors": {
-        "stairs-down": "#87CEEB",
-        "stairs-up": "#87CEEB"
+        "stairs-down": "#0ad4e1",
+        "stairs-up": "#0ad4e1"
       }
     },
     "layout": {

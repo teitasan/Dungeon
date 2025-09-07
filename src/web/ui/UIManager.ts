@@ -30,6 +30,16 @@ export class UIManager {
           <div id="game-area">
             <div id="game-wrapper" class="window-frame">
               <canvas id="game" class="map"></canvas>
+              <!-- ミニマップをゲームキャンバス上にオーバーレイ表示 -->
+              <div id="minimap-overlay" class="minimap-overlay">
+                <canvas id="minimap"></canvas>
+              </div>
+              <!-- フロア移動時の暗転オーバーレイ -->
+              <div id="transition-overlay" class="transition-overlay">
+                <canvas id="transition-canvas"></canvas>
+              </div>
+              <!-- ゲーム画面を隠す黒いオーバーレイ（Mキーで切り替え） -->
+              <div id="game-hide-overlay" class="game-hide-overlay"></div>
             </div>
           </div>
           <div id="right-panel" style="display: flex; flex-direction: column; gap: 6px;">
@@ -74,9 +84,6 @@ export class UIManager {
           </div>
         </div>
         <div id="bottom">
-          <div id="minimap-wrapper" class="window-frame">
-            <canvas id="minimap"></canvas>
-          </div>
           <div id="messages" class="messages window-frame"></div>
         </div>
       </div>
@@ -96,9 +103,9 @@ export class UIManager {
   setupMinimap(): HTMLCanvasElement | null {
     const minimap = document.getElementById('minimap') as HTMLCanvasElement;
     if (minimap) {
-      const { width, height } = this.config.ui.minimap;
-      minimap.width = width;
-      minimap.height = height;
+      // オーバーレイ表示用のサイズに固定（トルネコの大冒険風）
+      minimap.width = 360;
+      minimap.height = 270;
     }
     return minimap;
   }
@@ -343,6 +350,37 @@ export class UIManager {
   }
 
   /**
+   * ミニマップの表示/非表示を切り替え
+   */
+  toggleMinimap(): void {
+    const overlay = document.getElementById('minimap-overlay') as HTMLElement;
+    if (overlay) {
+      const isVisible = overlay.style.display !== 'none';
+      overlay.style.display = isVisible ? 'none' : 'block';
+    }
+  }
+
+  /**
+   * ミニマップを表示
+   */
+  showMinimap(): void {
+    const overlay = document.getElementById('minimap-overlay') as HTMLElement;
+    if (overlay) {
+      overlay.style.display = 'block';
+    }
+  }
+
+  /**
+   * ミニマップを非表示
+   */
+  hideMinimap(): void {
+    const overlay = document.getElementById('minimap-overlay') as HTMLElement;
+    if (overlay) {
+      overlay.style.display = 'none';
+    }
+  }
+
+  /**
    * ゲーム情報オーバーレイを作成（削除済み）
    */
   createGameInfoOverlay(): void {
@@ -376,6 +414,13 @@ export class UIManager {
    * ステータスウィンドウを更新
    */
   updateStatusWindow(player: any): void {
+    // プレイヤー名の更新（ステータスウィンドウのタイトル）
+    const statusTitle = document.querySelector('#status-window h3');
+    if (statusTitle) {
+      const playerName = player?.name || 'プレイヤー名';
+      statusTitle.textContent = playerName;
+    }
+
     // HP更新（stats優先、フォールバックで直下プロパティ）
     const currentHp = player?.stats?.hp ?? player?.hp;
     const maxHp = player?.stats?.maxHp ?? player?.maxHp;
