@@ -465,7 +465,7 @@ export class AISystem {
     if (leftUsable || rightUsable) return null;
     // 前方が敵で塞がれているか
     const ents = this.dungeonManager.getEntitiesAt(ahead);
-    const blocker = ents.find(e => e.constructor.name === 'MonsterEntity');
+    const blocker = ents.find(e => (e as any) instanceof MonsterEntity);
     if (!blocker) return null;
     // どちらが後退するか判定
     const player = this.findPlayer();

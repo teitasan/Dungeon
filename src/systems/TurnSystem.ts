@@ -4,6 +4,8 @@
 
 import { GameEntity } from '../types/entities';
 import { MonsterEntity } from '../entities/Monster';
+import { PlayerEntity } from '../entities/Player';
+import { CompanionEntity } from '../entities/Companion';
 import { Position } from '../types/core';
 import { 
   TurnManager, 
@@ -662,15 +664,16 @@ export class TurnSystem {
    * エンティティタイプ判定メソッド
    */
   private isPlayer(entity: GameEntity): boolean {
-    return entity.constructor.name === 'PlayerEntity' || entity.id.startsWith('player');
+    // 本番ビルドでのminify対策: constructor.nameではなくinstanceofを優先
+    return (entity as any) instanceof PlayerEntity || entity.id.startsWith('player');
   }
 
   private isAlly(entity: GameEntity): boolean {
-    return entity.constructor.name === 'CompanionEntity' || entity.id.startsWith('ally');
+    return (entity as any) instanceof CompanionEntity || entity.id.startsWith('ally');
   }
 
   private isEnemy(entity: GameEntity): boolean {
-    return entity.constructor.name === 'MonsterEntity' || entity.id.startsWith('enemy');
+    return (entity as any) instanceof MonsterEntity || entity.id.startsWith('enemy');
   }
 
   /**
