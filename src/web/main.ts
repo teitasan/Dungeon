@@ -33,6 +33,10 @@ async function start(): Promise<void> {
     // ゲームループに入力ハンドラーを設定
     gameLoop.setInputHandler(inputHandler);
 
+    // ターンシステムの初期化（ゲーム開始時）
+    const entities = systems.dungeonManager.getAllEntities();
+    systems.turnSystem.initializeTurnOrder(entities);
+    
     // 初期メッセージの表示
     uiManager.addMessageWithAnimation(`Entered ${systems.dungeonManager.getCurrentDungeon()?.name || 'Unknown Dungeon'}`);
     

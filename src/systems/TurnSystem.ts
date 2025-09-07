@@ -69,6 +69,18 @@ export class TurnSystem {
     this.playerEntity = playerEntity;
   }
 
+  /**
+   * Reset turn order (call when changing floors or restarting)
+   */
+  resetTurnOrder(): void {
+    this.turnManager.turnOrder = [];
+    this.turnManager.entitySpeedStates.clear();
+    this.turnManager.phaseEntityStates.clear();
+    this.turnManager.currentEntityIndex = 0;
+    this.turnManager.turnPhase = 'turn-start';
+    this.turnManager.currentPhaseIndex = 0;
+  }
+
   
 
   /**
@@ -214,6 +226,12 @@ export class TurnSystem {
    */
   executeTurn(): void {
     // console.log(`=== ターン ${this.turnManager.currentTurn} 開始 ===`);
+    
+    // ターンオーダーが初期化されていない場合は初期化
+    if (this.turnManager.turnOrder.length === 0 && this.dungeonManager) {
+      const entities = this.dungeonManager.getAllEntities();
+      this.initializeTurnOrder(entities);
+    }
     
     // フェーズ状態をリセット
     this.resetPhaseStates();

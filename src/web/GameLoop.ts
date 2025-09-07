@@ -49,9 +49,8 @@ export class GameLoop {
       this.inputHandler.updateTurnControl();
     }
     
-    // ターンシステムの初期化
-    const entities = this.systems.dungeonManager.getAllEntities();
-    this.systems.turnSystem.initializeTurnOrder(entities);
+    // ターンシステムの初期化（必要な場合のみ）
+    // 毎フレーム初期化すると敵の行動状態がリセットされるため削除
     
     // ゲーム情報オーバーレイを更新（オーバーレイは廃止済みだが呼び出しは無害）
     this.uiManager.updateGameInfoOverlay({
