@@ -163,11 +163,7 @@ export class MonsterSpriteManager {
    * Get animated sprite ID for current frame
    */
   private getAnimatedSpriteId(spriteId: string): string {
-    const now = Date.now();
-    if (now - this.lastAnimationTime > 200) { // 200ms間隔でアニメーション
-      this.animationFrame = (this.animationFrame + 1) % 5; // 5フレームのアニメーション
-      this.lastAnimationTime = now;
-    }
+    // アニメーション更新は updateAnimation() で行うため、ここでは現在のフレームを取得するのみ
 
     // スプライトIDから座標を抽出（例: "enemy-1-0" -> enemy, 1, 0）
     const parts = spriteId.split('-');
@@ -253,7 +249,7 @@ export class MonsterSpriteManager {
   updateAnimation(): void {
     const now = Date.now();
     if (now - this.lastAnimationTime > 200) {
-      this.animationFrame = (this.animationFrame + 1) % 5; // 5フレームのアニメーション
+      this.animationFrame = (this.animationFrame + 1) % 4; // 4フレームのアニメーション（ABACループ）
       this.lastAnimationTime = now;
     }
   }

@@ -1225,11 +1225,10 @@ export class TurnSystem {
   private executeNaturalSpawn(): void {
     if (!this.dungeonManager) return;
 
-    // プレイヤーが居る部屋以外の部屋を取得
+    // プレイヤーが居る部屋を取得（通路に居る場合はnull）
     const playerRoom = this.getPlayerRoom();
-    if (!playerRoom) return;
-
-    // 利用可能な部屋を取得（プレイヤーが居る部屋以外）
+    
+    // 利用可能な部屋を取得（プレイヤーが部屋に居る場合はその部屋以外、通路に居る場合は全部屋）
     const availableRooms = this.getAvailableRoomsForSpawn(playerRoom);
     if (availableRooms.length === 0) return;
 
@@ -1280,11 +1279,19 @@ export class TurnSystem {
   }
 
   /**
-   * スポーン可能な部屋のリストを取得（プレイヤーが居る部屋以外）
+   * スポーン可能な部屋のリストを取得（プレイヤーが居る部屋以外、通路に居る場合は全部屋）
    */
   private getAvailableRoomsForSpawn(excludeRoom: any): any[] {
     if (!this.dungeonManager?.currentDungeon?.rooms) return [];
     
+    // プレイヤーが通路に居る場合（excludeRoomがnull）は全部屋を対象
+    if (!excludeRoom) {
+      return this.dungeonManager.currentDungeon.rooms.filter((room: any) => 
+        this.isRoomSuitableForSpawn(room)
+      );
+    }
+    
+    // プレイヤーが部屋に居る場合はその部屋以外
     return this.dungeonManager.currentDungeon.rooms.filter((room: any) => 
       room !== excludeRoom && 
       this.isRoomSuitableForSpawn(room)
