@@ -8,11 +8,11 @@ import { CharacterStats } from '../types/character-info';
 import { DungeonManager } from '../dungeon/DungeonManager.js';
 import { ItemEntity } from '../entities/Item.js';
 import { CharacterCalculator } from '../core/character-calculator.js';
-import { 
-  CombatResult, 
-  CombatEffect, 
-  AttackParams, 
-  DamageCalculation, 
+import {
+  CombatResult,
+  CombatEffect,
+  AttackParams,
+  DamageCalculation,
   CombatConfig,
   CombatAction,
   CombatLogEntry,
@@ -21,6 +21,7 @@ import {
 } from '../types/combat';
 import { AttributeSystem } from './AttributeSystem';
 import { ActionResult } from '../types/movement';
+import { DamageDisplayManager } from '../web/DamageDisplayManager';
 
 export class CombatSystem {
   private config: CombatConfig;
@@ -29,6 +30,7 @@ export class CombatSystem {
   private attributeSystem: AttributeSystem;
   private dungeonManager?: DungeonManager;
   private messageSink?: (message: string) => void;
+  private damageDisplayManager?: DamageDisplayManager;
 
   constructor(config?: Partial<CombatConfig>) {
     this.config = {
@@ -107,6 +109,13 @@ export class CombatSystem {
   }
 
   /**
+   * ダメージ表示マネージャーを設定
+   */
+  setDamageDisplayManager(manager: DamageDisplayManager): void {
+    this.damageDisplayManager = manager;
+  }
+
+  /**
    * 攻撃を試行し、ActionResultを返す（ターン消費判定用）
    */
   attemptAttackWithActionResult(params: AttackParams): ActionResult {
@@ -122,7 +131,7 @@ export class CombatSystem {
 
     // 攻撃実行
     const combatResult = this.executeAttack(params);
-    
+
     if (combatResult.success) {
       return {
         success: true,
@@ -148,8 +157,14 @@ export class CombatSystem {
   executeAttack(params: AttackParams): CombatResult {
     const { attacker, defender, attackType, weaponBonus = 0, attributeModifier = 1.0, criticalOverride, unavoidable } = params;
 
+
     // Check if attack hits (evasion check)
     if (!unavoidable && this.config.evasionEnabled && this.checkEvasion(attacker, defender)) {
+      // 回避時のダメージ表示（MISS）
+      if (this.damageDisplayManager) {
+        this.damageDisplayManager.addMiss(defender.id, defender.position.x, defender.position.y);
+      }
+
       return {
         success: true,
         damage: 0,
@@ -165,23 +180,28 @@ export class CombatSystem {
     }
 
     // Check for critical hit
-    const isCritical = criticalOverride === true ? true : 
+    const isCritical = criticalOverride === true ? true :
                       (criticalOverride === false ? false : this.checkCriticalHit(attacker, defender));
 
     // Calculate attribute modifier if not provided
-    const finalAttributeModifier = attributeModifier !== undefined ? 
+    const finalAttributeModifier = attributeModifier !== undefined ?
       attributeModifier : this.attributeSystem.calculateEntityAttributeModifier(attacker, defender);
 
     // Calculate damage
     const damageCalc = this.calculateDamage(attacker, defender, weaponBonus, finalAttributeModifier, isCritical);
-    
+
+    // ダメージ表示を追加（HPクリップ前の実際のダメージを表示）
+    if (this.damageDisplayManager && damageCalc.finalDamage > 0) {
+      this.damageDisplayManager.addDamage(defender.id, damageCalc.finalDamage, isCritical, false, defender.position.x, defender.position.y);
+    }
+
     // Apply damage to defender
     const actualDamage = this.applyDamage(defender, damageCalc.finalDamage);
 
     // 死亡チェック
     const defenderHp = this.getEntityHp(defender);
     const isDead = defenderHp <= 0;
-    
+
     if (isDead) {
       this.handleEntityDeath(defender);
     }
@@ -214,7 +234,7 @@ export class CombatSystem {
     if (this.messageSink) {
       console.log(`[DEBUG] executeAttack: メッセージ表示: "${result.message}"`);
       this.messageSink(result.message);
-      
+
       // 死亡時は追加で死亡メッセージを表示
       if (isDead) {
         if (this.isEnemy(defender)) {
@@ -237,36 +257,36 @@ export class CombatSystem {
     // 隣接攻撃（上下左右 + 斜め）に対応
     const attackerPos = attacker.position;
     const defenderPos = defender.position;
-    
+
     const dx = Math.abs(attackerPos.x - defenderPos.x);
     const dy = Math.abs(attackerPos.y - defenderPos.y);
-    
+
     // 隣接判定: 上下左右(距離1) + 斜め(距離√2 ≈ 1.414)
     const isAdjacent = dx <= 1 && dy <= 1 && (dx + dy > 0); // 同じ位置は除外
-    
+
     if (!isAdjacent) {
       return false;
     }
-    
+
     // 斜め隣接の場合、角を挟んでいないかチェック
     if (dx === 1 && dy === 1) {
       // 斜め隣接の場合、角の位置が歩行可能かチェック
       // 攻撃者と防御者の間の角をチェック
       const cornerPos1 = { x: attackerPos.x, y: defenderPos.y };
       const cornerPos2 = { x: defenderPos.x, y: attackerPos.y };
-      
+
       // ダンジョンマネージャーが利用可能な場合のみチェック
       if (this.dungeonManager && typeof this.dungeonManager.isWalkable === 'function') {
         const isCorner1Walkable = this.dungeonManager.isWalkable(cornerPos1);
         const isCorner2Walkable = this.dungeonManager.isWalkable(cornerPos2);
-        
+
         // 両方の角が歩行可能でなければ攻撃禁止
         if (!isCorner1Walkable || !isCorner2Walkable) {
           return false; // 角が歩行不可のため攻撃禁止
         }
       }
     }
-    
+
     return true;
   }
 
@@ -276,10 +296,10 @@ export class CombatSystem {
    * New system: Uses CharacterStats with unarmed attack power and equipment bonuses
    */
   private calculateDamage(
-    attacker: GameEntity, 
-    defender: GameEntity, 
-    weaponBonus: number, 
-    attributeModifier: number, 
+    attacker: GameEntity,
+    defender: GameEntity,
+    weaponBonus: number,
+    attributeModifier: number,
     isCritical: boolean
   ): DamageCalculation {
     // Get unarmed attack power from basic stats
@@ -394,9 +414,9 @@ export class CombatSystem {
   private applyDamage(entity: GameEntity, damage: number): number {
     const currentHp = this.getEntityHp(entity);
     const actualDamage = Math.min(damage, currentHp);
-    
+
     this.setEntityHp(entity, currentHp - damage);
-    
+
     return actualDamage;
   }
 
@@ -404,9 +424,9 @@ export class CombatSystem {
    * Generate combat effects from an attack
    */
   private generateCombatEffects(
-    attacker: GameEntity, 
-    defender: GameEntity, 
-    damage: number, 
+    attacker: GameEntity,
+    defender: GameEntity,
+    damage: number,
     isCritical: boolean
   ): CombatEffect[] {
     const effects: CombatEffect[] = [];
@@ -436,27 +456,27 @@ export class CombatSystem {
    * Generate combat message
    */
   private generateCombatMessage(
-    attacker: GameEntity, 
-    defender: GameEntity, 
-    damage: number, 
+    attacker: GameEntity,
+    defender: GameEntity,
+    damage: number,
     isCritical: boolean,
     isDead: boolean = false
   ): string {
     const attackerName = (attacker as any).name || attacker.id;
     const defenderName = (defender as any).name || defender.id;
-    
+
     let message = `${attackerName} attacks ${defenderName}`;
-    
+
     if (isCritical) {
       message += ' with a critical hit';
     }
-    
+
     message += ` for ${damage} damage!`;
-    
+
     if (isDead) {
       message += ` ${defenderName} is defeated!`;
     }
-    
+
     return message;
   }
 
@@ -468,10 +488,10 @@ export class CombatSystem {
     if (attacker === target) return false;
     // Items are not valid targets
     if (target instanceof ItemEntity) return false;
-    
+
     const attackerHp = this.getEntityHp(attacker);
     const targetHp = this.getEntityHp(target);
-    
+
     if (attackerHp <= 0) return false;
     if (targetHp <= 0) return false;
     // 近接レンジ・角抜け禁止のチェック（DungeonManagerがある場合）
@@ -480,7 +500,7 @@ export class CombatSystem {
         return false;
       }
     }
-    
+
     return true;
   }
 
@@ -490,19 +510,24 @@ export class CombatSystem {
   private processCombatAction(attacker: GameEntity, target: GameEntity, actionType: string): CombatResult | null {
     // ダメージ計算
     const damage = this.calculateDamage(attacker, target, 0, 1.0, false);
-    
+
     // ターゲットのHPを減少
     const currentHp = this.getEntityHp(target);
     this.setEntityHp(target, currentHp - damage.finalDamage);
-    
+
     // 死亡チェック（メッセージ生成前に）
     const targetHp = this.getEntityHp(target);
     const isDead = targetHp <= 0;
-    
+
     if (isDead) {
       this.handleEntityDeath(target);
     }
-    
+
+    // ダメージ表示を追加
+    if (this.damageDisplayManager && damage.finalDamage > 0) {
+      this.damageDisplayManager.addDamage(target.id, damage.finalDamage, false, false, target.position.x, target.position.y);
+    }
+
     // 戦闘結果を作成
     const result: CombatResult = {
       success: true,
@@ -516,10 +541,10 @@ export class CombatSystem {
       effects: [],
       message: `${attacker.id}が${target.id}に${damage.finalDamage}ダメージを与えた！`
     };
-    
+
     // 戦闘ログに記録
     this.logCombatAction({ type: 'attack' as CombatActionType, attacker, target }, result);
-    
+
     return result;
   }
 
@@ -533,7 +558,7 @@ export class CombatSystem {
 
     // 攻撃処理を実行
     const result = this.processCombatAction(attacker, target, 'attack');
-    
+
     // メッセージシンクがあれば通知
     if (this.messageSink && result) {
       console.log(`[DEBUG] processAttack: メッセージ表示: "${result.message}"`);
@@ -579,7 +604,7 @@ export class CombatSystem {
     const averageDamage = Math.floor((minDamage + maxDamage) / 2);
 
     // Calculate hit chance (1 - evasion chance)
-    const evasionChance = this.config.evasionEnabled ? 
+    const evasionChance = this.config.evasionEnabled ?
       Math.min(1, Math.max(0, this.config.baseEvasionRate + this.getEntityEvasionRate(defender))) : 0;
     const hitChance = 1 - evasionChance;
 
@@ -688,7 +713,7 @@ export class CombatSystem {
     if (this.isEnemy(entity)) {
       this.handleEnemyDeath(entity);
     }
-    
+
     // プレイヤーの死亡処理
     if (this.isPlayer(entity)) {
       this.handlePlayerDeath(entity);
@@ -701,16 +726,16 @@ export class CombatSystem {
   private handleEnemyDeath(enemy: GameEntity): void {
     console.log(`[CombatSystem] 敵${enemy.id}が倒された`);
     console.log(`[CombatSystem] 敵${enemy.id}の現在位置: (${enemy.position.x}, ${enemy.position.y})`);
-    
+
     // ドロップアイテムの生成（実装予定）
     // TODO: DropSystemと連携してドロップアイテムを生成
-    
+
     // エンティティをダンジョンから削除
     if (this.dungeonManager) {
       console.log(`[CombatSystem] 敵${enemy.id}をダンジョンから削除開始`);
       const removed = this.dungeonManager.removeEntity(enemy);
       console.log(`[CombatSystem] 敵${enemy.id}の削除結果: ${removed ? '成功' : '失敗'}`);
-      
+
       if (removed) {
         console.log(`[CombatSystem] 敵${enemy.id}をダンジョンから削除完了`);
       } else {
@@ -719,7 +744,7 @@ export class CombatSystem {
     } else {
       console.log(`[CombatSystem] 警告: dungeonManagerが設定されていません`);
     }
-    
+
     // メッセージはexecuteAttackで統一的に管理される
   }
 
@@ -728,9 +753,9 @@ export class CombatSystem {
    */
   private handlePlayerDeath(player: GameEntity): void {
     console.log(`[CombatSystem] プレイヤー${player.id}が倒された`);
-    
+
     // メッセージはexecuteAttackで統一的に管理される
-    
+
     // TODO: DeathSystemと連携してゲームオーバー処理
   }
 

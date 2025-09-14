@@ -569,8 +569,6 @@ export class InputHandler {
       if (moveResult.success) {
         console.log(`[DEBUG] 移動成功: プレイヤー位置更新`);
         
-
-        
         // 移動フラグをリセット
         this.canMove = false;
         

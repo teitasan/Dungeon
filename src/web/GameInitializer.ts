@@ -18,6 +18,7 @@ import { ItemSpriteManager } from './ItemSpriteManager.js';
 import { MonsterSpriteManager } from './MonsterSpriteManager.js';
 import { WebConfigLoader } from './WebConfigLoader.js';
 import { UIManager } from './ui/UIManager.js';
+import { DamageDisplayManager } from './DamageDisplayManager.js';
 import type { Position } from '../types/core.js';
 
 // ECS統合のためのインポート - 削除済み
@@ -33,10 +34,12 @@ export interface GameSystems {
   itemSystem: ItemSystem;
   renderer: CanvasRenderer;
   tilesetManager: TilesetManager | null;
+  damageDisplayManager: DamageDisplayManager;
 }
 
 export class GameInitializer {
   private configLoader: WebConfigLoader;
+  private damageDisplayManager: DamageDisplayManager | null = null;
 
   constructor() {
     this.configLoader = new WebConfigLoader();
@@ -119,6 +122,9 @@ export class GameInitializer {
     // 満腹度システムの生成
     const hungerSystem = new HungerSystem(config.player?.hungerConfig);
 
+    // ダメージ表示マネージャーの生成
+    const damageDisplayManager = new DamageDisplayManager();
+
     const turnSystem = new TurnSystem(
       config.turnSystem,
       dungeonManager,
@@ -143,6 +149,9 @@ export class GameInitializer {
     // 戦闘結果のメッセージや撃破時の取り除きに必要な参照を設定
     combatSystem.setDungeonManager(dungeonManager);
     combatSystem.setMessageSink((msg: string) => uiSystem.pushMessage(msg));
+    // ダメージ表示マネージャーを設定
+    this.damageDisplayManager = damageDisplayManager;
+    combatSystem.setDamageDisplayManager(this.damageDisplayManager);
 
     // 満腹度のメッセージをUIへ
     hungerSystem.setMessageSink?.((msg: string) => uiSystem.pushMessage(msg));
@@ -163,6 +172,7 @@ export class GameInitializer {
       itemSystem,
       renderer: null as any, // 後で設定
       tilesetManager: null,
+      damageDisplayManager,
       // ECS統合
 
     };
@@ -586,6 +596,12 @@ export class GameInitializer {
     // 設定からビューポートを設定
     renderer.setViewportTiles(config.ui.viewport.tilesX, config.ui.viewport.tilesY);
     renderer.setTileSize(config.ui.viewport.tileSize);
+
+    // ダメージ表示マネージャーをレンダラーとUIManagerに設定
+    if (this.damageDisplayManager) {
+      renderer.setDamageDisplayManager(this.damageDisplayManager);
+      uiManager.setDamageDisplayManager(this.damageDisplayManager);
+    }
 
     // システムにレンダラーを設定
     systems.renderer = renderer;

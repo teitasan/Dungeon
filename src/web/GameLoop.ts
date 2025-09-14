@@ -32,13 +32,13 @@ export class GameLoop {
       this.lastFrameTime = currentTime - (deltaTime % this.FRAME_INTERVAL);
       
       // ゲームの更新処理
-      this.render();
+      this.render(deltaTime);
     }
     
     requestAnimationFrame(this.gameLoop);
   };
 
-  public render(): void {
+  public render(deltaTime: number = 16.67): void {
     const current = this.systems.dungeonManager.getCurrentDungeon();
     if (!current) {
       return;
@@ -69,6 +69,9 @@ export class GameLoop {
 
     // マップタイトルを更新
     this.uiManager.updateMapTitleFromFloor(current.floor, current.name);
+
+    // ダメージ表示を更新
+    this.uiManager.updateDamageDisplay(deltaTime, this.systems.dungeonManager);
     
     // 移動処理を実行（ゲームループ内）
     // 方向転換（Cキー）を許可するため、ターン制御中でも呼び出す。

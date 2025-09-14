@@ -5,6 +5,7 @@ import { DungeonManager } from '../dungeon/DungeonManager.js';
 import { TilesetManager } from './TilesetManager.js';
 import { ItemSpriteManager } from './ItemSpriteManager.js';
 import { MonsterSpriteManager } from './MonsterSpriteManager.js';
+import { DamageDisplayManager } from './DamageDisplayManager.js';
 
 export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D;
@@ -27,6 +28,7 @@ export class CanvasRenderer {
   private activeEffectsFloor: number | null = null;
   private transitionInProgress: boolean = false;
   private turnCursorActive: boolean = false; // Cキー方向転換中のカーソル表示フラグ
+  private damageDisplayManager: DamageDisplayManager | null = null;
 
   constructor(private canvas: HTMLCanvasElement, tileSize: number = 20) {
     const ctx = canvas.getContext('2d');
@@ -423,6 +425,13 @@ export class CanvasRenderer {
     this.gameConfig = gameConfig;
   }
 
+  /**
+   * ダメージ表示マネージャーを設定
+   */
+  setDamageDisplayManager(manager: DamageDisplayManager): void {
+    this.damageDisplayManager = manager;
+  }
+
   render(dungeon: Dungeon, dungeonManager: DungeonManager, player: PlayerEntity, turnSystem?: any): void {
     const { ctx, tileSize } = this;
 
@@ -793,6 +802,11 @@ export class CanvasRenderer {
 
     // ミニマップ描画
     this.renderMinimap(dungeon, visible, camX, camY, viewW, viewH, player);
+
+    // ダメージ表示を描画（カメラ位置を考慮）
+    if (this.damageDisplayManager) {
+      this.damageDisplayManager.render(ctx, tileSize, camX, camY, dungeonManager);
+    }
   }
 
   private computeCamera(dungeon: Dungeon, player: PlayerEntity): [number, number, number, number] {

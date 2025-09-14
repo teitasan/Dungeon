@@ -1,4 +1,5 @@
 import type { GameConfig } from '../../types/core.js';
+import { DamageDisplayManager } from '../DamageDisplayManager.js';
 
 export class UIManager {
   private config: GameConfig;
@@ -9,6 +10,7 @@ export class UIManager {
   private messageQueue: string[] = [];
   private isAnimating: boolean = false;
   private displayedMessages: string[] = [];
+  private damageDisplayManager: DamageDisplayManager | null = null;
 
   constructor(config: GameConfig, appElement: HTMLElement) {
     this.config = config;
@@ -617,5 +619,21 @@ export class UIManager {
     }
     
     this.updateMapTitle(title);
+  }
+
+  /**
+   * ダメージ表示マネージャーを設定
+   */
+  setDamageDisplayManager(manager: DamageDisplayManager): void {
+    this.damageDisplayManager = manager;
+  }
+
+  /**
+   * ダメージ表示を更新
+   */
+  updateDamageDisplay(deltaTime: number, dungeonManager: any): void {
+    if (this.damageDisplayManager) {
+      this.damageDisplayManager.update(deltaTime, dungeonManager);
+    }
   }
 }
