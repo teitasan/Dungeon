@@ -3,7 +3,7 @@
  */
 
 import { Position } from './core';
-import { GameEntity, CharacterStats } from './entities';
+import { GameEntity } from './entities';
 
 // Combat result
 export interface CombatResult {
@@ -65,9 +65,7 @@ export interface CombatConfig {
   randomRangeMax: number; // 9/8
   minimumDamage: number; // 1
   
-  // Critical hit system
-  baseCriticalChance: number; // 0.05 (5%)
-  criticalMultiplier: number; // 2.0 (ignores defense)
+  // Critical hit system - now uses random 1.5-2.5x multiplier
   
   // Evasion system
   baseEvasionRate: number; // 0.05 (5%)

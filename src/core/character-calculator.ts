@@ -53,7 +53,7 @@ export class CharacterCalculator {
 
   static criticalRate(dex: number, int: number, luk: number): number {
     const weightedAverage = (dex * 1 + int * 1 + luk * 8) / 10;
-    return Math.floor(weightedAverage / 16 * 10) / 10;
+    return (5 + (90 * weightedAverage) / (weightedAverage + 400)) / 100;
   }
 
   static unarmedAttackPower(str: number, dex: number): number {

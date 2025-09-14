@@ -26,7 +26,6 @@ import { DamageDisplayManager } from '../web/DamageDisplayManager';
 export class CombatSystem {
   private config: CombatConfig;
   private combatState: CombatState;
-  private rng: () => number;
   private attributeSystem: AttributeSystem;
   private dungeonManager?: DungeonManager;
   private messageSink?: (message: string) => void;
@@ -39,8 +38,7 @@ export class CombatSystem {
       randomRangeMin: 7/8, // 0.875
       randomRangeMax: 9/8, // 1.125
       minimumDamage: 1,
-      baseCriticalChance: 0.05,
-      criticalMultiplier: 2.0,
+      // criticalMultiplier removed - now using random 1.5-2.5x
       baseEvasionRate: 0.05,
       evasionEnabled: true,
       statusEffectChances: {},
@@ -54,8 +52,6 @@ export class CombatSystem {
       turnCount: 0
     };
 
-    // Use Math.random for actual gameplay
-    this.rng = Math.random;
     this.attributeSystem = new AttributeSystem();
   }
 
@@ -322,7 +318,7 @@ export class CombatSystem {
     }
 
     const baseAttack = unarmedAttack + equipmentBonus + weaponBonus;
-    const defense = isCritical ? 0 : physicalResistance; // Critical hits ignore defense
+    const defense = physicalResistance; // Critical hits no longer ignore defense
 
     // Apply the mystery dungeon damage formula
     const attackMultiplied = baseAttack * this.config.attackMultiplier;
@@ -330,17 +326,19 @@ export class CombatSystem {
     const baseDamage = attackMultiplied * defenseReduction;
 
     // Apply random variation (7/8 to 9/8)
-    const randomMultiplier = this.rng() * (this.config.randomRangeMax - this.config.randomRangeMin) + this.config.randomRangeMin;
+    const randomMultiplier = Math.random() * (this.config.randomRangeMax - this.config.randomRangeMin) + this.config.randomRangeMin;
     const randomizedDamage = baseDamage * randomMultiplier;
 
     // Apply attribute modifier
     const attributeDamage = randomizedDamage * attributeModifier;
 
-    // Apply critical multiplier if critical
-    const criticalDamage = isCritical ? attributeDamage * this.config.criticalMultiplier : attributeDamage;
+    // Apply critical multiplier if critical (1.5 to 2.5x random)
+    const criticalDamage = isCritical ? 
+      attributeDamage * (1.5 + Math.random() * 1.0) : // 1.5 to 2.5x random
+      attributeDamage;
 
     // Ensure minimum damage
-    const finalDamage = Math.max(Math.floor(criticalDamage), this.config.minimumDamage);
+    const finalDamage = Math.max(Math.round(criticalDamage), this.config.minimumDamage);
 
     return {
       baseAttack,
@@ -359,12 +357,10 @@ export class CombatSystem {
    * Check if attack results in critical hit
    */
   private checkCriticalHit(attacker: GameEntity, defender: GameEntity): boolean {
-    // Base critical chance
-    let criticalChance = this.config.baseCriticalChance;
-
-    // Add attacker's critical bonus if available
+    // Get critical chance from attacker's stats only
+    let criticalChance = 0;
     if ('characterStats' in attacker) {
-      criticalChance += (attacker as any).characterStats.combat.criticalRate || 0;
+      criticalChance = (attacker as any).characterStats.combat.criticalRate || 0;
     }
 
     // Subtract defender's critical resistance if available
@@ -375,7 +371,7 @@ export class CombatSystem {
     // Ensure chance is within valid range
     criticalChance = Math.max(0, Math.min(1, criticalChance));
 
-    return this.rng() < criticalChance;
+    return Math.random() < criticalChance;
   }
 
   /**
@@ -405,7 +401,7 @@ export class CombatSystem {
     finalHitRate = Math.max(0.05, Math.min(0.95, finalHitRate));
 
     // Return true if attack misses (evaded)
-    return this.rng() >= finalHitRate;
+    return Math.random() >= finalHitRate;
   }
 
   /**
@@ -608,8 +604,12 @@ export class CombatSystem {
       Math.min(1, Math.max(0, this.config.baseEvasionRate + this.getEntityEvasionRate(defender))) : 0;
     const hitChance = 1 - evasionChance;
 
-    // Calculate critical chance
-    const criticalChance = Math.min(1, Math.max(0, this.config.baseCriticalChance));
+    // Calculate critical chance from attacker's stats
+    let criticalChance = 0;
+    if ('characterStats' in attacker) {
+      criticalChance = (attacker as any).characterStats.combat.criticalRate || 0;
+    }
+    criticalChance = Math.min(1, Math.max(0, criticalChance));
 
     return {
       minDamage,
