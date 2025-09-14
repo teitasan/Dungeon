@@ -169,7 +169,28 @@ export class GameInitializer {
   }
 
   private async createPlayer(config: any): Promise<PlayerEntity> {
-    return new PlayerEntity('player-1', 'Hero', { x: 0, y: 0 });
+    // 設定ファイルからキャラクター情報を取得
+    const characterInfo = config.player?.characterInfo || {
+      name: 'Hero',
+      gender: 'male' as const,
+      age: 20,
+      height: 170,
+      weight: 70,
+      race: 'human' as const,
+      class: 'unemployed' as const,
+      stats: {
+        STR: 10,
+        DEX: 10,
+        INT: 10,
+        CON: 10,
+        POW: 10,
+        APP: 10,
+        LUK: 10
+      },
+      features: []
+    };
+    
+    return new PlayerEntity('player-1', characterInfo, { x: 0, y: 0 });
   }
 
   private async initializeDungeon(
@@ -191,7 +212,7 @@ export class GameInitializer {
 
     const spawn: Position = dungeon.playerSpawn;
     player.setPosition(spawn);
-    dungeonManager.addEntity(player, spawn);
+    dungeonManager.addEntity(player as any, spawn);
 
     // UISystemにUIManagerを設定（後で行う）
   }
@@ -221,12 +242,31 @@ export class GameInitializer {
           }
           
           // テンプレートからモンスターを作成
+          const characterInfo = {
+            name: template.name,
+            gender: 'other' as const,
+            age: 0,
+            height: 150,
+            weight: 50,
+            race: 'human' as const,
+            class: 'unemployed' as const,
+            stats: {
+              STR: template.characterStats?.STR || 5,
+              DEX: template.characterStats?.DEX || 10,
+              INT: template.characterStats?.INT || 5,
+              CON: template.characterStats?.CON || 2,
+              POW: template.characterStats?.POW || 5,
+              APP: template.characterStats?.APP || 5,
+              LUK: template.characterStats?.LUK || 5
+            },
+            features: []
+          };
+          
           const monster = new MonsterEntity(
             `${template.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            template.name,
+            characterInfo,
             template.monsterType,
             randomPosition,
-            template.stats ? { ...template.stats } : { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
             undefined, // attributes
             template.movementPattern || 'approach',
             template.movementConfig,
@@ -258,7 +298,7 @@ export class GameInitializer {
           
           // モンスターをダンジョンに追加
           dungeonManager.addEntity(monster as any, randomPosition);
-          console.log(`Added test monster: ${monster.name} at (${randomPosition.x}, ${randomPosition.y})`);
+          console.log(`Added test monster: ${monster.characterInfo.name} at (${randomPosition.x}, ${randomPosition.y})`);
         }
       }
     } else {

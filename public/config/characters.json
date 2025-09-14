@@ -1,5 +1,24 @@
 {
   "player": {
+    "characterInfo": {
+      "name": "Hero",
+      "gender": "male",
+      "age": 20,
+      "height": 170,
+      "weight": 70,
+      "race": "human",
+      "class": "unemployed",
+      "stats": {
+        "STR": 12,
+        "DEX": 14,
+        "INT": 10,
+        "CON": 16,
+        "POW": 8,
+        "APP": 11,
+        "LUK": 9
+      },
+      "features": []
+    },
     "initialStats": {
       "hp": 100,
       "maxHp": 100,
@@ -32,7 +51,7 @@
   },
   "monsters": {
     "spawnLimits": {
-      "maxPerFloor": 50,
+      "maxPerFloor": 30,
       "baseSpawnPerRoom": 1,
       "randomVariation": 2
     },
@@ -173,12 +192,14 @@
         "monsterType": "basic",
         "spritesheet": "basic",
         "spriteId": "enemy-1-0",
-        "stats": {
-          "hp": 20,
-          "maxHp": 20,
-          "attack": 5,
-          "defense": 2,
-          "evasionRate": 0.05
+        "characterStats": {
+          "STR": 8,
+          "DEX": 12,
+          "INT": 6,
+          "CON": 10,
+          "POW": 7,
+          "APP": 5,
+          "LUK": 8
         },
         "movementPattern": "approach",
         "experienceValue": 15,
@@ -193,12 +214,14 @@
         "monsterType": "elite",
         "spritesheet": "elite",
         "spriteId": "enemy-1-0",
-        "stats": {
-          "hp": 35,
-          "maxHp": 35,
-          "attack": 8,
-          "defense": 4,
-          "evasionRate": 0.08
+        "characterStats": {
+          "STR": 12,
+          "DEX": 10,
+          "INT": 8,
+          "CON": 14,
+          "POW": 9,
+          "APP": 6,
+          "LUK": 7
         },
         "movementPattern": "approach",
         "movementConfig": { "minDistance": 1, "maxDistance": 2 },
@@ -214,19 +237,21 @@
         "monsterType": "boss",
         "spritesheet": "boss",
         "spriteId": "enemy-1-0",
-        "stats": {
-          "hp": 80,
-          "maxHp": 80,
-          "attack": 15,
-          "defense": 8,
-          "evasionRate": 0.12
+        "characterStats": {
+          "STR": 16,
+          "DEX": 14,
+          "INT": 12,
+          "CON": 18,
+          "POW": 15,
+          "APP": 8,
+          "LUK": 10
         },
         "movementPattern": "approach",
         "movementConfig": { "minDistance": 1, "maxDistance": 2 },
         "experienceValue": 100,
         "dropRate": 1.0,
         "dropTableId": "common-drops",
-        "level": 5,
+        "level": 15,
         "description": "強力なボス級の敵。最大限の準備が必要。"
       }
     ],

@@ -3,9 +3,11 @@
  * Handles damage calculation, critical hits, and combat resolution
  */
 
-import { GameEntity, CharacterStats } from '../types/entities';
+import { GameEntity } from '../types/entities';
+import { CharacterStats } from '../types/character-info';
 import { DungeonManager } from '../dungeon/DungeonManager.js';
 import { ItemEntity } from '../entities/Item.js';
+import { CharacterCalculator } from '../core/character-calculator.js';
 import { 
   CombatResult, 
   CombatEffect, 
@@ -50,9 +52,44 @@ export class CombatSystem {
       turnCount: 0
     };
 
-    // Use a deterministic RNG by default for stable tests; can be overridden via setRNG
-    this.rng = () => 0.5;
+    // Use Math.random for actual gameplay
+    this.rng = Math.random;
     this.attributeSystem = new AttributeSystem();
+  }
+
+  /**
+   * Get entity HP
+   */
+  private getEntityHp(entity: GameEntity): number {
+    // Check if entity has character system
+    if ('characterInfo' in entity && 'characterStats' in entity) {
+      const characterEntity = entity as any;
+      return characterEntity.characterStats.hp.current;
+    }
+    return 0;
+  }
+
+  /**
+   * Set entity HP
+   */
+  private setEntityHp(entity: GameEntity, hp: number): void {
+    // Check if entity has character system
+    if ('characterInfo' in entity && 'characterStats' in entity) {
+      const characterEntity = entity as any;
+      characterEntity.characterStats.hp.current = Math.max(0, hp);
+    }
+  }
+
+  /**
+   * Get entity evasion rate
+   */
+  private getEntityEvasionRate(entity: GameEntity): number {
+    // Check if entity has character system
+    if ('characterInfo' in entity && 'characterStats' in entity) {
+      const characterEntity = entity as any;
+      return characterEntity.characterStats.combat.evasionRate;
+    }
+    return 0;
   }
 
   /**
@@ -141,6 +178,14 @@ export class CombatSystem {
     // Apply damage to defender
     const actualDamage = this.applyDamage(defender, damageCalc.finalDamage);
 
+    // 死亡チェック
+    const defenderHp = this.getEntityHp(defender);
+    const isDead = defenderHp <= 0;
+    
+    if (isDead) {
+      this.handleEntityDeath(defender);
+    }
+
     // Generate combat effects
     const effects = this.generateCombatEffects(attacker, defender, actualDamage, isCritical);
 
@@ -155,7 +200,7 @@ export class CombatSystem {
       attacker,
       defender,
       effects,
-      message: this.generateCombatMessage(attacker, defender, actualDamage, isCritical)
+      message: `${attacker.id}が${defender.id}に${actualDamage}ダメージを与えた！`
     };
 
     // Log the combat action
@@ -165,9 +210,21 @@ export class CombatSystem {
       target: defender
     }, result);
 
-    // 死亡チェック
-    if (defender.stats && defender.stats.hp <= 0) {
-      this.handleEntityDeath(defender);
+    // メッセージシンクがあれば通知
+    if (this.messageSink) {
+      console.log(`[DEBUG] executeAttack: メッセージ表示: "${result.message}"`);
+      this.messageSink(result.message);
+      
+      // 死亡時は追加で死亡メッセージを表示
+      if (isDead) {
+        if (this.isEnemy(defender)) {
+          console.log(`[DEBUG] executeAttack: 敵死亡メッセージ表示: "${defender.id}を倒した！"`);
+          this.messageSink(`${defender.id}を倒した！`);
+        } else {
+          console.log(`[DEBUG] executeAttack: プレイヤー死亡メッセージ表示: "${defender.id}は力尽きた..."`);
+          this.messageSink(`${defender.id}は力尽きた...`);
+        }
+      }
     }
 
     return result;
@@ -216,6 +273,7 @@ export class CombatSystem {
   /**
    * Calculate damage using the mystery dungeon formula
    * Formula: {攻撃力×1.3×(35/36)^防御力}×(7/8~9/8)
+   * New system: Uses CharacterStats with unarmed attack power and equipment bonuses
    */
   private calculateDamage(
     attacker: GameEntity, 
@@ -224,11 +282,27 @@ export class CombatSystem {
     attributeModifier: number, 
     isCritical: boolean
   ): DamageCalculation {
-    const attackerStats = attacker.stats as CharacterStats;
-    const defenderStats = defender.stats as CharacterStats;
+    // Get unarmed attack power from basic stats
+    let unarmedAttack = 0;
+    if ('characterInfo' in attacker) {
+      const stats = (attacker as any).characterInfo.stats;
+      unarmedAttack = CharacterCalculator.unarmedAttackPower(stats.STR, stats.DEX);
+    }
 
-    const baseAttack = attackerStats.attack + weaponBonus;
-    const defense = isCritical ? 0 : defenderStats.defense; // Critical hits ignore defense
+    // Get equipment damage bonus
+    let equipmentBonus = 0;
+    if ('characterStats' in attacker) {
+      equipmentBonus = (attacker as any).characterStats.combat.damageBonus.melee || 0;
+    }
+
+    // Get defender's physical resistance
+    let physicalResistance = 0;
+    if ('characterStats' in defender) {
+      physicalResistance = (defender as any).characterStats.combat.resistance.physical || 0;
+    }
+
+    const baseAttack = unarmedAttack + equipmentBonus + weaponBonus;
+    const defense = isCritical ? 0 : physicalResistance; // Critical hits ignore defense
 
     // Apply the mystery dungeon damage formula
     const attackMultiplied = baseAttack * this.config.attackMultiplier;
@@ -269,13 +343,13 @@ export class CombatSystem {
     let criticalChance = this.config.baseCriticalChance;
 
     // Add attacker's critical bonus if available
-    if ('criticalChance' in attacker.stats) {
-      criticalChance += (attacker.stats as any).criticalChance || 0;
+    if ('characterStats' in attacker) {
+      criticalChance += (attacker as any).characterStats.combat.criticalRate || 0;
     }
 
     // Subtract defender's critical resistance if available
-    if ('criticalResistance' in defender.stats) {
-      criticalChance -= (defender.stats as any).criticalResistance || 0;
+    if ('characterStats' in defender) {
+      // Critical resistance not implemented in new system yet
     }
 
     // Ensure chance is within valid range
@@ -285,36 +359,43 @@ export class CombatSystem {
   }
 
   /**
-   * Check if attack is evaded
+   * Check if attack hits (new hit rate system)
+   * Formula: 80% + (attacker's hitRate/10 - defender's evasionRate/10)
+   * Clamped between 5% and 95%
    */
   private checkEvasion(attacker: GameEntity, defender: GameEntity): boolean {
-    // Base evasion rate
-    let evasionChance = this.config.baseEvasionRate;
-
-    // Add defender's evasion bonus
-    if (defender.stats.evasionRate !== undefined) {
-      evasionChance += defender.stats.evasionRate;
+    // Get attacker's hit rate
+    let attackerHitRate = 0;
+    if ('characterStats' in attacker) {
+      attackerHitRate = (attacker as any).characterStats.combat.hitRate.melee || 0;
     }
 
-    // Subtract attacker's accuracy bonus if available
-    if ('accuracy' in attacker.stats) {
-      evasionChance -= (attacker.stats as any).accuracy || 0;
+    // Get defender's evasion rate
+    let defenderEvasionRate = 0;
+    if ('characterStats' in defender) {
+      defenderEvasionRate = (defender as any).characterStats.combat.evasionRate || 0;
     }
 
-    // Ensure chance is within valid range
-    evasionChance = Math.max(0, Math.min(1, evasionChance));
+    // Calculate hit rate: 80% + (hitRate/10 - evasionRate/10)
+    const baseHitRate = 0.8; // 80%
+    const hitRateDiff = (attackerHitRate - defenderEvasionRate) / 10;
+    let finalHitRate = baseHitRate + hitRateDiff;
 
-    return this.rng() < evasionChance;
+    // Clamp between 5% and 95%
+    finalHitRate = Math.max(0.05, Math.min(0.95, finalHitRate));
+
+    // Return true if attack misses (evaded)
+    return this.rng() >= finalHitRate;
   }
 
   /**
    * Apply damage to an entity
    */
   private applyDamage(entity: GameEntity, damage: number): number {
-    const stats = entity.stats as CharacterStats;
-    const actualDamage = Math.min(damage, stats.hp);
+    const currentHp = this.getEntityHp(entity);
+    const actualDamage = Math.min(damage, currentHp);
     
-    stats.hp = Math.max(0, stats.hp - damage);
+    this.setEntityHp(entity, currentHp - damage);
     
     return actualDamage;
   }
@@ -338,8 +419,8 @@ export class CombatSystem {
     });
 
     // Check for death
-    const defenderStats = defender.stats as CharacterStats;
-    if (defenderStats.hp <= 0) {
+    const defenderHp = this.getEntityHp(defender);
+    if (defenderHp <= 0) {
       effects.push({
         type: 'death',
         target: defender
@@ -358,7 +439,8 @@ export class CombatSystem {
     attacker: GameEntity, 
     defender: GameEntity, 
     damage: number, 
-    isCritical: boolean
+    isCritical: boolean,
+    isDead: boolean = false
   ): string {
     const attackerName = (attacker as any).name || attacker.id;
     const defenderName = (defender as any).name || defender.id;
@@ -371,8 +453,7 @@ export class CombatSystem {
     
     message += ` for ${damage} damage!`;
     
-    const defenderStats = defender.stats as CharacterStats;
-    if (defenderStats.hp <= 0) {
+    if (isDead) {
       message += ` ${defenderName} is defeated!`;
     }
     
@@ -388,11 +469,11 @@ export class CombatSystem {
     // Items are not valid targets
     if (target instanceof ItemEntity) return false;
     
-    const attackerStats = attacker.stats as CharacterStats;
-    const targetStats = target.stats as CharacterStats;
+    const attackerHp = this.getEntityHp(attacker);
+    const targetHp = this.getEntityHp(target);
     
-    if (attackerStats.hp <= 0) return false;
-    if (targetStats.hp <= 0) return false;
+    if (attackerHp <= 0) return false;
+    if (targetHp <= 0) return false;
     // 近接レンジ・角抜け禁止のチェック（DungeonManagerがある場合）
     if (this.dungeonManager) {
       if (!this.isInAttackRange(attacker, target)) {
@@ -411,8 +492,15 @@ export class CombatSystem {
     const damage = this.calculateDamage(attacker, target, 0, 1.0, false);
     
     // ターゲットのHPを減少
-    if (target.stats && target.stats.hp !== undefined) {
-      target.stats.hp = Math.max(0, target.stats.hp - damage.finalDamage);
+    const currentHp = this.getEntityHp(target);
+    this.setEntityHp(target, currentHp - damage.finalDamage);
+    
+    // 死亡チェック（メッセージ生成前に）
+    const targetHp = this.getEntityHp(target);
+    const isDead = targetHp <= 0;
+    
+    if (isDead) {
+      this.handleEntityDeath(target);
     }
     
     // 戦闘結果を作成
@@ -432,11 +520,6 @@ export class CombatSystem {
     // 戦闘ログに記録
     this.logCombatAction({ type: 'attack' as CombatActionType, attacker, target }, result);
     
-    // 死亡チェック
-    if (target.stats && target.stats.hp <= 0) {
-      this.handleEntityDeath(target);
-    }
-    
     return result;
   }
 
@@ -453,7 +536,22 @@ export class CombatSystem {
     
     // メッセージシンクがあれば通知
     if (this.messageSink && result) {
+      console.log(`[DEBUG] processAttack: メッセージ表示: "${result.message}"`);
       this.messageSink(result.message);
+
+      // 追加: 死亡時メッセージも送出（敵AI経路でも表示されるように）
+      const defender = result.defender;
+      const defenderHp = this.getEntityHp(defender);
+      const isDead = defenderHp <= 0;
+      if (isDead) {
+        if (this.isEnemy(defender)) {
+          console.log(`[DEBUG] processAttack: 敵死亡メッセージ表示: "${defender.id}を倒した！"`);
+          this.messageSink(`${defender.id}を倒した！`);
+        } else {
+          console.log(`[DEBUG] processAttack: プレイヤー死亡メッセージ表示: "${defender.id}は力尽きた..."`);
+          this.messageSink(`${defender.id}は力尽きた...`);
+        }
+      }
     }
 
     return result;
@@ -482,7 +580,7 @@ export class CombatSystem {
 
     // Calculate hit chance (1 - evasion chance)
     const evasionChance = this.config.evasionEnabled ? 
-      Math.min(1, Math.max(0, this.config.baseEvasionRate + (defender.stats.evasionRate || 0))) : 0;
+      Math.min(1, Math.max(0, this.config.baseEvasionRate + this.getEntityEvasionRate(defender))) : 0;
     const hitChance = 1 - evasionChance;
 
     // Calculate critical chance
@@ -560,12 +658,6 @@ export class CombatSystem {
     return [...this.combatState.participants];
   }
 
-  /**
-   * Set random number generator (for testing)
-   */
-  setRNG(rng: () => number): void {
-    this.rng = rng;
-  }
 
   /**
    * Get current combat configuration
@@ -628,10 +720,7 @@ export class CombatSystem {
       console.log(`[CombatSystem] 警告: dungeonManagerが設定されていません`);
     }
     
-    // メッセージを出力
-    if (this.messageSink) {
-      this.messageSink(`${enemy.id}を倒した！`);
-    }
+    // メッセージはexecuteAttackで統一的に管理される
   }
 
   /**
@@ -640,10 +729,7 @@ export class CombatSystem {
   private handlePlayerDeath(player: GameEntity): void {
     console.log(`[CombatSystem] プレイヤー${player.id}が倒された`);
     
-          // メッセージを出力
-      if (this.messageSink) {
-        this.messageSink(`${player.id}は力尽きた...`);
-      }
+    // メッセージはexecuteAttackで統一的に管理される
     
     // TODO: DeathSystemと連携してゲームオーバー処理
   }

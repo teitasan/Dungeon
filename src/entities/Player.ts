@@ -3,13 +3,15 @@
  */
 
 import { Position, Component, EntityFlags } from '../types/core';
-import { Player, CharacterStats, CharacterAttributes, StatusEffect, Item } from '../types/entities';
-import { BaseGameEntity, createDefaultCharacterStats, createDefaultCharacterAttributes } from './GameEntity.js';
+import { Player, CharacterAttributes, StatusEffect, Item } from '../types/entities';
+import { CharacterInfo, CharacterStats } from '../types/character-info';
+import { CharacterCalculator } from '../core/character-calculator';
+import { BaseGameEntity, createDefaultCharacterAttributes } from './GameEntity.js';
 
 export class PlayerEntity extends BaseGameEntity implements Player {
-  public name: string;
+  public characterInfo: CharacterInfo;
   public direction: 'north' | 'northeast' | 'east' | 'southeast' | 'south' | 'southwest' | 'west' | 'northwest'; // 8方向
-  public stats: CharacterStats;
+  public characterStats: CharacterStats;
   public attributes: CharacterAttributes;
   public hunger: number;
   public maxHunger: number;
@@ -23,19 +25,20 @@ export class PlayerEntity extends BaseGameEntity implements Player {
 
   constructor(
     id: string,
-    name: string,
+    characterInfo: CharacterInfo,
     position: Position,
-    stats?: CharacterStats,
     attributes?: CharacterAttributes,
     components: Component[] = [],
     flags: EntityFlags = {}
   ) {
-    const playerStats = stats || createDefaultCharacterStats(1, 30, 8, 5); // Player starts with better stats
-    super(id, position, playerStats, components, flags);
+    // 新しいシステムではCharacterStatsを使用
+    const characterStats = CharacterCalculator.calculateAllStats(characterInfo, 1);
     
-    this.name = name;
+    super(id, position, components, flags);
+    
+    this.characterInfo = characterInfo;
     this.direction = 'south'; // 初期向きは南
-    this.stats = playerStats;
+    this.characterStats = characterStats;
     this.attributes = attributes || createDefaultCharacterAttributes('neutral');
     this.hunger = 100; // Start with full hunger
     this.maxHunger = 100;
@@ -145,8 +148,8 @@ export class PlayerEntity extends BaseGameEntity implements Player {
     });
 
     // Apply bonuses (this is simplified - real implementation would need base stat tracking)
-    this.stats.attack += totalAttackBonus;
-    this.stats.defense += totalDefenseBonus;
+    this.characterStats.combat.damageBonus.melee += totalAttackBonus;
+    this.characterStats.combat.resistance.melee += totalDefenseBonus;
   }
 
   /**

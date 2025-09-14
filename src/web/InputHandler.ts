@@ -408,12 +408,11 @@ export class InputHandler {
         console.log(`[DEBUG] 攻撃ActionResult:`, action);
 
         if (action.success) {
-          const dmg = action.data?.actualDamage ?? action.data?.damage;
-          if (typeof dmg === 'number') {
-            this.uiManager.addMessageWithAnimation(`攻撃成功！${target.id}に${dmg}ダメージ`);
-          } else {
-            this.uiManager.addMessageWithAnimation(`攻撃成功！`);
+          // 命中しなかった（回避）場合の明示ログを追加
+          if ((action as any).data?.evaded) {
+            this.uiManager.addMessageWithAnimation('プレイヤーの攻撃は外れた！');
           }
+          // CombatSystemでダメージ等のメッセージは生成されるため、ここでは追加のメッセージは不要
           this.canAttack = false; // 攻撃フラグをリセット
           // 行動時は方向転換モードを解除
           this.exitTurnMode();

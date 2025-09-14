@@ -26,22 +26,12 @@ export interface GameEntity {
   position: Position;
   direction?: 'north' | 'northeast' | 'east' | 'southeast' | 'south' | 'southwest' | 'west' | 'northwest'; // 8方向（オプショナル）
   components: Component[];
-  stats: EntityStats;
   flags: EntityFlags;
   speedState?: 'normal' | 'fast' | 'slow';
   customRules?: {
     action1?: Partial<import('./movement.js').ActionConfig>;
     action2?: Partial<import('./movement.js').ActionConfig>;
   };
-}
-
-export interface EntityStats {
-  hp: number;
-  maxHp: number;
-  attack: number;
-  defense: number;
-  evasionRate: number;
-  [key: string]: number | undefined;
 }
 
 export interface EntityFlags {
@@ -126,7 +116,6 @@ export interface MessageConfig {
 }
 
 export interface PlayerConfig {
-  initialStats: EntityStats;
   levelUpConfig: LevelUpConfig;
   hungerConfig: HungerConfig;
   movementConfig: MovementConfig;

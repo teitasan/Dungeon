@@ -429,20 +429,42 @@ export class SpecialRoomSystem {
     const monsterTypes = ['goblin', 'orc', 'skeleton', 'spider', 'rat'];
     const randomType = monsterTypes[Math.floor(this.rng() * monsterTypes.length)];
     
+    const characterInfo = {
+      name: randomType.charAt(0).toUpperCase() + randomType.slice(1),
+      gender: 'other' as const,
+      age: 0,
+      height: 150,
+      weight: 50,
+      race: 'human' as const,
+      class: 'unemployed' as const,
+      stats: {
+        STR: 5,
+        DEX: 10,
+        INT: 5,
+        CON: 2,
+        POW: 5,
+        APP: 5,
+        LUK: 5
+      },
+      features: []
+    };
+    
     const monster = new MonsterEntity(
       `monster-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      randomType.charAt(0).toUpperCase() + randomType.slice(1),
+      characterInfo,
       'aggressive-hostile',
       position
     );
     
     // Scale monster stats based on floor level
     const levelMultiplier = 1 + (floorLevel - 1) * 0.1;
-    monster.stats.hp = Math.floor(monster.stats.hp * levelMultiplier);
-    monster.stats.maxHp = monster.stats.hp;
-    monster.stats.attack = Math.floor(monster.stats.attack * levelMultiplier);
-    monster.stats.defense = Math.floor(monster.stats.defense * levelMultiplier);
+    monster.stats.hp.current = Math.floor(monster.stats.hp.current * levelMultiplier);
+    monster.stats.hp.max = monster.stats.hp.current;
     monster.stats.level = Math.max(1, floorLevel);
+    
+    // Scale basic stats
+    monster.characterInfo.stats.STR = Math.floor(monster.characterInfo.stats.STR * levelMultiplier);
+    monster.characterInfo.stats.CON = Math.floor(monster.characterInfo.stats.CON * levelMultiplier);
     
     return monster;
   }

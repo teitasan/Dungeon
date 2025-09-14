@@ -173,11 +173,12 @@ export class MultipleDungeonSystem {
     }
 
     // Check level requirement
-    if (player.stats.level < dungeon.minLevel) {
+    const playerLevel = ('characterStats' in player) ? (player as any).characterStats.level : 1;
+    if (playerLevel < dungeon.minLevel) {
       return {
         success: false,
         dungeon,
-        message: `Requires level ${dungeon.minLevel} (current: ${player.stats.level})`,
+        message: `Requires level ${dungeon.minLevel} (current: ${playerLevel})`,
         canEnter: false
       };
     }

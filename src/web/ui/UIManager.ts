@@ -5,6 +5,10 @@ export class UIManager {
   private appElement: HTMLElement;
   private selectedInventoryIndex: number = 0;
   private currentInventoryItems: Array<{ id: string; name?: string }> = [];
+  // メッセージ表示制御用の内部状態
+  private messageQueue: string[] = [];
+  private isAnimating: boolean = false;
+  private displayedMessages: string[] = [];
 
   constructor(config: GameConfig, appElement: HTMLElement) {
     this.config = config;
@@ -72,12 +76,26 @@ export class UIManager {
                   <span id="level-text" class="stat-value">1</span>
                 </div>
                 <div class="stat-row">
-                  <span class="stat-label">Attack:</span>
-                  <span id="attack-text" class="stat-value">10</span>
+                  <span class="stat-label">STR:</span>
+                  <span id="str-text" class="stat-value">10</span>
+                  <span class="stat-label">DEX:</span>
+                  <span id="dex-text" class="stat-value">10</span>
                 </div>
                 <div class="stat-row">
-                  <span class="stat-label">Defense:</span>
-                  <span id="defense-text" class="stat-value">5</span>
+                  <span class="stat-label">INT:</span>
+                  <span id="int-text" class="stat-value">10</span>
+                  <span class="stat-label">CON:</span>
+                  <span id="con-text" class="stat-value">10</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">POW:</span>
+                  <span id="pow-text" class="stat-value">10</span>
+                  <span class="stat-label">APP:</span>
+                  <span id="app-text" class="stat-value">10</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">LUK:</span>
+                  <span id="luk-text" class="stat-value">10</span>
                 </div>
               </div>
             </div>
@@ -116,6 +134,7 @@ export class UIManager {
   displayMessage(message: string): void {
     const messagesElement = document.getElementById('messages');
     if (messagesElement) {
+      this.displayedMessages = [message];
       messagesElement.textContent = message;
     }
   }
@@ -127,8 +146,8 @@ export class UIManager {
     const messagesElement = document.getElementById('messages');
     if (messagesElement) {
       const maxLines = this.config.ui.messages.maxLines;
-      const displayMessages = messages.slice(-maxLines);
-      messagesElement.textContent = displayMessages.join('\n');
+      this.displayedMessages = messages.slice(-maxLines);
+      messagesElement.textContent = this.displayedMessages.join('\n');
     }
   }
 
@@ -174,37 +193,9 @@ export class UIManager {
    * 新しいメッセージを追加してアニメーション表示
    */
   addMessageWithAnimation(message: string): void {
-    const messagesElement = document.getElementById('messages');
-    if (messagesElement) {
-      // 長いメッセージを適切な長さで分割
-      const maxCharsPerLine = 44; // 1行あたりの最大文字数
-      const splitMessages = this.splitLongMessage(message, maxCharsPerLine);
-      
-      // 既存のメッセージを取得
-      const currentContent = messagesElement.textContent || '';
-      const messages = currentContent.split('\n').filter(m => m.trim() !== '');
-      
-      if (splitMessages.length === 1) {
-        // 単一行の場合は従来通り
-        messages.push(splitMessages[0]);
-        const maxLines = this.config.ui.messages.maxLines;
-        const displayMessages = messages.slice(-maxLines);
-        
-        const formattedMessages = displayMessages.map((msg, index) => {
-          if (index === displayMessages.length - 1) {
-            const count = msg.length;
-            return `<span class="typing-message" style="--char-count: ${count}">${msg}</span>`;
-          } else {
-            return msg;
-          }
-        });
-        
-        messagesElement.innerHTML = formattedMessages.join('\n');
-      } else {
-        // 複数行の場合は順次アニメーション
-        this.animateMultipleLines(messages, splitMessages, 0);
-      }
-    }
+    // 競合回避のため、メッセージはキューで逐次処理
+    this.messageQueue.push(message);
+    this.processMessageQueue();
   }
 
   /**
@@ -240,6 +231,80 @@ export class UIManager {
         this.animateMultipleLines(existingMessages, newLines, currentIndex + 1);
       }, { once: true }); // 一度だけ実行
     }
+  }
+
+  /**
+   * メッセージキュー処理（1件ずつアニメーション）
+   */
+  private processMessageQueue(): void {
+    if (this.isAnimating) return;
+    const next = this.messageQueue.shift();
+    if (!next) return;
+    this.isAnimating = true;
+
+    const maxCharsPerLine = 44; // 1行あたり最大文字数
+    const lines = this.splitLongMessage(next, maxCharsPerLine);
+    this.animateLinesSequentially(lines, 0);
+  }
+
+  /**
+   * 新しい実装: 複数行を順次アニメーション表示（内部状態と同期）
+   */
+  private animateLinesSequentially(newLines: string[], index: number): void {
+    const messagesElement = document.getElementById('messages');
+    if (!messagesElement) {
+      // DOMが無い場合でも状態は更新して次へ
+      while (index < newLines.length) {
+        this.displayedMessages.push(newLines[index++]);
+        const maxLines = this.config.ui.messages.maxLines;
+        this.displayedMessages = this.displayedMessages.slice(-maxLines);
+      }
+      this.isAnimating = false;
+      this.processMessageQueue();
+      return;
+    }
+
+    // 行を追加し、末尾のみタイプアニメーション
+    this.displayedMessages.push(newLines[index]);
+    const maxLines = this.config.ui.messages.maxLines;
+    this.displayedMessages = this.displayedMessages.slice(-maxLines);
+
+    const html = this.displayedMessages
+      .map((msg, i, arr) => {
+        if (i === arr.length - 1) {
+          const count = msg.length;
+          return `<span class=\"typing-message\" style=\"--char-count: ${count}\">${msg}</span>`;
+        }
+        return msg;
+      })
+      .join('\n');
+
+    messagesElement.innerHTML = html;
+
+    const animated = messagesElement.querySelector('.typing-message') as HTMLElement | null;
+    if (!animated) {
+      // フォールバック（アニメ無しで続行）
+      if (index + 1 < newLines.length) {
+        this.animateLinesSequentially(newLines, index + 1);
+      } else {
+        this.isAnimating = false;
+        this.processMessageQueue();
+      }
+      return;
+    }
+
+    animated.addEventListener(
+      'animationend',
+      () => {
+        if (index + 1 < newLines.length) {
+          this.animateLinesSequentially(newLines, index + 1);
+        } else {
+          this.isAnimating = false;
+          this.processMessageQueue();
+        }
+      },
+      { once: true }
+    );
   }
 
   /**
@@ -421,9 +486,9 @@ export class UIManager {
       statusTitle.textContent = playerName;
     }
 
-    // HP更新（stats優先、フォールバックで直下プロパティ）
-    const currentHp = player?.stats?.hp ?? player?.hp;
-    const maxHp = player?.stats?.maxHp ?? player?.maxHp;
+    // HP更新（新しいキャラクターシステムを使用）
+    const currentHp = player?.characterStats?.hp?.current;
+    const maxHp = player?.characterStats?.hp?.max;
     if (currentHp !== undefined && maxHp !== undefined) {
       this.updateStatusHPBar(currentHp, maxHp);
     }
@@ -435,23 +500,52 @@ export class UIManager {
 
     // レベル更新
     const levelText = document.getElementById('level-text');
-    const levelVal = player?.stats?.level ?? player?.level;
+    const levelVal = player?.characterStats?.level;
     if (levelText && levelVal !== undefined) {
       levelText.textContent = levelVal.toString();
     }
 
-    // 攻撃力更新
-    const attackText = document.getElementById('attack-text');
-    const attackVal = player?.stats?.attack ?? player?.attack;
-    if (attackText && attackVal !== undefined) {
-      attackText.textContent = attackVal.toString();
+    // ステータス更新
+    const strText = document.getElementById('str-text');
+    const strVal = player?.characterInfo?.stats?.STR;
+    if (strText && strVal !== undefined) {
+      strText.textContent = strVal.toString();
     }
 
-    // 防御力更新
-    const defenseText = document.getElementById('defense-text');
-    const defenseVal = player?.stats?.defense ?? player?.defense;
-    if (defenseText && defenseVal !== undefined) {
-      defenseText.textContent = defenseVal.toString();
+    const dexText = document.getElementById('dex-text');
+    const dexVal = player?.characterInfo?.stats?.DEX;
+    if (dexText && dexVal !== undefined) {
+      dexText.textContent = dexVal.toString();
+    }
+
+    const intText = document.getElementById('int-text');
+    const intVal = player?.characterInfo?.stats?.INT;
+    if (intText && intVal !== undefined) {
+      intText.textContent = intVal.toString();
+    }
+
+    const conText = document.getElementById('con-text');
+    const conVal = player?.characterInfo?.stats?.CON;
+    if (conText && conVal !== undefined) {
+      conText.textContent = conVal.toString();
+    }
+
+    const powText = document.getElementById('pow-text');
+    const powVal = player?.characterInfo?.stats?.POW;
+    if (powText && powVal !== undefined) {
+      powText.textContent = powVal.toString();
+    }
+
+    const appText = document.getElementById('app-text');
+    const appVal = player?.characterInfo?.stats?.APP;
+    if (appText && appVal !== undefined) {
+      appText.textContent = appVal.toString();
+    }
+
+    const lukText = document.getElementById('luk-text');
+    const lukVal = player?.characterInfo?.stats?.LUK;
+    if (lukText && lukVal !== undefined) {
+      lukText.textContent = lukVal.toString();
     }
   }
 

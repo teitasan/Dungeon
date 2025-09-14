@@ -3,8 +3,8 @@
  * Provides common functionality for all game entities
  */
 
-import { GameEntity, Position, Component, EntityStats, EntityFlags } from '../types/core';
-import { Player, Monster, Companion, Item, CharacterStats, CharacterAttributes, StatusEffect } from '../types/entities';
+import { GameEntity, Position, Component, EntityFlags } from '../types/core';
+import { Player, Monster, Companion, Item, CharacterAttributes, StatusEffect } from '../types/entities';
 
 /**
  * Base GameEntity implementation
@@ -13,19 +13,16 @@ export class BaseGameEntity implements GameEntity {
   public id: string;
   public position: Position;
   public components: Component[];
-  public stats: EntityStats;
   public flags: EntityFlags;
 
   constructor(
     id: string,
     position: Position,
-    stats: EntityStats,
     components: Component[] = [],
     flags: EntityFlags = {}
   ) {
     this.id = id;
     this.position = position;
-    this.stats = stats;
     this.components = components;
     this.flags = flags;
   }
@@ -58,12 +55,6 @@ export class BaseGameEntity implements GameEntity {
     return this.components.find(c => c.id === componentId);
   }
 
-  /**
-   * Update entity stats
-   */
-  updateStats(newStats: Partial<EntityStats>): void {
-    this.stats = { ...this.stats, ...newStats };
-  }
 
   /**
    * Set a flag value
@@ -80,26 +71,6 @@ export class BaseGameEntity implements GameEntity {
   }
 }
 
-/**
- * Create default character stats
- */
-export function createDefaultCharacterStats(
-  level: number = 1,
-  baseHp: number = 20,
-  baseAttack: number = 5,
-  baseDefense: number = 3
-): CharacterStats {
-  return {
-    level,
-    experience: 0,
-    experienceValue: level * 10, // Default experience value when defeated
-    hp: baseHp,
-    maxHp: baseHp,
-    attack: baseAttack,
-    defense: baseDefense,
-    evasionRate: 0.05 // 5% base evasion rate
-  };
-}
 
 /**
  * Create default character attributes

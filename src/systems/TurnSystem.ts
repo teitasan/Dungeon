@@ -136,7 +136,6 @@ export class TurnSystem {
       // 速度に基づいて行動可能性を設定
       const speedConfig = this.config.speedSystem[speedState.speedState];
       if (!speedConfig) {
-        console.warn(`[TurnSystem] 速度設定が見つかりません: ${speedState.speedState}`);
         // デフォルト設定を使用
         speedState.action1State.canAct = true;
         speedState.action2State.canAct = false;
@@ -227,8 +226,6 @@ export class TurnSystem {
    * ドキュメントに従った順序でターンを進行
    */
   executeTurn(): void {
-    // console.log(`=== ターン ${this.turnManager.currentTurn} 開始 ===`);
-    
     // ターンオーダーが初期化されていない場合は初期化
     if (this.turnManager.turnOrder.length === 0 && this.dungeonManager) {
       const entities = this.dungeonManager.getAllEntities();
@@ -244,8 +241,6 @@ export class TurnSystem {
       this.turnManager.currentPhaseIndex = phaseIndex;
       this.turnManager.turnPhase = phaseConfig.phase;
       
-      // console.log(`--- フェーズ: ${phaseConfig.phase} ---`);
-      
       // フェーズを実行
       this.executePhase(phaseConfig);
     }
@@ -258,8 +253,6 @@ export class TurnSystem {
     
     // 次のターンの準備
     this.prepareNextTurn();
-    
-    // console.log(`=== ターン ${this.turnManager.currentTurn - 1} 終了 ===\n`);
   }
 
   /**
@@ -286,27 +279,18 @@ export class TurnSystem {
     for (const entity of relevantEntities) {
       // フェーズの実行条件をチェック
       if (!this.checkPhaseConditions(entity, phaseConfig)) {
-        // console.log(`  ${entity.id}: 条件により ${phaseConfig.phase} をスキップ`);
         continue;
       }
       
       // 速度システムによる行動制限をチェック
       // エンティティがこのフェーズで行動可能かチェック
       if (!this.checkPhaseConditions(entity, phaseConfig)) {
-        // console.log(`  ${entity.id}: 速度制限により ${phaseConfig.phase} をスキップ`);
         continue;
       }
       
       // フェーズ固有の処理を実行
       this.executeEntityPhaseAction(entity, phaseConfig.phase);
       
-      // 敵の行動状況をログ出力（デバッグ用）
-      if (this.isEnemy(entity)) {
-        const speedState = this.turnManager.entitySpeedStates.get(entity.id);
-        if (speedState) {
-          console.log(`[TurnSystem] 敵${entity.id}の行動状況: 移動=${speedState.action1State.hasMoved}, 攻撃=${speedState.action1State.hasAttacked}, 行動済み=${speedState.action1State.hasActed}`);
-        }
-      }
     }
 
     // 敵フェーズのみ：移動失敗者を一回だけ再試行
@@ -368,12 +352,10 @@ export class TurnSystem {
    */
   private executeTurnStart(entity: GameEntity): void {
     // ターン開始時の処理（新規敵出現など）
-    // console.log(`  ターン開始処理: ${entity.id}`);
     
     // 敵の場合、プレイヤーに対する方向を更新
     if (this.isEnemy(entity) && this.playerEntity && (entity as any).updateDirection) {
       (entity as any).updateDirection(this.playerEntity.position);
-      // console.log(`  ${entity.id}: 方向更新 - ${(entity as any).currentDirection}`);
     }
 
     // プレイヤーの残り香を記録
@@ -388,7 +370,7 @@ export class TurnSystem {
       try {
         this.dungeonManager.aiSystem.decidePatternForTurn(entity);
       } catch (e) {
-        console.warn(`[TurnSystem] decidePatternForTurn でエラー:`, e);
+        // エラーを無視
       }
     }
   }
@@ -406,17 +388,13 @@ export class TurnSystem {
     
     // 行動可能かチェック
     if (!actionState.canAct) {
-      // console.log(`  ${entity.id}: プレイヤー${actionNumber}回目行動 - 行動不可`);
       return;
     }
     
     // 隣接ルールチェック（2回目行動のみ）
     if (actionNumber === 2 && this.shouldSkipAction2DueToAdjacency(entity)) {
-      // console.log(`  ${entity.id}: プレイヤー2回目行動 - 隣接によりスキップ`);
       return;
     }
-    
-    // console.log(`  ${entity.id}: プレイヤー${actionNumber}回目行動実行`);
     // プレイヤー行動は外部から制御されるため、ここでは状態更新のみ
     actionState.hasActed = true;
   }
@@ -434,13 +412,11 @@ export class TurnSystem {
     
     // 行動可能かチェック
     if (!actionState.canAct) {
-      // console.log(`  ${entity.id}: 敵${actionNumber}回目行動 - 行動不可`);
       return;
     }
     
     // 隣接ルールチェック（2回目行動のみ）
     if (actionNumber === 2 && this.shouldSkipAction2DueToAdjacency(entity)) {
-      // console.log(`  ${entity.id}: 敵2回目行動 - 隣接によりスキップ`);
       return;
     }
     
@@ -449,22 +425,15 @@ export class TurnSystem {
       this.dungeonManager.aiSystem.updateMonsterDirectionForPlayer(entity);
     }
     
-    // console.log(`  ${entity.id}: 敵${actionNumber}回目行動処理`);
-    
     // AI による行動処理
     if (this.dungeonManager && this.dungeonManager.aiSystem) {
-      console.log(`[TurnSystem] 敵${actionNumber}回目行動: ${entity.id} - 移動可能=${this.canEntityActInAction(entity, actionNumber, 'move')}, 攻撃可能=${this.canEntityActInAction(entity, actionNumber, 'attack')}`);
-      
       // AI決定を1回だけ取得
       const aiDecision = this.dungeonManager.aiSystem.processAI(entity);
-      console.log(`[TurnSystem] 敵のAI決定: ${entity.id} - ${JSON.stringify(aiDecision)}`);
       
       if (aiDecision) {
         // 移動可能かチェック
         if (aiDecision.action === 'move' && aiDecision.position && this.canEntityActInAction(entity, actionNumber, 'move')) {
-          console.log(`[TurnSystem] 敵の移動処理開始: ${entity.id}`);
           const moveResult = this.dungeonManager.aiSystem.processEntityMovementWithDecision(entity, aiDecision);
-          console.log(`[TurnSystem] 敵の移動結果: ${entity.id} - ${JSON.stringify(moveResult)}`);
           if (moveResult?.moved) {
             actionState.hasMoved = true;
             // 1回目行動後の隣接チェック
@@ -480,20 +449,12 @@ export class TurnSystem {
           }
         } else if (aiDecision.action === 'attack' && aiDecision.target && !actionState.hasMoved && this.canEntityActInAction(entity, actionNumber, 'attack')) {
           // 攻撃可能かチェック（移動していない場合のみ）
-          console.log(`[TurnSystem] 敵の攻撃処理開始: ${entity.id}`);
           const attackResult = this.dungeonManager.aiSystem.processEntityAttackWithDecision(entity, aiDecision);
-          console.log(`[TurnSystem] 敵の攻撃結果: ${entity.id} - ${JSON.stringify(attackResult)}`);
           if (attackResult?.attacked) {
             actionState.hasAttacked = true;
           }
-        } else {
-          console.log(`[TurnSystem] 敵の行動が無効: ${entity.id} - AI決定=${aiDecision.action}, 移動済み=${actionState.hasMoved}, 移動可能=${this.canEntityActInAction(entity, actionNumber, 'move')}, 攻撃可能=${this.canEntityActInAction(entity, actionNumber, 'attack')}`);
         }
-      } else {
-        console.log(`[TurnSystem] AI決定なし: ${entity.id}`);
       }
-    } else {
-      console.log(`[TurnSystem] AIシステムが利用できません: ${entity.id} - dungeonManager=${!!this.dungeonManager}, aiSystem=${!!this.dungeonManager?.aiSystem}`);
     }
     
     actionState.hasActed = true;
@@ -512,17 +473,13 @@ export class TurnSystem {
     
     // 行動可能かチェック
     if (!actionState.canAct) {
-      // console.log(`  ${entity.id}: 味方${actionNumber}回目行動 - 行動不可`);
       return;
     }
     
     // 隣接ルールチェック（2回目行動のみ）
     if (actionNumber === 2 && this.shouldSkipAction2DueToAdjacency(entity)) {
-      // console.log(`  ${entity.id}: 味方2回目行動 - 隣接によりスキップ`);
       return;
     }
-    
-    // console.log(`  ${entity.id}: 味方${actionNumber}回目行動処理`);
     
     // AI による行動処理
     if (this.dungeonManager && this.dungeonManager.aiSystem) {
@@ -561,7 +518,6 @@ export class TurnSystem {
     
     // 該当するアクションで移動していた場合のみ罠チェック
     if (actionState.hasMoved) {
-      console.log(`  ${entity.id}: ${actionNumber}回目行動後の罠チェック`);
       // 罠処理
       if (this.dungeonManager && typeof this.dungeonManager.checkTrapsAt === 'function') {
         try {
@@ -571,13 +527,10 @@ export class TurnSystem {
             if (phaseState) {
               phaseState.trapTriggered = true;
             }
-            console.log(`  ${entity.id}: 罠発動 - ${trapResult.trapType}`);
           }
         } catch (error) {
-          console.warn(`  ${entity.id}: 罠チェック中にエラーが発生:`, error);
+          // エラーを無視
         }
-      } else {
-        console.log(`  ${entity.id}: 罠システムが利用できません（checkTrapsAtメソッドなし）`);
       }
     }
   }
@@ -586,15 +539,18 @@ export class TurnSystem {
    * ターン終了時回復処理
    */
   private executeEndTurnRecovery(entity: GameEntity): void {
-    console.log(`  ${entity.id}: ターン終了時回復処理`);
     // プレイヤーのみ自然回復を適用
     if (!this.isPlayer(entity)) return;
 
-    const stats = entity.stats as any;
-    if (!stats || typeof stats.hp !== 'number' || typeof stats.maxHp !== 'number') return;
+    // 新しいキャラクターシステムのHPをチェック
+    if (!('characterInfo' in entity && 'characterStats' in entity)) return;
+    
+    const characterEntity = entity as any;
+    const currentHp = characterEntity.characterStats.hp.current;
+    const maxHp = characterEntity.characterStats.hp.max;
 
     // 戦闘不能や満タン時は何もしない
-    if (stats.hp <= 0 || stats.hp >= stats.maxHp) return;
+    if (currentHp <= 0 || currentHp >= maxHp) return;
 
     // 満腹度が0のときは回復しない
     const playerLike = entity as any;
@@ -609,23 +565,22 @@ export class TurnSystem {
     // - 1回復に必要な歩数 = 150 / 現在の最大HP
     // - 1歩あたりの回復量 = 現在の最大HP / 150
     // - 1歩あたりの回復上限 = 5
-    const perStepRecovery = Math.min(5, stats.maxHp / 150);
+    const perStepRecovery = Math.min(5, maxHp / 150);
     if (perStepRecovery <= 0) return;
 
     // 端数を蓄積して繰り上げ回復する
     const progressKey = 'hpRegenProgress';
-    const currentProgress: number = typeof stats[progressKey] === 'number' ? stats[progressKey] : 0;
+    const currentProgress: number = typeof characterEntity[progressKey] === 'number' ? characterEntity[progressKey] : 0;
     let progress = currentProgress + perStepRecovery;
 
     const wholeHeal = Math.floor(progress);
     if (wholeHeal > 0) {
-      const actualHeal = Math.min(wholeHeal, stats.maxHp - stats.hp);
-      stats.hp = Math.min(stats.maxHp, stats.hp + actualHeal);
+      const actualHeal = Math.min(wholeHeal, maxHp - currentHp);
+      characterEntity.characterStats.hp.current = Math.min(maxHp, currentHp + actualHeal);
       progress -= wholeHeal; // 使った分の端数を差し引き
-      console.log(`    自然回復: +${actualHeal} (進捗=${progress.toFixed(2)})`);
     }
 
-    stats[progressKey] = progress;
+    characterEntity[progressKey] = progress;
   }
 
   /**
@@ -858,7 +813,6 @@ export class TurnSystem {
   private executeAction(action: TurnAction): void {
     // This is a placeholder - actual action execution would be handled
     // by other systems (MovementSystem, CombatSystem, etc.)
-    console.log(`Executing ${action.type} action for entity ${action.entity.id}`);
   }
 
 
@@ -927,8 +881,6 @@ export class TurnSystem {
    * ターン終了処理を実行
    */
   private executeEndTurnProcessing(): void {
-    console.log('--- ターン終了処理 ---');
-    
     // 設定された順序で処理を実行
     for (const process of this.config.endTurnProcessing) {
       switch (process.process) {
@@ -1153,7 +1105,6 @@ export class TurnSystem {
       
       actionState.hasActed = true;
       phaseState.hasActedThisPhase = true;
-      console.log(`プレイヤー${actionNumber}回目行動記録: ${actionType}`);
     }
   }
 
@@ -1209,8 +1160,6 @@ export class TurnSystem {
     if (this.turnManager.currentEntityIndex >= this.turnManager.turnOrder.length) {
       this.turnManager.currentEntityIndex = Math.max(0, this.turnManager.turnOrder.length - 1);
     }
-    
-    console.log(`[TurnSystem] エンティティを削除: ${entity.id}`);
   }
 
   /**
@@ -1243,7 +1192,6 @@ export class TurnSystem {
 
     // フロア内の敵の数をカウント
     const enemyCount = this.countEnemiesOnFloor();
-    console.log(`[TurnSystem] 自然スポーン判定: ターン${this.turnManager.currentTurn}, 現在の敵数: ${enemyCount}`);
 
     // 敵の数が20未満の場合、自然スポーンを実行
     if (enemyCount < 20) {
@@ -1276,7 +1224,6 @@ export class TurnSystem {
 
     // スポーン数を決定（0〜2体）
     const spawnCount = Math.floor(Math.random() * 3);
-    console.log(`[TurnSystem] 自然スポーン実行: ${spawnCount}体を${availableRooms.length}個の部屋に配置`);
 
     // 各部屋にランダムにスポーン
     for (let i = 0; i < spawnCount; i++) {
@@ -1417,16 +1364,39 @@ export class TurnSystem {
     if (!monsterTemplate) return;
     
     // モンスターを作成
+    const characterInfo = {
+      name: monsterTemplate.name,
+      gender: 'other' as const,
+      age: 0,
+      height: 150,
+      weight: 50,
+      race: 'human' as const,
+      class: 'unemployed' as const,
+      stats: {
+        STR: monsterTemplate.characterStats?.STR || 5,
+        DEX: monsterTemplate.characterStats?.DEX || 10,
+        INT: monsterTemplate.characterStats?.INT || 5,
+        CON: monsterTemplate.characterStats?.CON || 2,
+        POW: monsterTemplate.characterStats?.POW || 5,
+        APP: monsterTemplate.characterStats?.APP || 5,
+        LUK: monsterTemplate.characterStats?.LUK || 5
+      },
+      features: []
+    };
+    
     const monster = new MonsterEntity(
       `${monsterTemplate.id}-natural-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      monsterTemplate.name,
+      characterInfo,
       monsterTemplate.monsterType,
       position,
-      monsterTemplate.stats ? { ...monsterTemplate.stats } : { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
       undefined, // attributes
       monsterTemplate.movementPattern || 'approach',
       monsterTemplate.movementConfig,
-      monsterTemplate.spriteId
+      monsterTemplate.spriteId,
+      monsterTemplate.experienceValue,
+      monsterTemplate.dropRate,
+      monsterTemplate.dropTableId,
+      monsterTemplate.level
     );
     
     // 初期方向を設定
@@ -1435,7 +1405,8 @@ export class TurnSystem {
     // ダンジョンに追加
     this.dungeonManager.addEntity(monster as any, position);
     
-    console.log(`[TurnSystem] 自然スポーン完了: ${monster.name} at (${position.x}, ${position.y})`);
+    // ターン順序に追加
+    this.addEntity(monster as any);
   }
 
   /**
@@ -1449,8 +1420,21 @@ export class TurnSystem {
       name: 'Simple Enemy',
       monsterType: 'basic',
       spriteId: 'enemy-1-0',
-      stats: { hp: 20, maxHp: 20, attack: 5, defense: 2, evasionRate: 0.05 },
-      movementPattern: 'approach'
+      characterStats: {
+        STR: 8,
+        DEX: 12,
+        INT: 6,
+        CON: 10,
+        POW: 7,
+        APP: 5,
+        LUK: 8
+      },
+      movementPattern: 'approach',
+      experienceValue: 15,
+      dropRate: 0.3,
+      dropTableId: 'common-drops',
+      level: 1,
+      description: '基本的な敵。弱いが数が多い。'
     };
   }
 
@@ -1461,27 +1445,17 @@ export class TurnSystem {
     // 現在のターン順序から死亡したエンティティを削除
     const entitiesToRemove: GameEntity[] = [];
     
-    console.log(`[TurnSystem] 死亡チェック開始: ターン順序内のエンティティ数: ${this.turnManager.turnOrder.length}`);
-    
     for (const entity of this.turnManager.turnOrder) {
-      const hp = entity.stats?.hp;
-      const maxHp = entity.stats?.maxHp;
       const isDead = this.isEntityDead(entity);
-      
-      console.log(`[TurnSystem] エンティティ${entity.id}: HP=${hp}/${maxHp}, 死亡判定=${isDead}`);
       
       if (isDead) {
         entitiesToRemove.push(entity);
-        console.log(`[TurnSystem] 死亡エンティティを検出: ${entity.id}`);
       }
     }
-    
-    console.log(`[TurnSystem] 削除対象エンティティ数: ${entitiesToRemove.length}`);
     
     // 死亡したエンティティをターンシステムから削除
     for (const deadEntity of entitiesToRemove) {
       this.removeEntity(deadEntity);
-      console.log(`[TurnSystem] 死亡エンティティをターンシステムから削除: ${deadEntity.id}`);
     }
   }
 
@@ -1489,16 +1463,13 @@ export class TurnSystem {
    * エンティティが死亡しているかチェック
    */
   private isEntityDead(entity: GameEntity): boolean {
-    // プレイヤーとモンスターのHPチェック
-    if (entity.stats && entity.stats.hp !== undefined) {
-      return entity.stats.hp <= 0;
+    // 新しいキャラクターシステムのHPをチェック
+    if ('characterInfo' in entity && 'characterStats' in entity) {
+      const characterEntity = entity as any;
+      return characterEntity.characterStats.hp.current <= 0;
     }
     
-    // アイテムの場合はHPが1以下で削除対象
-    if (entity.stats && entity.stats.hp !== undefined && entity.stats.hp <= 1) {
-      return true;
-    }
-    
+    // キャラクターシステムがない場合は生存とみなす
     return false;
   }
 }

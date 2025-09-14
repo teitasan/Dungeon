@@ -3,14 +3,16 @@
  */
 
 import { Position, Component, EntityFlags } from '../types/core';
-import { Companion, CharacterStats, CharacterAttributes, StatusEffect, Item } from '../types/entities';
-import { BaseGameEntity, createDefaultCharacterStats, createDefaultCharacterAttributes } from './GameEntity';
+import { Companion, CharacterAttributes, StatusEffect, Item } from '../types/entities';
+import { CharacterInfo, CharacterStats } from '../types/character-info';
+import { CharacterCalculator } from '../core/character-calculator';
+import { BaseGameEntity, createDefaultCharacterAttributes } from './GameEntity';
 import { MovementPattern, MovementPatternConfig } from '../types/ai';
 
 export class CompanionEntity extends BaseGameEntity implements Companion {
-  public name: string;
+  public characterInfo: CharacterInfo;
   public companionType: string;
-  public stats: CharacterStats;
+  public characterStats: CharacterStats;
   public attributes: CharacterAttributes;
   public movementPattern?: MovementPattern;
   public movementConfig?: MovementPatternConfig;
@@ -24,22 +26,23 @@ export class CompanionEntity extends BaseGameEntity implements Companion {
 
   constructor(
     id: string,
-    name: string,
+    characterInfo: CharacterInfo,
     companionType: string,
     position: Position,
-    stats?: CharacterStats,
     attributes?: CharacterAttributes,
     movementPattern?: MovementPattern,
     movementConfig?: MovementPatternConfig,
     components: Component[] = [],
     flags: EntityFlags = {}
   ) {
-    const companionStats = stats || createDefaultCharacterStats(1, 25, 7, 4); // Companions have balanced stats
-    super(id, position, companionStats, components, flags);
+    // 新しいシステムではCharacterStatsを使用
+    const characterStats = CharacterCalculator.calculateAllStats(characterInfo, 1);
     
-    this.name = name;
+    super(id, position, components, flags);
+    
+    this.characterInfo = characterInfo;
     this.companionType = companionType;
-    this.stats = companionStats;
+    this.characterStats = characterStats;
     this.attributes = attributes || createDefaultCharacterAttributes('neutral');
     this.movementPattern = movementPattern;
     this.movementConfig = movementConfig;

@@ -69,7 +69,6 @@ export class CanvasRenderer {
     const transitionOverlay = document.getElementById('transition-overlay') as HTMLElement;
     
     if (!transitionCanvas || !transitionOverlay) {
-      console.warn('Transition overlay not found, falling back to main canvas');
       // フォールバック: メインキャンバスを使用
       const ctx = this.ctx;
       const W = this.canvas.width;
@@ -667,7 +666,6 @@ export class CanvasRenderer {
           this.ctx.fillText(glyph, centerX, centerY);
         }
       } catch (error) {
-        console.error(`[ERROR] Failed to render entity ${entity.id}:`, error);
         // エラーが発生しても描画を続行
       }
     }
@@ -790,7 +788,6 @@ export class CanvasRenderer {
     }
     
     } catch (error) {
-      console.error(`[ERROR] Failed to render player:`, error);
       // エラーが発生しても描画を続行
     }
 
@@ -890,9 +887,6 @@ export class CanvasRenderer {
     const W = this.minimapCanvas.width;
     const H = this.minimapCanvas.height;
 
-    // デバッグ情報を出力
-    console.log(`[DEBUG] ミニマップサイズ: キャンバス=${W}x${H}, ダンジョン=${dungeon.width}x${dungeon.height}, タイルサイズ=8px`);
-
     // ミニマップ描画時はスムージングを無効化（ピクセル境界を明確に）
     mm.imageSmoothingEnabled = false;
 
@@ -907,10 +901,6 @@ export class CanvasRenderer {
       const offsetX = Math.floor((W - dungeon.width * mmTile) / 2);
       const offsetY = Math.floor((H - dungeon.height * mmTile) / 2);
       
-      // デバッグ情報を出力
-      console.log(`[DEBUG] オフセット計算: offsetX=${offsetX}, offsetY=${offsetY}, 必要なサイズ=${dungeon.width * mmTile}x${dungeon.height * mmTile}`);
-    
-
     // 描画（探索済みの場所のみ、レミーラ効果が有効な場合は全エリア表示）
     let exploredCount = 0;
     let visibleCount = 0;
@@ -947,7 +937,6 @@ export class CanvasRenderer {
             stairsUpCount++;
             break;
           default:
-            console.log(`Unknown cell type: "${cell.type}" at (${x}, ${y})`);
             break;
         }
 
@@ -1118,7 +1107,7 @@ export class CanvasRenderer {
       // 描画完了後、スムージング設定を元に戻す
       mm.imageSmoothingEnabled = false;
     } catch (error) {
-      console.error('[CanvasRenderer] ミニマップ描画エラー:', error);
+      // エラーを無視
     }
   }
 

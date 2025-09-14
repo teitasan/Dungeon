@@ -239,25 +239,31 @@ export class AttackComponentSystem {
     damage: number;
     effects: string[];
   } {
-    // This would integrate with the CombatSystem
-    // For now, simplified implementation
-    const attackerStats = (attacker as any).stats;
-    const targetStats = (target as any).stats;
-    
-    if (!attackerStats || !targetStats) {
+    // 新しいキャラクターシステムを使用
+    if (!('characterInfo' in attacker && 'characterStats' in attacker) ||
+        !('characterInfo' in target && 'characterStats' in target)) {
       return { hit: false, damage: 0, effects: [] };
     }
 
-    // Simple damage calculation
-    const baseDamage = Math.max(1, attackerStats.attack - targetStats.defense);
-    const actualDamage = Math.min(baseDamage, targetStats.hp);
+    const attackerChar = attacker as any;
+    const targetChar = target as any;
+
+    // 攻撃力と防御力を取得
+    const attackPower = attackerChar.characterInfo.stats.STR;
+    const defense = targetChar.characterInfo.stats.CON;
     
-    targetStats.hp = Math.max(0, targetStats.hp - actualDamage);
+    // 簡易ダメージ計算
+    const baseDamage = Math.max(1, attackPower - defense);
+    const currentHp = targetChar.characterStats.hp.current;
+    const actualDamage = Math.min(baseDamage, currentHp);
+    
+    // HPを減少
+    targetChar.characterStats.hp.current = Math.max(0, currentHp - actualDamage);
 
     return {
       hit: true,
       damage: actualDamage,
-      effects: targetStats.hp <= 0 ? ['defeated'] : []
+      effects: targetChar.characterStats.hp.current <= 0 ? ['defeated'] : []
     };
   }
 

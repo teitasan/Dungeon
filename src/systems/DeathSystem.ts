@@ -50,19 +50,22 @@ export class DeathSystem {
 
     // Level reset
     if (this.config.penalties.levelReset) {
-      player.stats.level = 1;
-      player.stats.experience = 0;
+      player.characterStats.level = 1;
+      player.characterStats.experience.total = 0;
+      player.characterStats.experience.current = 0;
+      player.characterStats.experience.required = 100;
     }
 
     // Stat reset (basic reset to reasonable defaults)
     if (this.config.penalties.statReset) {
-      player.stats.maxHp = 30;
-      player.stats.hp = player.stats.maxHp;
-      player.stats.attack = 8;
-      player.stats.defense = 5;
+      player.characterStats.hp.max = 30;
+      player.characterStats.hp.current = player.characterStats.hp.max;
+      // 基本ステータスはCharacterInfoから再計算
+      const { CharacterCalculator } = require('../core/character-calculator');
+      player.characterStats = CharacterCalculator.calculateAllStats(player.characterInfo, 1);
     }
 
-    const message = this.config.gameOver.showDeathMessage ? `${player.name} has fallen...` : '';
+    const message = this.config.gameOver.showDeathMessage ? `${player.characterInfo.name} has fallen...` : '';
     return { message };
   }
 }

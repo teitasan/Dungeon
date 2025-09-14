@@ -315,6 +315,20 @@ export class AISystem {
     }
     // 敵（Monster）はプレイヤー/味方を敵視
     if (pattern === 'approach' || pattern === 'escape' || pattern === 'keep-distance') {
+      if (entity instanceof MonsterEntity) {
+        // プレイヤーとコンパニオンの両方を対象にする
+        const player = this.findPlayer();
+        const companion = this.findNearestCompanion(entity, 20);
+        
+        // より近い方を選択
+        if (player && companion) {
+          const playerDist = this.getDistance(entity.position, player.position);
+          const companionDist = this.getDistance(entity.position, companion.position);
+          return playerDist <= companionDist ? player : companion;
+        }
+        return player || companion;
+      }
+      // 味方は敵を探す
       const target = this.findNearestEnemy(entity, 20) || null;
       return target;
     }
@@ -770,6 +784,27 @@ export class AISystem {
   private findPlayer(): PlayerEntity | null {
     const allEntities = this.dungeonManager.getAllEntities();
     return allEntities.find(e => e instanceof PlayerEntity) as PlayerEntity || null;
+  }
+
+  /**
+   * Find nearest companion entity
+   */
+  private findNearestCompanion(entity: GameEntity, maxDistance: number): CompanionEntity | null {
+    const allEntities = this.dungeonManager.getAllEntities();
+    const companions = allEntities.filter(e => e instanceof CompanionEntity) as CompanionEntity[];
+    
+    let nearest: CompanionEntity | null = null;
+    let minDistance = maxDistance;
+    
+    for (const companion of companions) {
+      const distance = this.getDistance(entity.position, companion.position);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearest = companion;
+      }
+    }
+    
+    return nearest;
   }
 
   /**
@@ -1357,12 +1392,13 @@ export class AISystem {
    * Check if an entity is alive
    */
   private isEntityAlive(entity: GameEntity): boolean {
-    // HPベースでの生存チェック
-    if (entity.stats && entity.stats.hp !== undefined) {
-      return entity.stats.hp > 0;
+    // 新しいキャラクターシステムのHPをチェック
+    if ('characterInfo' in entity && 'characterStats' in entity) {
+      const characterEntity = entity as any;
+      return characterEntity.characterStats.hp.current > 0;
     }
     
-    // HP情報がない場合は生存とみなす
+    // キャラクターシステムがない場合は生存とみなす
     return true;
   }
 }

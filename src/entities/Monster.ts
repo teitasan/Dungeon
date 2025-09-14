@@ -3,14 +3,16 @@
  */
 
 import { Position, Component, EntityFlags } from '../types/core';
-import { Monster, CharacterStats, CharacterAttributes, StatusEffect, DropTableEntry, SpawnCondition } from '../types/entities';
-import { BaseGameEntity, createDefaultCharacterStats, createDefaultCharacterAttributes } from './GameEntity.js';
+import { Monster, CharacterAttributes, StatusEffect, DropTableEntry, SpawnCondition } from '../types/entities';
+import { CharacterInfo, CharacterStats } from '../types/character-info';
+import { CharacterCalculator } from '../core/character-calculator';
+import { BaseGameEntity, createDefaultCharacterAttributes } from './GameEntity.js';
 import { MovementPattern, MovementPatternConfig } from '../types/ai';
 
 export class MonsterEntity extends BaseGameEntity implements Monster {
-  public name: string;
+  public characterInfo: CharacterInfo;
   public monsterType: string;
-  public stats: CharacterStats;
+  public characterStats: CharacterStats;
   public attributes: CharacterAttributes;
   public movementPattern?: MovementPattern;
   public movementConfig?: MovementPatternConfig;
@@ -25,10 +27,9 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
 
   constructor(
     id: string,
-    name: string,
+    characterInfo: CharacterInfo,
     monsterType: string,
     position: Position,
-    stats?: CharacterStats,
     attributes?: CharacterAttributes,
     movementPattern?: MovementPattern,
     movementConfig?: MovementPatternConfig,
@@ -42,12 +43,14 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
     components: Component[] = [],
     flags: EntityFlags = {}
   ) {
-    const monsterStats = stats || createDefaultCharacterStats(1, 15, 6, 2); // Monsters have varied stats
-    super(id, position, monsterStats, components, flags);
+    // 新しいシステムではCharacterStatsを使用
+    const characterStats = CharacterCalculator.calculateAllStats(characterInfo, level || 1);
     
-    this.name = name;
+    super(id, position, components, flags);
+    
+    this.characterInfo = characterInfo;
     this.monsterType = monsterType;
-    this.stats = monsterStats;
+    this.characterStats = characterStats;
     this.attributes = attributes || createDefaultCharacterAttributes('neutral');
     this.movementPattern = movementPattern;
     this.movementConfig = movementConfig;
@@ -60,10 +63,10 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
     
     // 新しいパラメータを設定
     if (experienceValue !== undefined) {
-      this.stats.experienceValue = experienceValue;
+      this.setFlag('experienceValue', experienceValue);
     }
     if (level !== undefined) {
-      this.stats.level = level;
+      this.characterStats.level = level;
     }
     
     // ドロップ率とドロップテーブルIDを設定

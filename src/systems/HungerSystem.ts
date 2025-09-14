@@ -2,7 +2,7 @@
  * Hunger system for managing player hunger and related effects
  */
 
-import { GameEntity, CharacterStats } from '../types/entities';
+import { GameEntity } from '../types/entities';
 import { PlayerEntity } from '../entities/Player';
 
 // Hunger configuration
@@ -166,6 +166,33 @@ export class HungerSystem {
   }
 
   /**
+   * Get entity HP (handles both old and new character systems)
+   */
+  private getEntityHp(entity: GameEntity): number {
+    // Check if entity has new character system
+    if ('characterInfo' in entity && 'stats' in entity) {
+      const characterEntity = entity as any;
+      return characterEntity.stats.hp.current;
+    }
+    // Fallback to old system
+    return entity.stats.hp;
+  }
+
+  /**
+   * Set entity HP (handles both old and new character systems)
+   */
+  private setEntityHp(entity: GameEntity, hp: number): void {
+    // Check if entity has new character system
+    if ('characterInfo' in entity && 'stats' in entity) {
+      const characterEntity = entity as any;
+      characterEntity.stats.hp.current = Math.max(0, hp);
+    } else {
+      // Fallback to old system
+      entity.stats.hp = Math.max(0, hp);
+    }
+  }
+
+  /**
    * Process hunger for entity (typically called each turn)
    */
   processHunger(entity: GameEntity): HungerResult | null {
@@ -320,8 +347,9 @@ export class HungerSystem {
 
       case 'damage-over-time':
         const damage = effect.value || this.config.damageAmount;
-        const actualDamage = Math.min(damage, player.stats.hp);
-        player.stats.hp = Math.max(0, player.stats.hp - damage);
+        const currentHp = this.getEntityHp(player);
+        const actualDamage = Math.min(damage, currentHp);
+        this.setEntityHp(player, currentHp - damage);
         message = `${player.name} takes ${actualDamage} hunger damage`;
         break;
 

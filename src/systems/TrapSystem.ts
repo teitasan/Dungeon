@@ -267,13 +267,16 @@ export class TrapSystem {
    * Apply trap damage
    */
   private applyTrapDamage(entity: GameEntity, damage: number): boolean {
-    const stats = (entity as any).stats;
-    if (!stats) return false;
-
-    const actualDamage = Math.min(damage, stats.hp);
-    stats.hp = Math.max(0, stats.hp - damage);
+    // 新しいキャラクターシステムのHPをチェック
+    if ('characterInfo' in entity && 'characterStats' in entity) {
+      const characterEntity = entity as any;
+      const currentHp = characterEntity.characterStats.hp.current;
+      const actualDamage = Math.min(damage, currentHp);
+      characterEntity.characterStats.hp.current = Math.max(0, currentHp - damage);
+      return actualDamage > 0;
+    }
     
-    return actualDamage > 0;
+    return false;
   }
 
   /**

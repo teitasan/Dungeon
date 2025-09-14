@@ -3,18 +3,12 @@
  * Implements basic game entities with stats, level, and experience systems
  */
 
-import { GameEntity, Position, Component, EntityStats, EntityFlags } from './core';
+import { GameEntity, Position, Component, EntityFlags } from './core';
 import { MovementPattern, MovementPatternConfig } from './ai';
+import { CharacterInfo, CharacterStats } from './character-info';
 
 // Re-export core GameEntity for modules that import from types/entities
 export { GameEntity } from './core';
-
-// Base stats interface for all characters (Player, Monster, Companion)
-export interface CharacterStats extends EntityStats {
-  level: number;
-  experience: number;
-  experienceValue: number; // Experience given when defeated
-}
 
 // Status effects that can be applied to characters
 export interface StatusEffect {
@@ -60,8 +54,8 @@ export interface ItemEffect {
 
 // Player model
 export interface Player extends GameEntity {
-  name: string;
-  stats: CharacterStats;
+  characterInfo: CharacterInfo;
+  characterStats: CharacterStats;
   attributes: CharacterAttributes;
   hunger: number;
   maxHunger: number;
@@ -76,9 +70,9 @@ export interface Player extends GameEntity {
 
 // Monster model
 export interface Monster extends GameEntity {
-  name: string;
+  characterInfo: CharacterInfo;
   monsterType: string;
-  stats: CharacterStats;
+  characterStats: CharacterStats;
   attributes: CharacterAttributes;
   movementPattern?: MovementPattern;
   movementConfig?: MovementPatternConfig;
@@ -91,9 +85,9 @@ export interface Monster extends GameEntity {
 
 // Companion model
 export interface Companion extends GameEntity {
-  name: string;
+  characterInfo: CharacterInfo;
   companionType: string;
-  stats: CharacterStats;
+  characterStats: CharacterStats;
   attributes: CharacterAttributes;
   movementPattern?: MovementPattern;
   movementConfig?: MovementPatternConfig;

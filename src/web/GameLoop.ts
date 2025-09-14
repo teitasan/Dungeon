@@ -55,9 +55,9 @@ export class GameLoop {
     // ゲーム情報オーバーレイを更新（オーバーレイは廃止済みだが呼び出しは無害）
     this.uiManager.updateGameInfoOverlay({
       floor: current.floor,
-      level: this.player.stats.level,
-      currentHp: this.player.stats.hp,
-      maxHp: this.player.stats.maxHp,
+      level: this.player.characterStats.level,
+      currentHp: this.player.characterStats.hp.current,
+      maxHp: this.player.characterStats.hp.max,
       hungerCurrent: this.player.hunger,
       hungerMax: this.player.maxHunger,
       gold: 0, // プレイヤーの所持金（現在は0で固定）
@@ -97,9 +97,9 @@ export class GameLoop {
       if (current) {
         this.uiManager.updateGameInfoOverlay({
           floor: current.floor,
-          level: this.player.stats.level,
-          currentHp: this.player.stats.hp,
-          maxHp: this.player.stats.maxHp,
+          level: this.player.characterStats.level,
+          currentHp: this.player.characterStats.hp.current,
+          maxHp: this.player.characterStats.hp.max,
           hungerCurrent: this.player.hunger,
           hungerMax: this.player.maxHunger,
           gold: 0,
