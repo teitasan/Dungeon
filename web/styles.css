@@ -44,8 +44,10 @@ html, body {
   margin: 0; 
   background: blue; 
   color: #eee; 
-  font-family: 'PixelMplus', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; 
+  font-family: 'PixelMplus12', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; 
   letter-spacing: 2px; /* 文字間隔をグローバルに設定 */
+  user-select: none;
+  cursor: default;
 }
 
 /* ========================================
@@ -125,15 +127,14 @@ a {
   position: relative;
   padding: 12px; /* ステータスウィンドウ専用のパディング */
   font-size: 16px; /* ステータスウィンドウのフォントサイズ */
+  background: #303030; /* ウインドウのベース色 */
 }
 
 .status-window h3 {
-  margin: 0 0 12px 0;
-  color: #fff;
+  margin: 4px 0;
+  color: #ede1c6;
   font-size: 14px;
   text-align: center;
-  border-bottom: 1px solid #444;
-  padding-bottom: 8px;
 }
 
 .player-stats {
@@ -142,29 +143,153 @@ a {
   gap: 8px;
 }
 
+.stat-group {
+  margin: 8px 0; /* 各グループ間の距離 */
+}
+
+.stat-panel {
+  margin: 8px 0;
+  padding: 4px;
+  background: #272727; /* 囲んだ部分の色 */
+  border-radius: 8px;
+  box-shadow: 
+    inset 0 1px 2px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.1);
+}
+
+.stat-panel .stat-row-pair {
+  margin: 4px 0; /* 上下4pxの間隔 */
+}
+
+.stat-section-title {
+  color: #999999; /* 背景#303030と白の中間色 */
+  font-size: 14px;
+  text-align: left;
+  margin: 4px 0;
+  padding: 0 8px;
+  border-bottom: 1px solid #444;
+  padding-bottom: 4px;
+}
+
+.stat-group .stat-row {
+  margin-bottom: -8px; /* テキストとバーを重ねる */
+  position: relative;
+  z-index: 2; /* テキストをバーの上に表示 */
+}
+
 .stat-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 16px;
-  margin-bottom: 4px;
+  font-size: 18px;
+  margin: 4px 0;
+  padding: 0 14px 0 16px; /* 左16px、右8px */
 }
 
-.stat-label {
-  color: #ffdd44; /* SFC世代の黄色いラベル */
-  min-width: 60px;
-  margin: 0 8px;
-  font-weight: bold;
+.stat-bar-row {
+  padding: 0 8px;
+}
+
+.stat-row-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.stat-column {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* レベル・EXP行のレイアウト */
+.level-exp-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 8px;
+  margin: 4px 0;
+}
+
+/* レベル円形プログレス - 古文書風 */
+.level-circle-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.level-circle {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #f4d03f 0%, #f4d03f var(--progress, 0%), #2d1b0e var(--progress, 0%), #2d1b0e 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  border: 2px solid #8b7355;
+  box-shadow: 
+    0 0 4px rgba(244, 208, 63, 0.4),
+    inset 0 0 4px rgba(244, 208, 63, 0.3);
+  filter: brightness(1.0) contrast(1.1);
+}
+
+.level-circle::before {
+  content: '';
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #303030;
+  border: 2px solid #8b7355;
+  z-index: 1;
+}
+
+.level-text {
+  color: #ede1c6;
   text-shadow: 1px 1px 0px #000;
-  font-family: 'PixelMplus', monospace;
+  font-family: 'PixelMplus12', monospace;
+  font-size: 18px;
+  font-weight: bold;
+  z-index: 2;
+  position: relative;
+  text-align: center;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -2px;
+}
+
+/* EXP表示 */
+.exp-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+  height: 50px;
+}
+
+
+.stat-label {
+  color: #ede1c6; /* クリーム色のラベル */
+  min-width: 60px;
+  text-shadow: 1px 1px 0px #000;
+  font-family: 'PixelMplus12', monospace;
 }
 
 .stat-bar {
   flex: 1;
-  height: 18px; /* 少し高くして存在感をアップ */
+  height: 17px; /* バーの太さを10pxに変更 */
   background: #000000; /* 完全な黒背景 */
   border: 2px solid #444; /* 太い枠線 */
-  border-radius: 0px; /* 角丸を削除してピクセルアート風 */
+  border-radius: 10px; /* 角丸を追加 */
   overflow: hidden;
   position: relative;
 }
@@ -175,47 +300,56 @@ a {
 }
 
 .hp-fill {
-  background: linear-gradient(90deg, #00aa00, #44cc44, #66ff66); /* デフォルトは緑 */
+  background: linear-gradient(90deg, #285c0c, #5d9326, #86b93d); /* 緑のグラデーション */
+  box-shadow: 
+    inset 0 1px 2px rgba(255, 255, 255, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
-/* HPが50%以下の時は黄色 */
-.hp-fill.hp-yellow {
-  background: linear-gradient(90deg, #ffaa00, #ffcc44, #ffdd66);
-}
-
-/* HPが25%以下の時は赤 */
-.hp-fill.hp-red {
-  background: linear-gradient(90deg, #ff0000, #ff4444, #ff6666);
+.mp-fill {
+  background: linear-gradient(90deg, #0066cc, #4488dd, #66aaff); /* 青のグラデーション */
+  box-shadow: 
+    inset 0 1px 2px rgba(255, 255, 255, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .hunger-fill {
   background: linear-gradient(90deg, #6a0dad, #8a2be2, #ba55d3); /* 紫のグラデーション */
+  box-shadow: 
+    inset 0 1px 2px rgba(255, 255, 255, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .stat-text {
-  color: #ffffff; /* 白い数値 */
+  color: #ede1c6; /* クリーム色の数値 */
   min-width: 50px;
   text-align: right;
   margin-left: auto;
-  font-weight: bold;
   text-shadow: 1px 1px 0px #000;
-  font-family: 'PixelMplus', monospace;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 2px 6px;
-  border-radius: 3px;
-  border: 1px solid #444;
+  font-family: 'PixelMplus12', monospace;
 }
 
 .stat-value {
-  color: #ffffff;
-  margin-left: auto;
-  font-weight: bold;
+  color: #ede1c6;
+  text-align: right;
   text-shadow: 1px 1px 0px #000;
-  font-family: 'PixelMplus', monospace;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 2px 6px;
-  border-radius: 3px;
-  border: 1px solid #444;
+  font-family: 'PixelMplus12', monospace;
+}
+
+/* ペア表示の行では各カラム内でラベル左寄せ、数値右寄せ */
+.stat-column .stat-label {
+  text-align: left;
+  margin: 0;
+}
+
+.stat-column .stat-value {
+  text-align: right;
+  margin: 0;
+}
+
+/* 単独の数値（LUKなど）は右端に配置 */
+.stat-row:not(.stat-row-pair) .stat-value {
+  margin-left: auto;
 }
 
 
@@ -235,7 +369,7 @@ a {
 }
 
 .map-title {
-  color: #fff;
+  color: #ede1c6;
   font-size: 18px;
   font-weight: bold;
   text-align: center;

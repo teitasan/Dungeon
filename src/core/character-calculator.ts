@@ -70,7 +70,7 @@ export class CharacterCalculator {
       experience: {
         total: 0,
         required: level * 100,
-        current: 0
+        current: 25  // テスト用に25に設定
       },
       hp: {
         current: maxHp,

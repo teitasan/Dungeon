@@ -11,6 +11,9 @@ export class UIManager {
   private isAnimating: boolean = false;
   private displayedMessages: string[] = [];
   private damageDisplayManager: DamageDisplayManager | null = null;
+  private lastExpCurrent: number | null = null;
+  private lastExpRequired: number | null = null;
+  private lastLevel: number | null = null;
 
   constructor(config: GameConfig, appElement: HTMLElement) {
     this.config = config;
@@ -55,49 +58,84 @@ export class UIManager {
             <div id="status-window" class="status-window window-frame">
               <h3>Status</h3>
               <div id="player-stats">
-                <div class="stat-row">
-                  <span class="stat-label">HP</span>
-                  <span id="hp-text" class="stat-text">100/100</span>
-                </div>
-                <div class="stat-row">
-                  <div class="stat-bar">
-                    <div id="hp-bar" class="stat-fill hp-fill"></div>
+                <div class="stat-panel">
+                  <div class="stat-row level-exp-row">
+                    <div class="level-circle-container">
+                      <div class="level-circle">
+                        <span id="level-text" class="level-text">2</span>
+                      </div>
+                    </div>
+                    <div class="exp-container">
+                      <div class="stat-label">EXP</div>
+                      <div class="stat-value" id="exp-text"></div>
+                    </div>
+                  </div>
+                  <div class="stat-group">
+                    <div class="stat-row">
+                      <span class="stat-label">HP</span>
+                      <span id="hp-text" class="stat-text"></span>
+                    </div>
+                    <div class="stat-bar-row">
+                      <div class="stat-bar">
+                        <div id="hp-bar" class="stat-fill hp-fill"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="stat-group">
+                    <div class="stat-row">
+                      <span class="stat-label">MP</span>
+                      <span id="mp-text" class="stat-text"></span>
+                    </div>
+                    <div class="stat-bar-row">
+                      <div class="stat-bar">
+                        <div id="mp-bar" class="stat-fill mp-fill"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="stat-group">
+                    <div class="stat-row">
+                      <span class="stat-label">Hunger</span>
+                      <span id="hunger-text" class="stat-text"></span>
+                    </div>
+                    <div class="stat-bar-row">
+                      <div class="stat-bar">
+                        <div id="hunger-bar" class="stat-fill hunger-fill"></div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div class="stat-row">
-                  <span class="stat-label">Hunger</span>
-                  <span id="hunger-text" class="stat-text">100/100</span>
-                </div>
-                <div class="stat-row">
-                  <div class="stat-bar">
-                    <div id="hunger-bar" class="stat-fill hunger-fill"></div>
+                <div class="stat-section-title">Attributes</div>
+                <div class="stat-panel">
+                  <div class="stat-row stat-row-pair">
+                    <div class="stat-column">
+                      <span class="stat-label">STR</span>
+                      <span id="str-text" class="stat-value"></span>
+                    </div>
+                    <div class="stat-column">
+                      <span class="stat-label">DEX</span>
+                      <span id="dex-text" class="stat-value"></span>
+                    </div>
                   </div>
-                </div>
-                <div class="stat-row">
-                  <span class="stat-label">Level:</span>
-                  <span id="level-text" class="stat-value">1</span>
-                </div>
-                <div class="stat-row">
-                  <span class="stat-label">STR:</span>
-                  <span id="str-text" class="stat-value">10</span>
-                  <span class="stat-label">DEX:</span>
-                  <span id="dex-text" class="stat-value">10</span>
-                </div>
-                <div class="stat-row">
-                  <span class="stat-label">INT:</span>
-                  <span id="int-text" class="stat-value">10</span>
-                  <span class="stat-label">CON:</span>
-                  <span id="con-text" class="stat-value">10</span>
-                </div>
-                <div class="stat-row">
-                  <span class="stat-label">POW:</span>
-                  <span id="pow-text" class="stat-value">10</span>
-                  <span class="stat-label">APP:</span>
-                  <span id="app-text" class="stat-value">10</span>
-                </div>
-                <div class="stat-row">
-                  <span class="stat-label">LUK:</span>
-                  <span id="luk-text" class="stat-value">10</span>
+                  <div class="stat-row stat-row-pair">
+                    <div class="stat-column">
+                      <span class="stat-label">INT</span>
+                      <span id="int-text" class="stat-value"></span>
+                    </div>
+                    <div class="stat-column">
+                      <span class="stat-label">CON</span>
+                      <span id="con-text" class="stat-value"></span>
+                    </div>
+                  </div>
+                  <div class="stat-row stat-row-pair">
+                    <div class="stat-column">
+                      <span class="stat-label">POW</span>
+                      <span id="pow-text" class="stat-value"></span>
+                    </div>
+                    <div class="stat-column">
+                      <span class="stat-label">LUK</span>
+                      <span id="luk-text" class="stat-value"></span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -495,16 +533,45 @@ export class UIManager {
       this.updateStatusHPBar(currentHp, maxHp);
     }
 
+    // MP更新（新しいキャラクターシステムを使用）
+    const currentMp = player?.characterStats?.mp?.current;
+    const maxMp = player?.characterStats?.mp?.max;
+    if (currentMp !== undefined && maxMp !== undefined) {
+      this.updateStatusMPBar(currentMp, maxMp);
+    }
+
     // 空腹度更新
     if (player.hunger !== undefined && player.maxHunger !== undefined) {
       this.updateStatusHungerBar(player.hunger, player.maxHunger);
     }
 
-    // レベル更新
+    // レベル更新（円形プログレス）
     const levelText = document.getElementById('level-text');
+    const levelCircle = document.querySelector('.level-circle') as HTMLElement;
     const levelVal = player?.characterStats?.level;
-    if (levelText && levelVal !== undefined) {
+    const expCurrent = player?.characterStats?.experience?.current;
+    const expRequired = player?.characterStats?.experience?.required;
+    
+    // レベルが変更された場合のみ更新
+    if (levelText && levelVal !== undefined && this.lastLevel !== levelVal) {
       levelText.textContent = levelVal.toString();
+      this.lastLevel = levelVal;
+    }
+    
+    // 経験値が変更された場合のみ更新
+    if (levelCircle && expCurrent !== undefined && expRequired !== undefined) {
+      if (this.lastExpCurrent !== expCurrent || this.lastExpRequired !== expRequired) {
+        const progress = (expCurrent / expRequired) * 100;
+        levelCircle.style.setProperty('--progress', `${progress}%`);
+        this.lastExpCurrent = expCurrent;
+        this.lastExpRequired = expRequired;
+      }
+    }
+
+    // EXP更新
+    const expText = document.getElementById('exp-text');
+    if (expText && expCurrent !== undefined && expRequired !== undefined) {
+      expText.textContent = `${expCurrent}/${expRequired}`;
     }
 
     // ステータス更新
@@ -563,17 +630,47 @@ export class UIManager {
       hpBar.style.width = `${hpRatio * 100}%`;
       hpText.textContent = `${Math.floor(currentHP)}/${Math.floor(maxHP)}`;
       
-      // HPの割合に応じて色を変更（ポケモン風）
-      hpBar.className = 'stat-fill hp-fill'; // 基本クラスをリセット
+      // HPバーは常に緑色
+      hpBar.className = 'stat-fill hp-fill';
+    }
+  }
+
+  /**
+   * ステータスウィンドウのEXPバーを更新
+   */
+  private updateStatusExpBar(currentExp: number, requiredExp: number): void {
+    const levelCircle = document.querySelector('.level-circle') as HTMLElement;
+    
+    if (levelCircle) {
+      const expRatio = Math.max(0, Math.min(1, currentExp / requiredExp));
+      const progressPercent = expRatio * 100;
+      levelCircle.style.setProperty('--progress', `${progressPercent}%`);
+    }
+  }
+
+  /**
+   * ステータスウィンドウのMPバーを更新
+   */
+  private updateStatusMPBar(currentMP: number, maxMP: number): void {
+    const mpBar = document.getElementById('mp-bar') as HTMLElement;
+    const mpText = document.getElementById('mp-text') as HTMLElement;
+    
+    if (mpBar && mpText) {
+      const mpRatio = Math.max(0, Math.min(1, currentMP / maxMP));
+      mpBar.style.width = `${mpRatio * 100}%`;
+      mpText.textContent = `${Math.floor(currentMP)}/${Math.floor(maxMP)}`;
       
-      if (hpRatio <= 0.25) {
+      // MPの割合に応じて色を変更（青系）
+      mpBar.className = 'stat-fill mp-fill'; // 基本クラスをリセット
+      
+      if (mpRatio <= 0.25) {
         // 25%以下は赤
-        hpBar.classList.add('hp-red');
-      } else if (hpRatio <= 0.5) {
+        mpBar.classList.add('mp-red');
+      } else if (mpRatio <= 0.5) {
         // 50%以下は黄色
-        hpBar.classList.add('hp-yellow');
+        mpBar.classList.add('mp-yellow');
       }
-      // 50%以上は緑（デフォルト）
+      // 50%以上は青（デフォルト）
     }
   }
 
@@ -636,4 +733,5 @@ export class UIManager {
       this.damageDisplayManager.update(deltaTime, dungeonManager);
     }
   }
+
 }

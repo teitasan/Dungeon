@@ -15,7 +15,7 @@ export class DamageDisplayManager implements IDamageDisplayManager {
     this.config = {
       duration: 1000, // 1秒間表示
       fontSize: 12, // 12pxに調整
-      fontFamily: 'monospace', // より詰まったフォントに変更
+      fontFamily: 'PixelMplus12', // ステータス表示と同じフォントに統一
       criticalMultiplier: 1.5,
       animationSpeed: 15, // ピクセル/秒（さらにゆっくりに）
       maxDisplays: 20,
