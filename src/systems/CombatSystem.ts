@@ -8,6 +8,7 @@ import { CharacterStats } from '../types/character-info';
 import { DungeonManager } from '../dungeon/DungeonManager.js';
 import { ItemEntity } from '../entities/Item.js';
 import { CharacterCalculator } from '../core/character-calculator.js';
+import { addExperience } from '../entities/GameEntity.js';
 import {
   CombatResult,
   CombatEffect,
@@ -727,6 +728,9 @@ export class CombatSystem {
     console.log(`[CombatSystem] 敵${enemy.id}が倒された`);
     console.log(`[CombatSystem] 敵${enemy.id}の現在位置: (${enemy.position.x}, ${enemy.position.y})`);
 
+    // 経験値付与処理
+    this.giveExperienceToPlayer(enemy);
+
     // ドロップアイテムの生成（実装予定）
     // TODO: DropSystemと連携してドロップアイテムを生成
 
@@ -773,5 +777,70 @@ export class CombatSystem {
   private isPlayer(entity: GameEntity): boolean {
     // PlayerEntityの判定（暫定的な実装）
     return entity.id.includes('player') || entity.id === 'player-1';
+  }
+
+  /**
+   * Give experience to player when enemy is defeated
+   */
+  private giveExperienceToPlayer(enemy: GameEntity): void {
+    // 敵の経験値を取得
+    const experienceValue = enemy.flags?.experienceValue as number;
+    if (!experienceValue || experienceValue <= 0) {
+      console.log(`[CombatSystem] 敵${enemy.id}の経験値が設定されていません`);
+      return;
+    }
+
+    // プレイヤーを取得
+    const player = this.findPlayer();
+    if (!player) {
+      console.log(`[CombatSystem] プレイヤーが見つかりません`);
+      return;
+    }
+
+    // プレイヤーの現在の経験値とレベルアップ設定を取得
+    if (!('characterStats' in player)) {
+      console.log(`[CombatSystem] プレイヤー${player.id}にcharacterStatsがありません`);
+      return;
+    }
+
+    const playerStats = (player as any).characterStats as CharacterStats;
+    
+    // 設定ファイルから経験値テーブルと成長率を取得
+    const experienceTable = [100, 220, 360, 520, 700, 900, 1120, 1360, 1620, 1900];
+    const growthRates = { hp: 1.1, attack: 1.2, defense: 1.2 };
+
+    console.log(`[CombatSystem] プレイヤー現在の経験値: ${playerStats.experience.current}/${playerStats.experience.required}`);
+
+    // 経験値を追加
+    const result = addExperience(playerStats, experienceValue, experienceTable, growthRates);
+    
+    // プレイヤーのステータスを更新
+    (player as any).characterStats = result.newStats;
+
+    console.log(`[CombatSystem] プレイヤー更新後の経験値: ${result.newStats.experience.current}/${result.newStats.experience.required}`);
+
+    // メッセージ表示
+    if (this.messageSink) {
+      this.messageSink(`${experienceValue}の経験値を獲得！`);
+      
+      if (result.leveledUp) {
+        this.messageSink(`レベルアップ！レベル${result.newStats.level}になった！`);
+      }
+    }
+
+    console.log(`[CombatSystem] プレイヤーに${experienceValue}の経験値を付与。レベルアップ: ${result.leveledUp}`);
+  }
+
+  /**
+   * Find player entity in the dungeon
+   */
+  private findPlayer(): GameEntity | null {
+    if (!this.dungeonManager) {
+      return null;
+    }
+
+    // ダンジョン内の全エンティティからプレイヤーを検索
+    const entities = this.dungeonManager.getAllEntities();
+    return entities.find(entity => this.isPlayer(entity)) || null;
   }
 }

@@ -69,8 +69,8 @@ export class CharacterCalculator {
       level,
       experience: {
         total: 0,
-        required: level * 100,
-        current: 25  // テスト用に25に設定
+        required: 100, // レベル1の場合は100が必要
+        current: 0  // 初期経験値は0
       },
       hp: {
         current: maxHp,

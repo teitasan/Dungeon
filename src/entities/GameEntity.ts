@@ -91,17 +91,32 @@ export function calculateLevelUpStats(
   growthRates: { hp: number; attack: number; defense: number }
 ): CharacterStats {
   const newLevel = currentStats.level + 1;
-  const newMaxHp = Math.floor(currentStats.maxHp * growthRates.hp);
-  const hpIncrease = newMaxHp - currentStats.maxHp;
+  const newMaxHp = Math.floor(currentStats.hp.max * growthRates.hp);
+  const hpIncrease = newMaxHp - currentStats.hp.max;
   
   return {
     ...currentStats,
     level: newLevel,
-    experienceValue: newLevel * 10, // Update experience value
-    hp: currentStats.hp + hpIncrease, // Increase current HP by the same amount
-    maxHp: newMaxHp,
-    attack: Math.floor(currentStats.attack * growthRates.attack),
-    defense: Math.floor(currentStats.defense * growthRates.defense)
+    hp: {
+      current: currentStats.hp.current + hpIncrease, // Increase current HP by the same amount
+      max: newMaxHp
+    },
+    mp: {
+      current: currentStats.mp.current,
+      max: Math.floor(currentStats.mp.max * growthRates.hp) // MP also grows with HP rate
+    },
+    combat: {
+      ...currentStats.combat,
+      damageBonus: {
+        melee: Math.floor(currentStats.combat.damageBonus.melee * growthRates.attack),
+        range: Math.floor(currentStats.combat.damageBonus.range * growthRates.attack),
+        magic: Math.floor(currentStats.combat.damageBonus.magic * growthRates.attack)
+      },
+      resistance: {
+        physical: Math.floor(currentStats.combat.resistance.physical * growthRates.defense),
+        magic: Math.floor(currentStats.combat.resistance.magic * growthRates.defense)
+      }
+    }
   };
 }
 
@@ -114,7 +129,7 @@ export function canLevelUp(stats: CharacterStats, experienceTable: number[]): bo
   }
   
   const requiredExp = experienceTable[stats.level - 1]; // Array is 0-indexed, level is 1-indexed
-  return stats.experience >= requiredExp;
+  return stats.experience.current >= requiredExp;
 }
 
 /**
@@ -126,16 +141,25 @@ export function addExperience(
   experienceTable: number[],
   growthRates: { hp: number; attack: number; defense: number }
 ): { newStats: CharacterStats; leveledUp: boolean } {
-  let newStats = { ...stats, experience: stats.experience + amount };
+  // 新しい形式のCharacterStatsに対応
+  let newStats = { 
+    ...stats, 
+    experience: {
+      total: stats.experience.total + amount,
+      required: stats.experience.required,
+      current: stats.experience.current + amount
+    }
+  };
   let leveledUp = false;
 
   // Check for level up
   while (canLevelUp(newStats, experienceTable)) {
     const requiredExp = experienceTable[newStats.level - 1];
-    const remainingExp = newStats.experience - requiredExp;
+    const remainingExp = newStats.experience.current - requiredExp;
     
     newStats = calculateLevelUpStats(newStats, growthRates);
-    newStats.experience = remainingExp; // Set remaining experience after level up
+    newStats.experience.current = remainingExp; // Set remaining experience after level up
+    newStats.experience.required = experienceTable[newStats.level - 1] || 0; // Update required exp for next level
     leveledUp = true;
   }
 

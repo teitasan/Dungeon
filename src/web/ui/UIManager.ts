@@ -14,6 +14,10 @@ export class UIManager {
   private lastExpCurrent: number | null = null;
   private lastExpRequired: number | null = null;
   private lastLevel: number | null = null;
+  private expAnimationStartPercent: number | null = null;
+  private expAnimationTargetPercent: number | null = null;
+  private expAnimationStartTime: number | null = null;
+  private isLevelingUp: boolean = false;
 
   constructor(config: GameConfig, appElement: HTMLElement) {
     this.config = config;
@@ -62,7 +66,7 @@ export class UIManager {
                   <div class="stat-row level-exp-row">
                     <div class="level-circle-container">
                       <div class="level-circle">
-                        <span id="level-text" class="level-text">2</span>
+                        <span id="level-text" class="level-text">1</span>
                       </div>
                     </div>
                     <div class="exp-container">
@@ -561,8 +565,22 @@ export class UIManager {
     // 経験値が変更された場合のみ更新
     if (levelCircle && expCurrent !== undefined && expRequired !== undefined) {
       if (this.lastExpCurrent !== expCurrent || this.lastExpRequired !== expRequired) {
-        const progress = (expCurrent / expRequired) * 100;
-        levelCircle.style.setProperty('--progress', `${progress}%`);
+        // レベルアップ判定：初回ロード時は除外し、必要経験値が大幅に増加した場合のみ
+        const isInitialLoad = this.lastExpRequired === null;
+        const requiredExpIncreased = !isInitialLoad && expRequired > (this.lastExpRequired || 0);
+        const willLevelUp = requiredExpIncreased;
+        
+        if (isInitialLoad) {
+          // 初回ロード時：アニメーションなしで直接設定
+          const expRatio = Math.max(0, Math.min(1, expCurrent / expRequired));
+          const progressPercent = expRatio * 100;
+          levelCircle.style.setProperty('--progress', `${progressPercent}%`);
+        } else {
+          // 通常時：アニメーション開始
+          this.startExpAnimation(expCurrent, expRequired, levelCircle, willLevelUp);
+        }
+        
+        // 値を更新
         this.lastExpCurrent = expCurrent;
         this.lastExpRequired = expRequired;
       }
@@ -731,6 +749,114 @@ export class UIManager {
   updateDamageDisplay(deltaTime: number, dungeonManager: any): void {
     if (this.damageDisplayManager) {
       this.damageDisplayManager.update(deltaTime, dungeonManager);
+    }
+  }
+
+  /**
+   * 経験値アニメーションを開始
+   */
+  private startExpAnimation(targetExp: number, requiredExp: number, levelCircle: HTMLElement, willLevelUp: boolean): void {
+    // 既存のアニメーションをクリア
+    this.expAnimationStartPercent = null;
+    this.expAnimationTargetPercent = null;
+    this.expAnimationStartTime = null;
+    this.isLevelingUp = false;
+
+    // 現在のバーの進行状況を取得
+    const currentProgress = levelCircle.style.getPropertyValue('--progress');
+    const currentPercent = currentProgress ? parseFloat(currentProgress.replace('%', '')) : 0;
+    
+    if (willLevelUp) {
+      // レベルアップ時：現在の位置から100%までアニメーション
+      this.expAnimationStartPercent = currentPercent;
+      this.expAnimationTargetPercent = 100;
+      this.isLevelingUp = true; // レベルアップフラグを設定
+    } else {
+      // 通常時：現在の位置から新しい経験値までアニメーション
+      const targetPercent = (targetExp / requiredExp) * 100;
+      this.expAnimationStartPercent = currentPercent;
+      this.expAnimationTargetPercent = targetPercent;
+      this.isLevelingUp = false;
+    }
+    
+    this.expAnimationStartTime = Date.now();
+
+    console.log(`[UIManager] 経験値アニメーション開始: ${this.expAnimationStartPercent}% → ${this.expAnimationTargetPercent}% (${targetExp}/${requiredExp}) レベルアップ: ${willLevelUp}`);
+
+    // アニメーション実行
+    this.executeExpAnimation(levelCircle);
+  }
+
+  /**
+   * 経験値アニメーションを実行
+   */
+  private executeExpAnimation(levelCircle: HTMLElement): void {
+    if (this.expAnimationStartPercent === null || this.expAnimationTargetPercent === null || this.expAnimationStartTime === null) {
+      return;
+    }
+
+    const now = Date.now();
+    const elapsed = now - this.expAnimationStartTime;
+    // 10%毎に0.3秒（300ms）掛かるように計算、最大1秒に制限
+    const percentDiff = Math.abs(this.expAnimationTargetPercent - this.expAnimationStartPercent);
+    const duration = Math.min((percentDiff / 10) * 300, 1000); // 10%毎に300ms、最大1秒
+    const progress = Math.min(elapsed / duration, 1);
+
+    // イージング関数（ease-out）
+    const easeOut = 1 - Math.pow(1 - progress, 3);
+    
+    // パーセンテージを補間
+    const progressPercent = this.expAnimationStartPercent + (this.expAnimationTargetPercent - this.expAnimationStartPercent) * easeOut;
+    
+    // レベルアップ時の特別な処理
+    if (this.isLevelingUp && progressPercent >= 100) {
+      // 100%で一旦停止してレベルアップアニメーション
+      levelCircle.style.setProperty('--progress', '100%');
+      levelCircle.classList.add('level-up');
+      
+      // 光るアニメーション完了後に新しいレベルのアニメーションを開始
+      setTimeout(() => {
+        levelCircle.classList.remove('level-up');
+        
+        // バーを0%にリセット
+        levelCircle.style.setProperty('--progress', '0%');
+        
+        // 残り経験値がある場合は、新しいレベルでアニメーション開始
+        const remainingExp = this.lastExpCurrent || 0;
+        const newRequiredExp = this.lastExpRequired || 1;
+        const remainingPercent = (remainingExp / newRequiredExp) * 100;
+        
+        if (remainingPercent > 0) {
+          // 新しいレベルでのアニメーション開始
+          this.expAnimationStartPercent = 0;
+          this.expAnimationTargetPercent = remainingPercent;
+          this.expAnimationStartTime = Date.now();
+          this.isLevelingUp = false;
+          this.executeExpAnimation(levelCircle);
+        } else {
+          // 残り経験値がない場合は完了
+          this.expAnimationStartPercent = null;
+          this.expAnimationTargetPercent = null;
+          this.expAnimationStartTime = null;
+          this.isLevelingUp = false;
+        }
+      }, 200); // 0.2秒後に新しいレベルのアニメーション開始
+      
+      return;
+    }
+    
+    // 通常のアニメーション
+    levelCircle.style.setProperty('--progress', `${progressPercent}%`);
+
+    // アニメーション継続
+    if (progress < 1) {
+      requestAnimationFrame(() => this.executeExpAnimation(levelCircle));
+    } else {
+      // アニメーション完了
+      this.expAnimationStartPercent = null;
+      this.expAnimationTargetPercent = null;
+      this.expAnimationStartTime = null;
+      this.isLevelingUp = false;
     }
   }
 

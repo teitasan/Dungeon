@@ -225,16 +225,17 @@ a {
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: conic-gradient(from 0deg, #f4d03f 0%, #f4d03f var(--progress, 0%), #2d1b0e var(--progress, 0%), #2d1b0e 100%);
+  background: conic-gradient(from 0deg, #dbae5e 0%, #dbae5e var(--progress, 0%), #2d1b0e var(--progress, 0%), #2d1b0e 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  border: 2px solid #8b7355;
+  border: 1px solid #8b7355;
   box-shadow: 
     0 0 4px rgba(244, 208, 63, 0.4),
     inset 0 0 4px rgba(244, 208, 63, 0.3);
   filter: brightness(1.0) contrast(1.1);
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .level-circle::before {
@@ -246,7 +247,36 @@ a {
   background: #303030;
   border: 2px solid #8b7355;
   z-index: 1;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* レベルアップ時の特別なアニメーション */
+.level-circle.level-up {
+  animation: levelUpGlow 0.3s ease-out;
+}
+
+@keyframes levelUpGlow {
+  0% {
+    box-shadow: 
+      0 0 4px rgba(244, 208, 63, 0.4),
+      inset 0 0 4px rgba(244, 208, 63, 0.3);
+    filter: brightness(1.0) contrast(1.1);
+  }
+  50% {
+    box-shadow: 
+      0 0 20px rgba(244, 208, 63, 0.8),
+      0 0 40px rgba(244, 208, 63, 0.6),
+      inset 0 0 10px rgba(244, 208, 63, 0.5);
+    filter: brightness(1.3) contrast(1.3);
+  }
+  100% {
+    box-shadow: 
+      0 0 4px rgba(244, 208, 63, 0.4),
+      inset 0 0 4px rgba(244, 208, 63, 0.3);
+    filter: brightness(1.0) contrast(1.1);
+  }
+}
+
 
 .level-text {
   color: #ede1c6;
