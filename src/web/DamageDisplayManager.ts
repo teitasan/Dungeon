@@ -19,7 +19,7 @@ export class DamageDisplayManager implements IDamageDisplayManager {
       criticalMultiplier: 1.5,
       animationSpeed: 15, // ピクセル/秒（さらにゆっくりに）
       maxDisplays: 20,
-      bounceHeight: 8, // 飛び跳ねの高さ（ピクセル）
+      bounceHeight: 6, // 飛び跳ねの高さ（ピクセル）
       bounceDuration: 0.2, // 飛び跳ねアニメーションの持続時間（秒）- キレがある
       ...config
     };

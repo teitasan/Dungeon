@@ -576,6 +576,7 @@ export class CanvasRenderer {
     const playerAnimated = this.getAnimatedPosition(player);
     const playerTileX = Math.max(0, Math.min(dungeon.width - 1, Math.round(playerAnimated.x)));
     const playerTileY = Math.max(0, Math.min(dungeon.height - 1, Math.round(playerAnimated.y)));
+    const currentRoom = this.findRoomAt(dungeon, playerTileX, playerTileY);
 
     // 可視マップを計算（部屋ベース）
     const visible = this.computeVisibility(dungeon, player, { x: playerTileX, y: playerTileY });
@@ -584,7 +585,7 @@ export class CanvasRenderer {
     if (this.explored) {
       const px = playerTileX;
       const py = playerTileY;
-      const room = this.findRoomAt(dungeon, px, py);
+      const room = currentRoom;
       
       if (room) {
         // 部屋内なら部屋全体をマッピング
@@ -732,6 +733,20 @@ export class CanvasRenderer {
           ctx.fillRect(drawX, drawY, tileSize, tileSize);
         }
       }
+    }
+
+    if (currentRoom) {
+      this.applyRoomVisibilityCorners(ctx, currentRoom, dungeon, effectiveCamX, effectiveCamY, tileSize);
+    } else {
+      this.applyCorridorVisibilityMask(
+        ctx,
+        playerTileX,
+        playerTileY,
+        dungeon,
+        effectiveCamX,
+        effectiveCamY,
+        tileSize
+      );
     }
 
     // グリッド（薄く）
@@ -1511,6 +1526,133 @@ export class CanvasRenderer {
       this.monsterVisionActive = false;
       this.activeEffectsFloor = null;
     }
+  }
+
+  private applyRoomVisibilityCorners(
+    ctx: CanvasRenderingContext2D,
+    room: Room,
+    dungeon: Dungeon,
+    effectiveCamX: number,
+    effectiveCamY: number,
+    tileSize: number
+  ): void {
+    if (this.remillaActive) return;
+
+    const left = room.x - 1;
+    const top = room.y - 1;
+    const right = room.x + room.width;
+    const bottom = room.y + room.height;
+
+    const clampedLeft = Math.max(0, left);
+    const clampedTop = Math.max(0, top);
+    const clampedRight = Math.min(dungeon.width - 1, right);
+    const clampedBottom = Math.min(dungeon.height - 1, bottom);
+
+    if (clampedRight < clampedLeft || clampedBottom < clampedTop) return;
+
+    const widthTiles = clampedRight - clampedLeft + 1;
+    const heightTiles = clampedBottom - clampedTop + 1;
+
+    if (widthTiles < 2 || heightTiles < 2) return;
+
+    const rectX = (clampedLeft - effectiveCamX - 0.5) * tileSize;
+    const rectY = (clampedTop - effectiveCamY - 0.5) * tileSize;
+    const rectWidth = widthTiles * tileSize;
+    const rectHeight = heightTiles * tileSize;
+    const radius = Math.min(tileSize, rectWidth * 0.5, rectHeight * 0.5);
+
+    this.applyRoundedVisibilityMask(ctx, rectX, rectY, rectWidth, rectHeight, radius, 0.3);
+  }
+
+  private applyCorridorVisibilityMask(
+    ctx: CanvasRenderingContext2D,
+    playerTileX: number,
+    playerTileY: number,
+    dungeon: Dungeon,
+    effectiveCamX: number,
+    effectiveCamY: number,
+    tileSize: number
+  ): void {
+    if (this.remillaActive) return;
+
+    const left = Math.max(0, playerTileX - 1);
+    const top = Math.max(0, playerTileY - 1);
+    const right = Math.min(dungeon.width - 1, playerTileX + 1);
+    const bottom = Math.min(dungeon.height - 1, playerTileY + 1);
+
+    if (right < left || bottom < top) return;
+
+    const widthTiles = right - left + 1;
+    const heightTiles = bottom - top + 1;
+
+    if (widthTiles < 2 || heightTiles < 2) return;
+
+    const rectX = (left - effectiveCamX - 0.5) * tileSize;
+    const rectY = (top - effectiveCamY - 0.5) * tileSize;
+    const rectWidth = widthTiles * tileSize;
+    const rectHeight = heightTiles * tileSize;
+    const radius = Math.min(rectWidth, rectHeight) * 0.5;
+
+    this.applyRoundedVisibilityMask(ctx, rectX, rectY, rectWidth, rectHeight, radius, 0.3);
+  }
+
+  private applyRoundedVisibilityMask(
+    ctx: CanvasRenderingContext2D,
+    rectX: number,
+    rectY: number,
+    rectWidth: number,
+    rectHeight: number,
+    radius: number,
+    alpha: number
+  ): void {
+    if (rectWidth <= 0 || rectHeight <= 0) return;
+    const r = Math.max(0, Math.min(radius, Math.min(rectWidth, rectHeight) / 2));
+    if (r === 0) return;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#000000';
+
+    const rightX = rectX + rectWidth;
+    const bottomY = rectY + rectHeight;
+
+    // 左上
+    ctx.beginPath();
+    ctx.moveTo(rectX, rectY);
+    ctx.lineTo(rectX, rectY + r);
+    ctx.arc(rectX + r, rectY + r, r, Math.PI, 1.5 * Math.PI, false);
+    ctx.lineTo(rectX, rectY);
+    ctx.closePath();
+    ctx.fill();
+
+    // 右上
+    ctx.beginPath();
+    ctx.moveTo(rightX, rectY);
+    ctx.lineTo(rightX - r, rectY);
+    ctx.arc(rightX - r, rectY + r, r, 1.5 * Math.PI, 0, false);
+    ctx.lineTo(rightX, rectY);
+    ctx.closePath();
+    ctx.fill();
+
+    // 左下
+    ctx.beginPath();
+    ctx.moveTo(rectX, bottomY);
+    ctx.lineTo(rectX + r, bottomY);
+    ctx.arc(rectX + r, bottomY - r, r, 0.5 * Math.PI, Math.PI, false);
+    ctx.lineTo(rectX, bottomY);
+    ctx.closePath();
+    ctx.fill();
+
+    // 右下
+    ctx.beginPath();
+    ctx.moveTo(rightX, bottomY);
+    ctx.lineTo(rightX, bottomY - r);
+    ctx.arc(rightX - r, bottomY - r, r, 0, 0.5 * Math.PI, false);
+    ctx.lineTo(rightX, bottomY);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
   }
 
   // 簡易カラー合成
