@@ -458,9 +458,9 @@ export class SpecialRoomSystem {
     
     // Scale monster stats based on floor level
     const levelMultiplier = 1 + (floorLevel - 1) * 0.1;
-    monster.stats.hp.current = Math.floor(monster.stats.hp.current * levelMultiplier);
-    monster.stats.hp.max = monster.stats.hp.current;
-    monster.stats.level = Math.max(1, floorLevel);
+    monster.characterStats.hp.current = Math.floor(monster.characterStats.hp.current * levelMultiplier);
+    monster.characterStats.hp.max = monster.characterStats.hp.current;
+    monster.characterStats.level = Math.max(1, floorLevel);
     
     // Scale basic stats
     monster.characterInfo.stats.STR = Math.floor(monster.characterInfo.stats.STR * levelMultiplier);

@@ -75,6 +75,10 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
     this.setFlag('description', description || '');
   }
 
+  public get name(): string {
+    return this.characterInfo.name;
+  }
+
   /**
    * Add drop table entry
    */
@@ -141,7 +145,8 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
    * Get experience value based on level
    */
   getExperienceValue(): number {
-    return this.stats.experienceValue;
+    const experienceValue = (this.flags as any)?.experienceValue;
+    return typeof experienceValue === 'number' ? experienceValue : 0;
   }
 
 

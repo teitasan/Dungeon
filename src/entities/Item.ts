@@ -2,7 +2,7 @@
  * Item entity implementation
  */
 
-import { Position, Component, EntityFlags, EntityStats } from '../types/core';
+import { Position, Component, EntityFlags } from '../types/core';
 import { Item, ItemType, ItemEffect, EquipmentStats, ItemFlags } from '../types/entities';
 import { BaseGameEntity } from './GameEntity.js';
 
@@ -32,16 +32,7 @@ export class ItemEntity extends BaseGameEntity implements Item {
     components: Component[] = [],
     flags: EntityFlags = {}
   ) {
-    // Items have minimal stats - mainly for consistency with GameEntity interface
-    const itemStats: EntityStats = {
-      hp: 1,
-      maxHp: 1,
-      attack: 0,
-      defense: 0,
-      evasionRate: 0
-    };
-    
-    super(id, position, itemStats, components, flags);
+    super(id, position, components, flags);
     
     this.name = name;
     this.itemType = itemType;

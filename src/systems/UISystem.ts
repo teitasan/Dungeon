@@ -288,8 +288,8 @@ export class UISystem {
    * Simple status summary for a player
    */
   getPlayerStatusLine(player: PlayerEntity): string {
-    const hp = `${player.stats.hp}/${player.stats.maxHp}`;
-    const lvl = `Lv${player.stats.level}`;
+    const hp = `${player.characterStats.hp.current}/${player.characterStats.hp.max}`;
+    const lvl = `Lv${player.characterStats.level}`;
     const hunger = `Hun${player.hunger}/${player.maxHunger}`;
     return `${player.name} ${lvl} HP:${hp} ${hunger}`;
   }

@@ -3,7 +3,7 @@
  */
 
 // Base entity
-export { BaseGameEntity, createDefaultCharacterStats, createDefaultCharacterAttributes, calculateLevelUpStats, canLevelUp, addExperience } from './GameEntity';
+export { BaseGameEntity, createDefaultCharacterAttributes, calculateLevelUpStats, canLevelUp, addExperience } from './GameEntity';
 
 // Specific entities
 export { PlayerEntity } from './Player';

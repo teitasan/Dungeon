@@ -5,6 +5,7 @@
 
 import { GameEntity, Position, Component, EntityFlags } from '../types/core';
 import { Player, Monster, Companion, Item, CharacterAttributes, StatusEffect } from '../types/entities';
+import type { CharacterStats } from '../types/character-info';
 
 /**
  * Base GameEntity implementation

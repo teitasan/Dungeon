@@ -47,6 +47,10 @@ export class PlayerEntity extends BaseGameEntity implements Player {
     this.statusEffects = [];
   }
 
+  public get name(): string {
+    return this.characterInfo.name;
+  }
+
   /**
    * Add item to inventory
    */
@@ -149,7 +153,7 @@ export class PlayerEntity extends BaseGameEntity implements Player {
 
     // Apply bonuses (this is simplified - real implementation would need base stat tracking)
     this.characterStats.combat.damageBonus.melee += totalAttackBonus;
-    this.characterStats.combat.resistance.melee += totalDefenseBonus;
+    this.characterStats.combat.resistance.physical += totalDefenseBonus;
   }
 
   /**

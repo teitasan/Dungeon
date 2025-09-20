@@ -530,7 +530,7 @@ export class MultipleDungeonSystem {
   private checkUnlockCondition(condition: UnlockCondition, player: PlayerEntity): boolean {
     switch (condition.type) {
       case 'level':
-        return player.stats.level >= (condition.value as number);
+        return player.characterStats.level >= (condition.value as number);
       
       case 'clear-dungeon':
         const dungeonProgress = this.getPlayerProgress(condition.value as string);
@@ -564,7 +564,10 @@ export class MultipleDungeonSystem {
           break;
         
         case 'experience':
-          player.stats.experience += (reward.amount || 0);
+          if (reward.amount) {
+            player.characterStats.experience.total += reward.amount;
+            player.characterStats.experience.current += reward.amount;
+          }
           break;
         
         case 'item':

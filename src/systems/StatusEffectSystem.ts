@@ -2,7 +2,8 @@
  * Status effect system for handling poison, confusion, paralysis, and bind
  */
 
-import { GameEntity, CharacterStats, StatusEffect } from '../types/entities';
+import { GameEntity, StatusEffect } from '../types/entities';
+import type { CharacterStats } from '../types/character-info';
 
 // Status effect configuration
 export interface StatusEffectConfig {
@@ -237,18 +238,46 @@ export class StatusEffectSystem {
     switch (action.type) {
       case 'damage':
         value = (action.value || 1) * intensity;
-        const stats = entity.stats as CharacterStats;
-        const actualDamage = Math.min(value, stats.hp);
-        stats.hp = Math.max(0, stats.hp - value);
-        message = `${entity.id} takes ${actualDamage} damage from ${effect.type}`;
+        {
+          const stats = this.getCharacterStats(entity);
+          if (stats) {
+            const actualDamage = Math.min(value, stats.hp.current);
+            stats.hp.current = Math.max(0, stats.hp.current - value);
+            message = `${entity.id} takes ${actualDamage} damage from ${effect.type}`;
+          } else {
+            const legacyStats = (entity as any).stats;
+            if (legacyStats && typeof legacyStats.hp === 'number') {
+              const actualDamage = Math.min(value, legacyStats.hp);
+              legacyStats.hp = Math.max(0, legacyStats.hp - value);
+              message = `${entity.id} takes ${actualDamage} damage from ${effect.type}`;
+            } else {
+              success = false;
+              message = `${entity.id} cannot receive damage from ${effect.type}`;
+            }
+          }
+        }
         break;
 
       case 'heal':
         value = (action.value || 1) * intensity;
-        const healStats = entity.stats as CharacterStats;
-        const actualHeal = Math.min(value, healStats.maxHp - healStats.hp);
-        healStats.hp = Math.min(healStats.maxHp, healStats.hp + value);
-        message = `${entity.id} recovers ${actualHeal} HP from ${effect.type}`;
+        {
+          const stats = this.getCharacterStats(entity);
+          if (stats) {
+            const actualHeal = Math.min(value, stats.hp.max - stats.hp.current);
+            stats.hp.current = Math.min(stats.hp.max, stats.hp.current + value);
+            message = `${entity.id} recovers ${actualHeal} HP from ${effect.type}`;
+          } else {
+            const legacyStats = (entity as any).stats;
+            if (legacyStats && typeof legacyStats.hp === 'number' && typeof legacyStats.maxHp === 'number') {
+              const actualHeal = Math.min(value, legacyStats.maxHp - legacyStats.hp);
+              legacyStats.hp = Math.min(legacyStats.maxHp, legacyStats.hp + value);
+              message = `${entity.id} recovers ${actualHeal} HP from ${effect.type}`;
+            } else {
+              success = false;
+              message = `${entity.id} cannot be healed by ${effect.type}`;
+            }
+          }
+        }
         break;
 
       case 'prevent-action':
@@ -282,6 +311,13 @@ export class StatusEffectSystem {
       value,
       message
     };
+  }
+
+  private getCharacterStats(entity: GameEntity): CharacterStats | null {
+    if ('characterStats' in entity) {
+      return (entity as any).characterStats as CharacterStats;
+    }
+    return null;
   }
 
   /**

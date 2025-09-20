@@ -7,6 +7,8 @@ import { GameEntity, Position, Component, EntityFlags } from './core';
 import { MovementPattern, MovementPatternConfig } from './ai';
 import { CharacterInfo, CharacterStats } from './character-info';
 
+export type { CharacterInfo, CharacterStats } from './character-info';
+
 // Re-export core GameEntity for modules that import from types/entities
 export { GameEntity } from './core';
 

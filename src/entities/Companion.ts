@@ -51,6 +51,10 @@ export class CompanionEntity extends BaseGameEntity implements Companion {
     this.statusEffects = [];
   }
 
+  public get name(): string {
+    return this.characterInfo.name;
+  }
+
   /**
    * Set behavior mode
    */
@@ -131,8 +135,8 @@ export class CompanionEntity extends BaseGameEntity implements Companion {
     });
 
     // Apply bonuses (simplified - real implementation would need base stat tracking)
-    this.stats.attack += totalAttackBonus;
-    this.stats.defense += totalDefenseBonus;
+    this.characterStats.combat.damageBonus.melee += totalAttackBonus;
+    this.characterStats.combat.resistance.physical += totalDefenseBonus;
   }
 
   /**
@@ -176,6 +180,7 @@ export class CompanionEntity extends BaseGameEntity implements Companion {
    * Get experience value based on level (companions can be defeated)
    */
   getExperienceValue(): number {
-    return this.stats.experienceValue;
+    const experienceValue = (this.flags as any)?.experienceValue;
+    return typeof experienceValue === 'number' ? experienceValue : 0;
   }
 }

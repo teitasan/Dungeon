@@ -4,6 +4,7 @@
 
 import { GameEntity } from '../types/entities';
 import { PlayerEntity } from '../entities/Player';
+import type { CharacterStats } from '../types/character-info';
 
 // Hunger configuration
 export interface HungerConfig {
@@ -169,27 +170,40 @@ export class HungerSystem {
    * Get entity HP (handles both old and new character systems)
    */
   private getEntityHp(entity: GameEntity): number {
-    // Check if entity has new character system
-    if ('characterInfo' in entity && 'stats' in entity) {
-      const characterEntity = entity as any;
-      return characterEntity.stats.hp.current;
+    const characterStats = this.getCharacterStats(entity);
+    if (characterStats) {
+      return characterStats.hp.current;
     }
-    // Fallback to old system
-    return entity.stats.hp;
+
+    const legacyStats = (entity as any).stats;
+    if (legacyStats && typeof legacyStats.hp === 'number') {
+      return legacyStats.hp;
+    }
+
+    return 0;
   }
 
   /**
    * Set entity HP (handles both old and new character systems)
    */
   private setEntityHp(entity: GameEntity, hp: number): void {
-    // Check if entity has new character system
-    if ('characterInfo' in entity && 'stats' in entity) {
-      const characterEntity = entity as any;
-      characterEntity.stats.hp.current = Math.max(0, hp);
-    } else {
-      // Fallback to old system
-      entity.stats.hp = Math.max(0, hp);
+    const characterStats = this.getCharacterStats(entity);
+    if (characterStats) {
+      characterStats.hp.current = Math.max(0, hp);
+      return;
     }
+
+    const legacyStats = (entity as any).stats;
+    if (legacyStats && typeof legacyStats.hp === 'number') {
+      legacyStats.hp = Math.max(0, hp);
+    }
+  }
+
+  private getCharacterStats(entity: GameEntity): CharacterStats | null {
+    if ('characterStats' in entity) {
+      return (entity as any).characterStats as CharacterStats;
+    }
+    return null;
   }
 
   /**
@@ -355,9 +369,9 @@ export class HungerSystem {
 
       case 'healing-over-time':
         const healing = effect.value || this.config.recoveryAmount;
-        const stats = player.stats as CharacterStats;
-        const actualHealing = Math.min(healing, stats.maxHp - stats.hp);
-        stats.hp = Math.min(stats.maxHp, stats.hp + healing);
+        const stats = player.characterStats;
+        const actualHealing = Math.min(healing, stats.hp.max - stats.hp.current);
+        stats.hp.current = Math.min(stats.hp.max, stats.hp.current + healing);
         message = `${player.name} recovers ${actualHealing} HP from being well-fed`;
         break;
 
