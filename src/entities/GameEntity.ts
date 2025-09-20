@@ -13,6 +13,8 @@ import type { CharacterStats } from '../types/character-info';
 export class BaseGameEntity implements GameEntity {
   public id: string;
   public position: Position;
+  public visualPosition: Position;
+  public isMoving: boolean;
   public components: Component[];
   public flags: EntityFlags;
 
@@ -24,6 +26,8 @@ export class BaseGameEntity implements GameEntity {
   ) {
     this.id = id;
     this.position = position;
+    this.visualPosition = { x: position.x, y: position.y }; // 初期値は論理位置と同じ
+    this.isMoving = false; // 初期値は移動中ではない
     this.components = components;
     this.flags = flags;
   }
@@ -33,6 +37,35 @@ export class BaseGameEntity implements GameEntity {
    */
   setPosition(position: Position): void {
     this.position = position;
+    // 視覚的位置も即座に更新（移動完了時）
+    this.visualPosition = { x: position.x, y: position.y };
+  }
+
+  /**
+   * Update visual position for smooth movement
+   */
+  setVisualPosition(position: Position): void {
+    this.visualPosition = position;
+  }
+
+  /**
+   * Start movement animation (set intermediate position)
+   */
+  startMovement(fromPosition: Position, toPosition: Position): void {
+    this.isMoving = true;
+    // 中間位置を設定（1 → 1.5 → 2 の 1.5 の部分）
+    this.visualPosition = {
+      x: fromPosition.x + (toPosition.x - fromPosition.x) * 0.5,
+      y: fromPosition.y + (toPosition.y - fromPosition.y) * 0.5
+    };
+  }
+
+  /**
+   * Complete movement animation (set final position)
+   */
+  completeMovement(): void {
+    this.isMoving = false;
+    this.visualPosition = { x: this.position.x, y: this.position.y };
   }
 
   /**

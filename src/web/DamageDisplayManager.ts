@@ -13,12 +13,14 @@ export class DamageDisplayManager implements IDamageDisplayManager {
 
   constructor(config?: Partial<DamageDisplayConfig>) {
     this.config = {
-      duration: 1000, // 1秒間表示
+      duration: 600, // 0.6秒間表示
       fontSize: 12, // 12pxに調整
       fontFamily: 'PixelMplus12', // ステータス表示と同じフォントに統一
       criticalMultiplier: 1.5,
       animationSpeed: 15, // ピクセル/秒（さらにゆっくりに）
       maxDisplays: 20,
+      bounceHeight: 8, // 飛び跳ねの高さ（ピクセル）
+      bounceDuration: 0.2, // 飛び跳ねアニメーションの持続時間（秒）- キレがある
       ...config
     };
   }
@@ -114,17 +116,31 @@ export class DamageDisplayManager implements IDamageDisplayManager {
       const elapsed = currentTime - display.timestamp;
       const progress = elapsed / display.duration;
       
-      // 上向きに移動するアニメーション（0.2秒後から開始）
-      const animationStartTime = 0.2; // 0.2秒後からアニメーション開始
-      const animationProgress = Math.max(0, (progress - animationStartTime) / (1 - animationStartTime));
-      display.animationOffset = animationProgress * this.config.animationSpeed;
+      // 飛び跳ねるアニメーション（SFC時代のファイナルファンタジー風）
+      const bounceProgress = Math.min(1, elapsed / (this.config.bounceDuration * 1000));
+      
+      // 放物線を描くアニメーション（上に跳ね上がって元の位置に戻る）
+      // 0から1の間で、0.5の時点で最高点に到達
+      let bounceOffset = 0;
+      if (bounceProgress < 1) {
+        // 0.4秒間の飛び跳ねアニメーション（キレがある動き）
+        const t = bounceProgress;
+        // より鋭い放物線（y = -6x^2 + 6x）でキレのある動き
+        const parabola = -6 * t * t + 6 * t;
+        bounceOffset = parabola * this.config.bounceHeight;
+      } else {
+        // 0.4秒後は元の位置（0）で固定（残り0.6秒間）
+        bounceOffset = 0;
+      }
+      
+      display.animationOffset = bounceOffset;
       
       // フェードイン効果（最初の0.1秒で透明から表示）
       const fadeInEndTime = 0.1; // 0.1秒でフェードイン完了
       const fadeInProgress = Math.min(1, progress / fadeInEndTime);
       
-      // フェードアウト効果（0.7秒後から開始、0.3秒で完全に消える）
-      const fadeOutStartTime = 0.7; // 70%の時点からフェードアウト開始
+      // フェードアウト効果（0.8秒後から開始、0.2秒で完全に消える）
+      const fadeOutStartTime = 0.8; // 80%の時点からフェードアウト開始
       const fadeOutProgress = Math.max(0, (progress - fadeOutStartTime) / (1 - fadeOutStartTime));
       
       // フェードインとフェードアウトを組み合わせ
@@ -168,7 +184,7 @@ export class DamageDisplayManager implements IDamageDisplayManager {
       // 同じ位置の表示オフセットを適用（縦方向のみずらす）
       const positionOffset = display.positionOffset || 0;
       const screenX = baseX;
-      const screenY = baseY - (positionOffset * 15); // 15ピクセルずつ上にずらす
+      const screenY = baseY - (positionOffset * 6); // 6ピクセルずつ上にずらす
       
       // 画面範囲外の場合は描画をスキップ
       if (screenX < -100 || screenX > 1000 || screenY < -100 || screenY > 1000) {
@@ -200,7 +216,7 @@ export class DamageDisplayManager implements IDamageDisplayManager {
       // 縁取りを描画（黒2px）
       ctx.fillStyle = '#000000';
       const text = display.isMiss ? 'MISS' : display.damage.toString();
-      const outlineWidth = 2;
+      const outlineWidth = 1;
       
       for (let x = -outlineWidth; x <= outlineWidth; x++) {
         for (let y = -outlineWidth; y <= outlineWidth; y++) {

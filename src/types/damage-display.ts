@@ -25,6 +25,8 @@ export interface DamageDisplayConfig {
   criticalMultiplier: number; // クリティカル時のサイズ倍率
   animationSpeed: number; // アニメーション速度
   maxDisplays: number; // 同時表示可能な最大数
+  bounceHeight: number; // 飛び跳ねの高さ（ピクセル）
+  bounceDuration: number; // 飛び跳ねアニメーションの持続時間（秒）
 }
 
 export interface DamageDisplayManager {
