@@ -80,7 +80,13 @@ export class GameLoop {
       this.inputHandler.processMovement();
     }
     
-    this.systems.renderer.render(current, this.systems.dungeonManager, this.player, this.systems.turnSystem);
+    this.systems.renderer.render(
+      current,
+      this.systems.dungeonManager,
+      this.player,
+      this.systems.turnSystem,
+      deltaTime
+    );
   }
 
   public handlePlayerAction(action: 'move' | 'attack' | 'item', success: boolean, data?: any): void {

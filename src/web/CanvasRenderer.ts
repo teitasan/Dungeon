@@ -1,11 +1,21 @@
 import type { Dungeon, Room } from '../types/dungeon';
 import type { PlayerEntity } from '../entities/Player';
+import type { GameEntity } from '../types/entities';
 import type { GameConfig } from '../types/core.js';
 import { DungeonManager } from '../dungeon/DungeonManager.js';
 import { TilesetManager } from './TilesetManager.js';
 import { ItemSpriteManager } from './ItemSpriteManager.js';
 import { MonsterSpriteManager } from './MonsterSpriteManager.js';
 import { DamageDisplayManager } from './DamageDisplayManager.js';
+
+type MovementAnimation = {
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  elapsed: number;
+  duration: number;
+};
 
 export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D;
@@ -29,6 +39,9 @@ export class CanvasRenderer {
   private transitionInProgress: boolean = false;
   private turnCursorActive: boolean = false; // Cキー方向転換中のカーソル表示フラグ
   private damageDisplayManager: DamageDisplayManager | null = null;
+  private readonly movementAnimationDuration = 120; // ms
+  private movementAnimations = new Map<string, MovementAnimation>();
+  private lastEntityPositions = new Map<string, { x: number; y: number }>();
 
   constructor(private canvas: HTMLCanvasElement, tileSize: number = 20) {
     const ctx = canvas.getContext('2d');
@@ -432,7 +445,98 @@ export class CanvasRenderer {
     this.damageDisplayManager = manager;
   }
 
-  render(dungeon: Dungeon, dungeonManager: DungeonManager, player: PlayerEntity, turnSystem?: any): void {
+  private getEntityId(entity: GameEntity): string | null {
+    const id = (entity as any)?.id;
+    if (id === undefined || id === null) return null;
+    return String(id);
+  }
+
+  private updateMovementAnimations(entities: GameEntity[], deltaTime: number): void {
+    const seen = new Set<string>();
+
+    for (const entity of entities) {
+      const id = this.getEntityId(entity);
+      if (!id) continue;
+      seen.add(id);
+
+      const current = { x: entity.position.x, y: entity.position.y };
+      const last = this.lastEntityPositions.get(id);
+
+      if (!last) {
+        this.lastEntityPositions.set(id, { ...current });
+        continue;
+      }
+
+      const moved = last.x !== current.x || last.y !== current.y;
+      if (moved) {
+        const deltaX = current.x - last.x;
+        const deltaY = current.y - last.y;
+        const maxDelta = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+
+        if (maxDelta <= 1) {
+          this.movementAnimations.set(id, {
+            startX: last.x,
+            startY: last.y,
+            endX: current.x,
+            endY: current.y,
+            elapsed: 0,
+            duration: this.movementAnimationDuration
+          });
+        } else {
+          this.movementAnimations.delete(id);
+        }
+
+        this.lastEntityPositions.set(id, { ...current });
+      }
+    }
+
+    for (const id of Array.from(this.lastEntityPositions.keys())) {
+      if (!seen.has(id)) {
+        this.lastEntityPositions.delete(id);
+        this.movementAnimations.delete(id);
+      }
+    }
+
+    for (const [id, animation] of Array.from(this.movementAnimations.entries())) {
+      animation.elapsed = Math.min(animation.elapsed + deltaTime, animation.duration);
+      if (animation.elapsed >= animation.duration) {
+        this.movementAnimations.delete(id);
+      }
+    }
+  }
+
+  private applyMovementEasing(progress: number): number {
+    const clamped = Math.max(0, Math.min(1, progress));
+    return clamped;
+  }
+
+  private getAnimatedPosition(entity: GameEntity): { x: number; y: number } {
+    const id = this.getEntityId(entity);
+    if (!id) {
+      return { x: entity.position.x, y: entity.position.y };
+    }
+
+    const animation = this.movementAnimations.get(id);
+    if (!animation) {
+      return { x: entity.position.x, y: entity.position.y };
+    }
+
+    const progress = animation.duration === 0 ? 1 : animation.elapsed / animation.duration;
+    const eased = this.applyMovementEasing(progress);
+
+    return {
+      x: animation.startX + (animation.endX - animation.startX) * eased,
+      y: animation.startY + (animation.endY - animation.startY) * eased
+    };
+  }
+
+  render(
+    dungeon: Dungeon,
+    dungeonManager: DungeonManager,
+    player: PlayerEntity,
+    turnSystem?: any,
+    deltaTime: number = 16.67
+  ): void {
     const { ctx, tileSize } = this;
 
     // フロア移動中の暗転表示中は通常の描画をスキップ
@@ -462,13 +566,24 @@ export class CanvasRenderer {
       }
     }
 
+    const entities = dungeonManager.getAllEntities();
+    const trackedEntities: GameEntity[] = [...entities];
+    if (!trackedEntities.some(e => (e as any)?.id === player.id)) {
+      trackedEntities.push(player);
+    }
+    this.updateMovementAnimations(trackedEntities, deltaTime);
+
+    const playerAnimated = this.getAnimatedPosition(player);
+    const playerTileX = Math.max(0, Math.min(dungeon.width - 1, Math.round(playerAnimated.x)));
+    const playerTileY = Math.max(0, Math.min(dungeon.height - 1, Math.round(playerAnimated.y)));
+
     // 可視マップを計算（部屋ベース）
-    const visible = this.computeVisibility(dungeon, player);
+    const visible = this.computeVisibility(dungeon, player, { x: playerTileX, y: playerTileY });
 
     // explored 更新（ミニマップ用）
     if (this.explored) {
-      const px = player.position.x;
-      const py = player.position.y;
+      const px = playerTileX;
+      const py = playerTileY;
       const room = this.findRoomAt(dungeon, px, py);
       
       if (room) {
@@ -522,16 +637,21 @@ export class CanvasRenderer {
     ctx.fillStyle = '#0c0c0f';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
+    const cameraOffsetTilesX = playerAnimated.x - player.position.x;
+    const cameraOffsetTilesY = playerAnimated.y - player.position.y;
+    const effectiveCamX = camX + cameraOffsetTilesX;
+    const effectiveCamY = camY + cameraOffsetTilesY;
+
     // タイル描画（ビューポート内のみ）
-    // 0.5マス分のオフセットを考慮して描画範囲を2マス拡張
-    for (let vy = 0; vy < viewH + 2; vy++) {
+    // 補間による最大1タイル分のずれを吸収するため、上下左右に1タイル分拡張
+    for (let vy = -1; vy < viewH + 3; vy++) {
       const y = camY + vy;
-      for (let vx = 0; vx < viewW + 2; vx++) {
+      for (let vx = -1; vx < viewW + 3; vx++) {
         const x = camX + vx;
         
-        // 描画位置を0.5マス分ずらす
-        const drawX = (vx - 0.5) * tileSize;
-        const drawY = (vy - 0.5) * tileSize;
+        // 補間オフセットを含めた描画位置
+        const drawX = (vx - cameraOffsetTilesX - 0.5) * tileSize;
+        const drawY = (vy - cameraOffsetTilesY - 0.5) * tileSize;
 
         // マップ範囲外の場合は壁として描画
         if (y < 0 || y >= dungeon.height || x < 0 || x >= dungeon.width) {
@@ -617,21 +737,22 @@ export class CanvasRenderer {
     // グリッド（薄く）
     ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 1;
-    for (let x = 0; x <= viewW + 2; x++) {
+    for (let x = -1; x <= viewW + 2; x++) {
+      const lineX = (x - cameraOffsetTilesX - 0.5) * tileSize + 0.5;
       ctx.beginPath();
-      ctx.moveTo((x - 0.5) * tileSize + 0.5, 0);
-      ctx.lineTo((x - 0.5) * tileSize + 0.5, (viewH + 2) * tileSize);
+      ctx.moveTo(lineX, (-1 - cameraOffsetTilesY - 0.5) * tileSize);
+      ctx.lineTo(lineX, (viewH + 2 - cameraOffsetTilesY - 0.5) * tileSize);
       ctx.stroke();
     }
-    for (let y = 0; y <= viewH + 2; y++) {
+    for (let y = -1; y <= viewH + 2; y++) {
+      const lineY = (y - cameraOffsetTilesY - 0.5) * tileSize + 0.5;
       ctx.beginPath();
-      ctx.moveTo(0, (y - 0.5) * tileSize + 0.5);
-      ctx.lineTo((viewW + 2) * tileSize, (y - 0.5) * tileSize + 0.5);
+      ctx.moveTo((-1 - cameraOffsetTilesX - 0.5) * tileSize, lineY);
+      ctx.lineTo((viewW + 2 - cameraOffsetTilesX - 0.5) * tileSize, lineY);
       ctx.stroke();
     }
 
     // エンティティ描画（可視セルのみ）
-    const entities = dungeonManager.getAllEntities();
     for (const entity of entities) {
       const ex = entity.position.x;
       const ey = entity.position.y;
@@ -639,8 +760,9 @@ export class CanvasRenderer {
       if (!visible[ey][ex]) continue;
       if ((entity as any).id === player.id) continue;
       
-      const gx = (ex - camX - 0.5) * tileSize;
-      const gy = (ey - camY - 0.5) * tileSize;
+      const animatedPosition = this.getAnimatedPosition(entity);
+      const gx = (animatedPosition.x - effectiveCamX - 0.5) * tileSize;
+      const gy = (animatedPosition.y - effectiveCamY - 0.5) * tileSize;
       
       try {
         // アイテムの場合はスプライトで描画
@@ -681,8 +803,8 @@ export class CanvasRenderer {
 
     // プレイヤー（円形）
     try {
-      const px = (player.position.x - camX - 0.5) * tileSize + tileSize / 2;
-      const py = (player.position.y - camY - 0.5) * tileSize + tileSize / 2;
+      const px = (playerAnimated.x - effectiveCamX - 0.5) * tileSize + tileSize / 2;
+      const py = (playerAnimated.y - effectiveCamY - 0.5) * tileSize + tileSize / 2;
       const playerDirection = (player as any).direction || 'south';
     
     // 円形を描画
@@ -766,47 +888,62 @@ export class CanvasRenderer {
       const v = dirVec[playerDirection] || { x: 0, y: 1 };
       const tx = player.position.x + v.x;
       const ty = player.position.y + v.y;
-    if (tx >= 0 && tx < dungeon.width && ty >= 0 && ty < dungeon.height) {
-      const baseX = (tx - camX - 0.5) * tileSize;
-      const baseY = (ty - camY - 0.5) * tileSize;
-      const cx2 = baseX + tileSize / 2;
-      const cy2 = baseY + tileSize / 2;
-      const len = Math.hypot(v.x, v.y) || 1;
-      const nx = v.x / len;
-      const ny = v.y / len;
-      const size = tileSize * 0.16; // 三角のサイズ（リクエストにより半分に）
-      // 正三角形の3頂点（向きベクトルを±120度回転）
-      const rot = (x: number, y: number, ang: number) => ({
-        x: x * Math.cos(ang) - y * Math.sin(ang),
-        y: x * Math.sin(ang) + y * Math.cos(ang)
-      });
-      const v1 = { x: nx, y: ny };
-      const v2 = rot(nx, ny, (2 * Math.PI) / 3);
-      const v3 = rot(nx, ny, -(2 * Math.PI) / 3);
-      const p1 = { x: cx2 + v1.x * size, y: cy2 + v1.y * size };
-      const p2 = { x: cx2 + v2.x * size, y: cy2 + v2.y * size };
-      const p3 = { x: cx2 + v3.x * size, y: cy2 + v3.y * size };
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.lineTo(p3.x, p3.y);
-      ctx.closePath();
-      ctx.fillStyle = '#ffffff'; // 白一色のシンプルな三角
-      ctx.fill();
-    }
+      if (tx >= 0 && tx < dungeon.width && ty >= 0 && ty < dungeon.height) {
+        const baseX = (tx - effectiveCamX - 0.5) * tileSize;
+        const baseY = (ty - effectiveCamY - 0.5) * tileSize;
+        const cx2 = baseX + tileSize / 2;
+        const cy2 = baseY + tileSize / 2;
+        const len = Math.hypot(v.x, v.y) || 1;
+        const nx = v.x / len;
+        const ny = v.y / len;
+        const size = tileSize * 0.16; // 三角のサイズ（リクエストにより半分に）
+        // 正三角形の3頂点（向きベクトルを±120度回転）
+        const rot = (x: number, y: number, ang: number) => ({
+          x: x * Math.cos(ang) - y * Math.sin(ang),
+          y: x * Math.sin(ang) + y * Math.cos(ang)
+        });
+        const v1 = { x: nx, y: ny };
+        const v2 = rot(nx, ny, (2 * Math.PI) / 3);
+        const v3 = rot(nx, ny, -(2 * Math.PI) / 3);
+        const p1 = { x: cx2 + v1.x * size, y: cy2 + v1.y * size };
+        const p2 = { x: cx2 + v2.x * size, y: cy2 + v2.y * size };
+        const p3 = { x: cx2 + v3.x * size, y: cy2 + v3.y * size };
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.lineTo(p3.x, p3.y);
+        ctx.closePath();
+        ctx.fillStyle = '#ffffff'; // 白一色のシンプルな三角
+        ctx.fill();
+      }
     }
     
     } catch (error) {
       // エラーが発生しても描画を続行
     }
 
-    // ミニマップ描画
-    this.renderMinimap(dungeon, visible, camX, camY, viewW, viewH, player);
-
-    // ダメージ表示を描画（カメラ位置を考慮）
+    // ダメージ表示を描画（補間オフセットを考慮）
     if (this.damageDisplayManager) {
-      this.damageDisplayManager.render(ctx, tileSize, camX, camY, dungeonManager);
+      this.damageDisplayManager.render(
+        ctx,
+        tileSize,
+        effectiveCamX,
+        effectiveCamY,
+        dungeonManager
+      );
     }
+
+    // ミニマップ描画
+    this.renderMinimap(
+      dungeon,
+      visible,
+      camX,
+      camY,
+      viewW,
+      viewH,
+      player,
+      { x: playerTileX, y: playerTileY }
+    );
   }
 
   private computeCamera(dungeon: Dungeon, player: PlayerEntity): [number, number, number, number] {
@@ -827,12 +964,18 @@ export class CanvasRenderer {
     return null;
   }
 
-  private computeVisibility(dungeon: Dungeon, player: PlayerEntity): boolean[][] {
+  private computeVisibility(
+    dungeon: Dungeon,
+    player: PlayerEntity,
+    overridePosition?: { x: number; y: number }
+  ): boolean[][] {
     const w = dungeon.width;
     const h = dungeon.height;
     const visible: boolean[][] = Array.from({ length: h }, () => Array<boolean>(w).fill(false));
-    const px = player.position.x;
-    const py = player.position.y;
+    const pxFloat = overridePosition?.x ?? player.position.x;
+    const pyFloat = overridePosition?.y ?? player.position.y;
+    const px = Math.max(0, Math.min(w - 1, Math.round(pxFloat)));
+    const py = Math.max(0, Math.min(h - 1, Math.round(pyFloat)));
 
     const room = this.findRoomAt(dungeon, px, py);
     if (room) {
@@ -894,7 +1037,8 @@ export class CanvasRenderer {
     camY: number,
     viewW: number,
     viewH: number,
-    player: PlayerEntity
+    player: PlayerEntity,
+    playerTileOverride?: { x: number; y: number }
   ): void {
     if (!this.minimapCtx || !this.minimapCanvas) return;
     const mm = this.minimapCtx;
@@ -1110,8 +1254,10 @@ export class CanvasRenderer {
 
     // プレイヤー点
     mm.fillStyle = this.gameConfig?.ui.minimap.playerColor || 'rgba(88, 166, 255, 0.9)'; // プレイヤー（半透明）
-    const x = offsetX + player.position.x * mmTile;
-    const y = offsetY + player.position.y * mmTile;
+    const playerTileX = playerTileOverride ? playerTileOverride.x : player.position.x;
+    const playerTileY = playerTileOverride ? playerTileOverride.y : player.position.y;
+    const x = offsetX + playerTileX * mmTile;
+    const y = offsetY + playerTileY * mmTile;
     this.drawMinimapIcon(mm, x, y);
 
       // 特殊効果による表示（千里眼・透視効果）
