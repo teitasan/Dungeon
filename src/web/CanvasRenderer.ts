@@ -42,6 +42,7 @@ export class CanvasRenderer {
   private readonly movementAnimationDuration = 120; // ms
   private movementAnimations = new Map<string, MovementAnimation>();
   private lastEntityPositions = new Map<string, { x: number; y: number }>();
+  private readonly simpleOverlayRadiusTiles = 1.5;
 
   constructor(private canvas: HTMLCanvasElement, tileSize: number = 20) {
     const ctx = canvas.getContext('2d');
@@ -574,17 +575,17 @@ export class CanvasRenderer {
     this.updateMovementAnimations(trackedEntities, deltaTime);
 
     const playerAnimated = this.getAnimatedPosition(player);
-    const playerTileX = Math.max(0, Math.min(dungeon.width - 1, Math.round(playerAnimated.x)));
-    const playerTileY = Math.max(0, Math.min(dungeon.height - 1, Math.round(playerAnimated.y)));
+    const playerTileX = Math.max(0, Math.min(dungeon.width - 1, Math.round(player.position.x)));
+    const playerTileY = Math.max(0, Math.min(dungeon.height - 1, Math.round(player.position.y)));
     const currentRoom = this.findRoomAt(dungeon, playerTileX, playerTileY);
+    const inRoom = currentRoom !== null;
 
-    // 可視マップを計算（部屋ベース）
-    const visible = this.computeVisibility(dungeon, player, { x: playerTileX, y: playerTileY });
+    const visible = inRoom
+      ? this.computeRoomVisibilityMap(dungeon, currentRoom!, 1)
+      : this.computeSimpleVisibilityMap(dungeon, playerAnimated, this.simpleOverlayRadiusTiles);
 
     // explored 更新（ミニマップ用）
     if (this.explored) {
-      const px = playerTileX;
-      const py = playerTileY;
       const room = currentRoom;
       
       if (room) {
@@ -612,20 +613,23 @@ export class CanvasRenderer {
         const roomArea = room.width * room.height;
         const surroundingArea = (room.width + 2) * (room.height + 2) - roomArea;
       } else {
-        // 通路内：プレイヤー位置と周囲8マス
-        this.explored[py][px] = true;
+        // 通路内：プレイヤーアイコン中心から半径1.5タイル以内
+        const radiusTiles = 1.5;
+        const radiusSq = radiusTiles * radiusTiles;
+        const centerX = playerAnimated.x;
+        const centerY = playerAnimated.y;
+        const minX = Math.max(0, Math.floor(centerX - radiusTiles));
+        const maxX = Math.min(dungeon.width - 1, Math.ceil(centerX + radiusTiles));
+        const minY = Math.max(0, Math.floor(centerY - radiusTiles));
+        const maxY = Math.min(dungeon.height - 1, Math.ceil(centerY + radiusTiles));
 
-        // 周囲8マスを可視にする
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            if (dx === 0 && dy === 0) continue; // プレイヤー位置はスキップ
-
-            const cx = px + dx;
-            const cy = py + dy;
-
-            if (cx < 0 || cx >= dungeon.width || cy < 0 || cy >= dungeon.height) continue;
-
-            this.explored[cy][cx] = true;
+        for (let y = minY; y <= maxY; y++) {
+          for (let x = minX; x <= maxX; x++) {
+            const dx = x - centerX;
+            const dy = y - centerY;
+            if (dx * dx + dy * dy <= radiusSq) {
+              this.explored[y][x] = true;
+            }
           }
         }
       }
@@ -677,7 +681,6 @@ export class CanvasRenderer {
         }
 
         const cell = dungeon.cells[y][x];
-        const isVisible = visible[y][x];
 
         // マップチップ画像がある場合はそれを使用、なければ色塗り
         if (this.tilesetManager && this.tilesetManager.isLoaded()) {
@@ -702,13 +705,7 @@ export class CanvasRenderer {
             );
           }
           
-          // 見えていない範囲は少し暗くする
-          if (!isVisible) {
-            ctx.globalAlpha = 0.3;
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(drawX, drawY, tileSize, tileSize);
-            ctx.globalAlpha = 1.0;
-          }
+          // 単純オーバーレイ方式ではタイル単位の暗転を行わない
         } else {
           // フォールバック: 色塗り
           let color = '#15151b'; // wall
@@ -735,20 +732,6 @@ export class CanvasRenderer {
       }
     }
 
-    if (currentRoom) {
-      this.applyRoomVisibilityCorners(ctx, currentRoom, dungeon, effectiveCamX, effectiveCamY, tileSize);
-    } else {
-      this.applyCorridorVisibilityMask(
-        ctx,
-        playerTileX,
-        playerTileY,
-        dungeon,
-        effectiveCamX,
-        effectiveCamY,
-        tileSize
-      );
-    }
-
     // グリッド（薄く）
     ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 1;
@@ -767,13 +750,15 @@ export class CanvasRenderer {
       ctx.stroke();
     }
 
+    const clipApplied = !inRoom && this.beginVisibilityClip(ctx, playerAnimated, effectiveCamX, effectiveCamY, tileSize);
+
     // エンティティ描画（可視セルのみ）
     for (const entity of entities) {
-      const ex = entity.position.x;
-      const ey = entity.position.y;
+      const ex = Math.round(entity.position.x);
+      const ey = Math.round(entity.position.y);
       if (ex < camX || ex >= camX + viewW + 2 || ey < camY || ey >= camY + viewH + 2) continue;
-      if (!visible[ey][ex]) continue;
       if ((entity as any).id === player.id) continue;
+      if (!visible[ey] || !visible[ey][ex]) continue;
       
       const animatedPosition = this.getAnimatedPosition(entity);
       const gx = (animatedPosition.x - effectiveCamX - 0.5) * tileSize;
@@ -948,6 +933,17 @@ export class CanvasRenderer {
       );
     }
 
+    if (clipApplied) {
+      ctx.restore();
+    }
+
+    // 暗幕は最後に重ねて視界外の要素を覆う
+    if (inRoom && currentRoom) {
+      this.applyRoomOverlay(ctx, currentRoom, dungeon, effectiveCamX, effectiveCamY, tileSize, 1);
+    } else {
+      this.applySimpleOverlay(ctx, playerAnimated, effectiveCamX, effectiveCamY, tileSize);
+    }
+
     // ミニマップ描画
     this.renderMinimap(
       dungeon,
@@ -979,70 +975,110 @@ export class CanvasRenderer {
     return null;
   }
 
-  private computeVisibility(
+  private computeSimpleVisibilityMap(
     dungeon: Dungeon,
-    player: PlayerEntity,
-    overridePosition?: { x: number; y: number }
+    center: { x: number; y: number },
+    radiusTiles: number
   ): boolean[][] {
     const w = dungeon.width;
     const h = dungeon.height;
     const visible: boolean[][] = Array.from({ length: h }, () => Array<boolean>(w).fill(false));
-    const pxFloat = overridePosition?.x ?? player.position.x;
-    const pyFloat = overridePosition?.y ?? player.position.y;
-    const px = Math.max(0, Math.min(w - 1, Math.round(pxFloat)));
-    const py = Math.max(0, Math.min(h - 1, Math.round(pyFloat)));
 
-    const room = this.findRoomAt(dungeon, px, py);
-    if (room) {
-      // 部屋内なら部屋全体可視
-      let roomVisibleCount = 0;
-      for (let y = room.y; y < room.y + room.height; y++) {
-        for (let x = room.x; x < room.x + room.width; x++) {
-          visible[y][x] = true;
-          roomVisibleCount++;
-        }
-      }
-      
-      // 部屋の周囲1マスまで可視にする（通路・壁問わず）
-      let surroundingVisibleCount = 0;
-      for (let y = room.y - 1; y < room.y + room.height + 1; y++) {
-        for (let x = room.x - 1; x < room.x + room.width + 1; x++) {
-          // 部屋の範囲外のみチェック
-          const isOutsideRoom = (x < room.x || x >= room.x + room.width || y < room.y || y >= room.y + room.height);
-          if (!isOutsideRoom) continue;
-          
-          // 境界チェック
-          if (x < 0 || x >= w || y < 0 || y >= h) continue;
-          
-          // 通路・壁問わず可視にする
-          visible[y][x] = true;
-          surroundingVisibleCount++;
-        }
-      }
-      
-    } else {
-      // 廊下内：プレイヤー位置と周囲8マス
+    const radius = Math.max(0, radiusTiles);
+    const radiusSq = radius * radius;
+    if (radiusSq === 0) {
+      const px = Math.max(0, Math.min(w - 1, Math.round(center.x)));
+      const py = Math.max(0, Math.min(h - 1, Math.round(center.y)));
       visible[py][px] = true;
+      return visible;
+    }
 
-      // 周囲8マスを可視にする
-      let visibleCount = 1; // プレイヤー位置
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          if (dx === 0 && dy === 0) continue; // プレイヤー位置はスキップ
+    const minX = Math.max(0, Math.floor(center.x - radius - 1));
+    const maxX = Math.min(w - 1, Math.ceil(center.x + radius + 1));
+    const minY = Math.max(0, Math.floor(center.y - radius - 1));
+    const maxY = Math.min(h - 1, Math.ceil(center.y + radius + 1));
 
-          const cx = px + dx;
-          const cy = py + dy;
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const tileMinX = x - 0.5;
+        const tileMaxX = x + 0.5;
+        const tileMinY = y - 0.5;
+        const tileMaxY = y + 0.5;
 
-          if (cx < 0 || cx >= w || cy < 0 || cy >= h) continue;
-
-          visible[cy][cx] = true;
-          visibleCount++;
+        const nearestX = Math.max(tileMinX, Math.min(center.x, tileMaxX));
+        const nearestY = Math.max(tileMinY, Math.min(center.y, tileMaxY));
+        const dx = nearestX - center.x;
+        const dy = nearestY - center.y;
+        if (dx * dx + dy * dy <= radiusSq) {
+          visible[y][x] = true;
         }
       }
-      
     }
 
     return visible;
+  }
+
+  private computeRoomVisibilityMap(
+    dungeon: Dungeon,
+    room: Room,
+    padding: number
+  ): boolean[][] {
+    const w = dungeon.width;
+    const h = dungeon.height;
+    const visible: boolean[][] = Array.from({ length: h }, () => Array<boolean>(w).fill(false));
+
+    const pad = Math.max(0, Math.floor(padding));
+    const left = Math.max(0, room.x - pad);
+    const top = Math.max(0, room.y - pad);
+    const right = Math.min(w - 1, room.x + room.width + pad - 1);
+    const bottom = Math.min(h - 1, room.y + room.height + pad - 1);
+
+    for (let y = top; y <= bottom; y++) {
+      for (let x = left; x <= right; x++) {
+        visible[y][x] = true;
+      }
+    }
+
+    return visible;
+  }
+
+  private beginVisibilityClip(
+    ctx: CanvasRenderingContext2D,
+    playerPosition: { x: number; y: number },
+    effectiveCamX: number,
+    effectiveCamY: number,
+    tileSize: number
+  ): boolean {
+    if (this.remillaActive) return false;
+
+    const { centerX, centerY, radiusPixels } = this.computeOverlayCircle(
+      playerPosition,
+      effectiveCamX,
+      effectiveCamY,
+      tileSize
+    );
+
+    if (radiusPixels <= 0) {
+      return false;
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radiusPixels, 0, Math.PI * 2, false);
+    ctx.clip();
+    return true;
+  }
+
+  private computeOverlayCircle(
+    playerPosition: { x: number; y: number },
+    effectiveCamX: number,
+    effectiveCamY: number,
+    tileSize: number
+  ): { centerX: number; centerY: number; radiusPixels: number } {
+    const centerX = (playerPosition.x - effectiveCamX - 0.5) * tileSize + tileSize / 2;
+    const centerY = (playerPosition.y - effectiveCamY - 0.5) * tileSize + tileSize / 2;
+    const radiusPixels = this.simpleOverlayRadiusTiles * tileSize;
+    return { centerX, centerY, radiusPixels };
   }
 
   private renderMinimap(
@@ -1507,8 +1543,15 @@ export class CanvasRenderer {
       return;
     }
     
-    // 可視性を計算してミニマップを更新
-    const visible = this.computeVisibility(currentDungeon, player);
+    // 単純オーバーレイの可視マップを用いてミニマップを更新
+    const playerPos = { x: player.position.x, y: player.position.y };
+    const playerTileX = Math.max(0, Math.min(currentDungeon.width - 1, Math.round(player.position.x)));
+    const playerTileY = Math.max(0, Math.min(currentDungeon.height - 1, Math.round(player.position.y)));
+    const room = this.findRoomAt(currentDungeon, playerTileX, playerTileY);
+
+    const visible = room
+      ? this.computeRoomVisibilityMap(currentDungeon, room, 1)
+      : this.computeSimpleVisibilityMap(currentDungeon, playerPos, this.simpleOverlayRadiusTiles);
     const [camX, camY, viewW, viewH] = this.computeCamera(currentDungeon, player);
     this.renderMinimap(currentDungeon, visible, camX, camY, viewW, viewH, player);
   }
@@ -1528,132 +1571,98 @@ export class CanvasRenderer {
     }
   }
 
-  private applyRoomVisibilityCorners(
+  /**
+   * 壁などを無視した単純な円形オーバーレイ（暗幕に穴を開けるだけ）
+   */
+  private applySimpleOverlay(
+    ctx: CanvasRenderingContext2D,
+    playerPosition: { x: number; y: number },
+    effectiveCamX: number,
+    effectiveCamY: number,
+    tileSize: number
+  ): void {
+    if (this.remillaActive) return;
+
+    const { centerX, centerY, radiusPixels } = this.computeOverlayCircle(
+      playerPosition,
+      effectiveCamX,
+      effectiveCamY,
+      tileSize
+    );
+
+    if (radiusPixels <= 0) return;
+
+    const canvasWidth = this.canvas.width;
+    const canvasHeight = this.canvas.height;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.beginPath();
+    ctx.rect(0, 0, canvasWidth, canvasHeight);
+    ctx.moveTo(centerX + radiusPixels, centerY);
+    ctx.arc(centerX, centerY, radiusPixels, 0, Math.PI * 2, true);
+    ctx.fill('evenodd');
+    ctx.restore();
+  }
+
+  private applyRoomOverlay(
     ctx: CanvasRenderingContext2D,
     room: Room,
     dungeon: Dungeon,
     effectiveCamX: number,
     effectiveCamY: number,
-    tileSize: number
+    tileSize: number,
+    padding: number
   ): void {
     if (this.remillaActive) return;
 
-    const left = room.x - 1;
-    const top = room.y - 1;
-    const right = room.x + room.width;
-    const bottom = room.y + room.height;
+    const pad = Math.max(0, Math.floor(padding));
+    const left = Math.max(0, room.x - pad);
+    const top = Math.max(0, room.y - pad);
+    const right = Math.min(dungeon.width - 1, room.x + room.width + pad - 1);
+    const bottom = Math.min(dungeon.height - 1, room.y + room.height + pad - 1);
 
-    const clampedLeft = Math.max(0, left);
-    const clampedTop = Math.max(0, top);
-    const clampedRight = Math.min(dungeon.width - 1, right);
-    const clampedBottom = Math.min(dungeon.height - 1, bottom);
-
-    if (clampedRight < clampedLeft || clampedBottom < clampedTop) return;
-
-    const widthTiles = clampedRight - clampedLeft + 1;
-    const heightTiles = clampedBottom - clampedTop + 1;
-
-    if (widthTiles < 2 || heightTiles < 2) return;
-
-    const rectX = (clampedLeft - effectiveCamX - 0.5) * tileSize;
-    const rectY = (clampedTop - effectiveCamY - 0.5) * tileSize;
-    const rectWidth = widthTiles * tileSize;
-    const rectHeight = heightTiles * tileSize;
-    const radius = Math.min(tileSize, rectWidth * 0.5, rectHeight * 0.5);
-
-    this.applyRoundedVisibilityMask(ctx, rectX, rectY, rectWidth, rectHeight, radius, 0.3);
-  }
-
-  private applyCorridorVisibilityMask(
-    ctx: CanvasRenderingContext2D,
-    playerTileX: number,
-    playerTileY: number,
-    dungeon: Dungeon,
-    effectiveCamX: number,
-    effectiveCamY: number,
-    tileSize: number
-  ): void {
-    if (this.remillaActive) return;
-
-    const left = Math.max(0, playerTileX - 1);
-    const top = Math.max(0, playerTileY - 1);
-    const right = Math.min(dungeon.width - 1, playerTileX + 1);
-    const bottom = Math.min(dungeon.height - 1, playerTileY + 1);
-
-    if (right < left || bottom < top) return;
-
-    const widthTiles = right - left + 1;
-    const heightTiles = bottom - top + 1;
-
-    if (widthTiles < 2 || heightTiles < 2) return;
+    if (right < left || bottom < top) {
+      return;
+    }
 
     const rectX = (left - effectiveCamX - 0.5) * tileSize;
     const rectY = (top - effectiveCamY - 0.5) * tileSize;
-    const rectWidth = widthTiles * tileSize;
-    const rectHeight = heightTiles * tileSize;
-    const radius = Math.min(rectWidth, rectHeight) * 0.5;
+    const rectWidth = (right - left + 1) * tileSize;
+    const rectHeight = (bottom - top + 1) * tileSize;
 
-    this.applyRoundedVisibilityMask(ctx, rectX, rectY, rectWidth, rectHeight, radius, 0.3);
-  }
+    const canvasWidth = this.canvas.width;
+    const canvasHeight = this.canvas.height;
 
-  private applyRoundedVisibilityMask(
-    ctx: CanvasRenderingContext2D,
-    rectX: number,
-    rectY: number,
-    rectWidth: number,
-    rectHeight: number,
-    radius: number,
-    alpha: number
-  ): void {
-    if (rectWidth <= 0 || rectHeight <= 0) return;
-    const r = Math.max(0, Math.min(radius, Math.min(rectWidth, rectHeight) / 2));
-    if (r === 0) return;
+    const radius = Math.min(tileSize, rectWidth * 0.5, rectHeight * 0.5);
 
     ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = '#000000';
-
-    const rightX = rectX + rectWidth;
-    const bottomY = rectY + rectHeight;
-
-    // 左上
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
     ctx.beginPath();
-    ctx.moveTo(rectX, rectY);
-    ctx.lineTo(rectX, rectY + r);
-    ctx.arc(rectX + r, rectY + r, r, Math.PI, 1.5 * Math.PI, false);
-    ctx.lineTo(rectX, rectY);
-    ctx.closePath();
-    ctx.fill();
-
-    // 右上
-    ctx.beginPath();
-    ctx.moveTo(rightX, rectY);
-    ctx.lineTo(rightX - r, rectY);
-    ctx.arc(rightX - r, rectY + r, r, 1.5 * Math.PI, 0, false);
-    ctx.lineTo(rightX, rectY);
-    ctx.closePath();
-    ctx.fill();
-
-    // 左下
-    ctx.beginPath();
-    ctx.moveTo(rectX, bottomY);
-    ctx.lineTo(rectX + r, bottomY);
-    ctx.arc(rectX + r, bottomY - r, r, 0.5 * Math.PI, Math.PI, false);
-    ctx.lineTo(rectX, bottomY);
-    ctx.closePath();
-    ctx.fill();
-
-    // 右下
-    ctx.beginPath();
-    ctx.moveTo(rightX, bottomY);
-    ctx.lineTo(rightX, bottomY - r);
-    ctx.arc(rightX - r, bottomY - r, r, 0, 0.5 * Math.PI, false);
-    ctx.lineTo(rightX, bottomY);
-    ctx.closePath();
-    ctx.fill();
-
+    ctx.rect(0, 0, canvasWidth, canvasHeight);
+    this.addRoundedRectPath(ctx, rectX, rectY, rectWidth, rectHeight, radius);
+    ctx.fill('evenodd');
     ctx.restore();
   }
+
+  private addRoundedRectPath(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ): void {
+    const r = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
+
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + width, y, x + width, y + height, r);
+    ctx.arcTo(x + width, y + height, x, y + height, r);
+    ctx.arcTo(x, y + height, x, y, r);
+    ctx.arcTo(x, y, x + width, y, r);
+    ctx.closePath();
+  }
+
 
   // 簡易カラー合成
   private mix(hex1: string, hex2: string, ratio: number): string {
