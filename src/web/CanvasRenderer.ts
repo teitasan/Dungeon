@@ -580,9 +580,11 @@ export class CanvasRenderer {
     const currentRoom = this.findRoomAt(dungeon, playerTileX, playerTileY);
     const inRoom = currentRoom !== null;
 
-    const visible = inRoom
-      ? this.computeRoomVisibilityMap(dungeon, currentRoom!, 1)
-      : this.computeSimpleVisibilityMap(dungeon, playerAnimated, this.simpleOverlayRadiusTiles);
+    const visible = this.remillaActive
+      ? this.createFullVisibilityMap(dungeon)
+      : (inRoom
+        ? this.computeRoomVisibilityMap(dungeon, currentRoom!, 1)
+        : this.computeSimpleVisibilityMap(dungeon, playerAnimated, this.simpleOverlayRadiusTiles));
 
     // explored 更新（ミニマップ用）
     if (this.explored) {
@@ -750,7 +752,13 @@ export class CanvasRenderer {
       ctx.stroke();
     }
 
-    const clipApplied = !inRoom && this.beginVisibilityClip(ctx, playerAnimated, effectiveCamX, effectiveCamY, tileSize);
+    const clipApplied = !inRoom && !this.remillaActive && this.beginVisibilityClip(
+      ctx,
+      playerAnimated,
+      effectiveCamX,
+      effectiveCamY,
+      tileSize
+    );
 
     // エンティティ描画（可視セルのみ）
     for (const entity of entities) {
@@ -938,7 +946,9 @@ export class CanvasRenderer {
     }
 
     // 暗幕は最後に重ねて視界外の要素を覆う
-    if (inRoom && currentRoom) {
+    if (this.remillaActive) {
+      // レミーラ中は暗幕を表示しない
+    } else if (inRoom && currentRoom) {
       this.applyRoomOverlay(ctx, currentRoom, dungeon, effectiveCamX, effectiveCamY, tileSize, 1);
     } else {
       this.applySimpleOverlay(ctx, playerAnimated, effectiveCamX, effectiveCamY, tileSize);
@@ -1016,6 +1026,10 @@ export class CanvasRenderer {
     }
 
     return visible;
+  }
+
+  private createFullVisibilityMap(dungeon: Dungeon): boolean[][] {
+    return Array.from({ length: dungeon.height }, () => Array<boolean>(dungeon.width).fill(true));
   }
 
   private computeRoomVisibilityMap(
@@ -1549,9 +1563,11 @@ export class CanvasRenderer {
     const playerTileY = Math.max(0, Math.min(currentDungeon.height - 1, Math.round(player.position.y)));
     const room = this.findRoomAt(currentDungeon, playerTileX, playerTileY);
 
-    const visible = room
-      ? this.computeRoomVisibilityMap(currentDungeon, room, 1)
-      : this.computeSimpleVisibilityMap(currentDungeon, playerPos, this.simpleOverlayRadiusTiles);
+    const visible = this.remillaActive
+      ? this.createFullVisibilityMap(currentDungeon)
+      : (room
+        ? this.computeRoomVisibilityMap(currentDungeon, room, 1)
+        : this.computeSimpleVisibilityMap(currentDungeon, playerPos, this.simpleOverlayRadiusTiles));
     const [camX, camY, viewW, viewH] = this.computeCamera(currentDungeon, player);
     this.renderMinimap(currentDungeon, visible, camX, camY, viewW, viewH, player);
   }
