@@ -411,7 +411,7 @@ export class UIManager {
         const li = document.createElement('li');
         const label = item.name || item.id;
         li.textContent = `${index === this.selectedInventoryIndex ? '▶ ' : '  '}${label}`;
-        li.style.fontFamily = 'PixelMplus12, ui-monospace, Menlo, monospace';
+        li.style.fontFamily = 'var(--font-stack-primary)';
         // 反転ハイライトは行わず、カーソル（▶）のみで選択を示す
         list.appendChild(li);
       });

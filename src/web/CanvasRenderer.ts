@@ -933,17 +933,6 @@ export class CanvasRenderer {
       // エラーが発生しても描画を続行
     }
 
-    // ダメージ表示を描画（補間オフセットを考慮）
-    if (this.damageDisplayManager) {
-      this.damageDisplayManager.render(
-        ctx,
-        tileSize,
-        effectiveCamX,
-        effectiveCamY,
-        dungeonManager
-      );
-    }
-
     if (clipApplied) {
       ctx.restore();
     }
@@ -953,6 +942,17 @@ export class CanvasRenderer {
       this.applyRoomOverlay(ctx, currentRoom, dungeon, effectiveCamX, effectiveCamY, tileSize, 1);
     } else {
       this.applySimpleOverlay(ctx, playerAnimated, effectiveCamX, effectiveCamY, tileSize);
+    }
+
+    // ダメージ表示を暗幕の上に描画（補間オフセットを考慮）
+    if (this.damageDisplayManager) {
+      this.damageDisplayManager.render(
+        ctx,
+        tileSize,
+        effectiveCamX,
+        effectiveCamY,
+        dungeonManager
+      );
     }
 
     // ミニマップ描画

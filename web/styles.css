@@ -37,6 +37,31 @@
 }
 
 /* ========================================
+   フォント変数定義
+   ======================================== */
+:root {
+  /* フォントファミリー */
+  --font-primary: 'PixelMplus12';
+  --font-secondary: 'PixelMplus12';
+  --font-fallback: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  
+  /* フォントスタック */
+  --font-stack-primary: var(--font-primary), var(--font-fallback);
+  --font-stack-secondary: var(--font-secondary), var(--font-fallback);
+  
+  /* フォントサイズ */
+  --font-size-small: 10px;
+  --font-size-medium: 12px;
+  --font-size-large: 16px;
+  --font-size-xlarge: 20px;
+  --font-size-xxlarge: 24px;
+  
+  /* フォントウェイト */
+  --font-weight-normal: normal;
+  --font-weight-bold: bold;
+}
+
+/* ========================================
    基本スタイル
    ======================================== */
 html, body { 
@@ -44,7 +69,7 @@ html, body {
   margin: 0; 
   background: blue; 
   color: #eee; 
-  font-family: 'PixelMplus12', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; 
+  font-family: var(--font-stack-primary); 
   letter-spacing: 2px; /* 文字間隔をグローバルに設定 */
   user-select: none;
   cursor: default;
@@ -54,7 +79,7 @@ html, body {
    共通ウィンドウスタイル
    ======================================== */
 .window-frame {
-  background: #1a1a1a; /* 統一された背景色 */
+  background: #303030; /* ステータスウインドウに合わせた背景色 */
   border-radius: 8px;
   box-sizing: border-box;
   padding: 4px; /* pudding4（padding 4px）に統一 */
@@ -280,10 +305,14 @@ a {
 
 .level-text {
   color: #ede1c6;
-  text-shadow: 1px 1px 0px #000;
-  font-family: 'PixelMplus12', monospace;
+  text-shadow: 
+    -0.5px -0.5px 0 #8c7251,
+    0.5px -0.5px 0 #8c7251,
+    -0.5px 0.5px 0 #8c7251,
+    0.5px 0.5px 0 #8c7251;
+  font-family: var(--font-stack-primary);
   font-size: 18px;
-  font-weight: bold;
+  font-weight: var(--font-weight-bold);
   z-index: 2;
   position: relative;
   text-align: center;
@@ -310,8 +339,12 @@ a {
 .stat-label {
   color: #ede1c6; /* クリーム色のラベル */
   min-width: 60px;
-  text-shadow: 1px 1px 0px #000;
-  font-family: 'PixelMplus12', monospace;
+  text-shadow: 
+    -0.5px -0.5px 0 #8c7251,
+    0.5px -0.5px 0 #8c7251,
+    -0.5px 0.5px 0 #8c7251,
+    0.5px 0.5px 0 #8c7251;
+  font-family: var(--font-stack-primary);
 }
 
 .stat-bar {
@@ -355,15 +388,23 @@ a {
   min-width: 50px;
   text-align: right;
   margin-left: auto;
-  text-shadow: 1px 1px 0px #000;
-  font-family: 'PixelMplus12', monospace;
+  text-shadow: 
+    -0.5px -0.5px 0 #8c7251,
+    0.5px -0.5px 0 #8c7251,
+    -0.5px 0.5px 0 #8c7251,
+    0.5px 0.5px 0 #8c7251;
+  font-family: var(--font-stack-primary);
 }
 
 .stat-value {
   color: #ede1c6;
   text-align: right;
-  text-shadow: 1px 1px 0px #000;
-  font-family: 'PixelMplus12', monospace;
+  text-shadow: 
+    -0.5px -0.5px 0 #8c7251,
+    0.5px -0.5px 0 #8c7251,
+    -0.5px 0.5px 0 #8c7251,
+    0.5px 0.5px 0 #8c7251;
+  font-family: var(--font-stack-primary);
 }
 
 /* ペア表示の行では各カラム内でラベル左寄せ、数値右寄せ */
@@ -494,6 +535,11 @@ a {
   line-height: 1.4;
   position: relative;
   padding: 8px 15px; /* 縦8px、横15pxのパディング */
+  text-shadow: 
+    -0.5px -0.5px 0 #8c7251,
+    0.5px -0.5px 0 #8c7251,
+    -0.5px 0.5px 0 #8c7251,
+    0.5px 0.5px 0 #8c7251;
 }
 
 /* タイプライター風アニメーション */
@@ -526,11 +572,16 @@ a {
 }
 
 #inventoryModal > div {
-  background: #1a1a1a;
+  background: #303030; /* ステータスウインドウに合わせた背景色 */
   color: #eee;
   padding: 16px;
   border-radius: 10px;
   min-width: 280px;
+  text-shadow: 
+    -0.5px -0.5px 0 #8c7251,
+    0.5px -0.5px 0 #8c7251,
+    -0.5px 0.5px 0 #8c7251,
+    0.5px 0.5px 0 #8c7251;
 }
 
 #inventoryModal .title {

@@ -5,6 +5,7 @@
 
 import { DamageDisplay, DamageDisplayConfig, DamageDisplayManager as IDamageDisplayManager } from '../types/damage-display';
 import { GameEntity } from '../types/core';
+import { FontManager } from '../core/FontManager.js';
 
 export class DamageDisplayManager implements IDamageDisplayManager {
   private displays: DamageDisplay[] = [];
@@ -12,10 +13,14 @@ export class DamageDisplayManager implements IDamageDisplayManager {
   private nextId = 0;
 
   constructor(config?: Partial<DamageDisplayConfig>) {
+    // FontManagerからフォント設定を取得
+    const fontManager = FontManager.getInstance();
+    const fontFamily = fontManager ? fontManager.getCSSFontFamily() : 'PixelMplus12';
+    
     this.config = {
       duration: 600, // 0.6秒間表示
       fontSize: 12, // 12pxに調整
-      fontFamily: 'PixelMplus12', // ステータス表示と同じフォントに統一
+      fontFamily: fontFamily, // FontManagerから取得したフォント設定
       criticalMultiplier: 1.5,
       animationSpeed: 15, // ピクセル/秒（さらにゆっくりに）
       maxDisplays: 20,

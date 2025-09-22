@@ -1,3 +1,5 @@
+import { FontManager, FONTS } from '../../core/FontManager.js';
+
 type Choice = { id: string; label: string };
 
 type ChoiceResult =
@@ -67,16 +69,17 @@ export function openChoiceModal(params: {
   overlay.style.placeItems = 'center';
 
   const panel = document.createElement('div');
-  panel.style.background = '#1a1a1a';
+  panel.style.background = '#303030'; /* ステータスウインドウに合わせた背景色 */
   panel.style.color = '#eee';
   panel.style.padding = '16px';
   panel.style.borderRadius = '10px';
   panel.style.minWidth = '320px';
+  panel.style.textShadow = '-0.5px -0.5px 0 #8c7251, 0.5px -0.5px 0 #8c7251, -0.5px 0.5px 0 #8c7251, 0.5px 0.5px 0 #8c7251';
   // 枠線は付けない
 
   const header = document.createElement('div');
   header.textContent = title;
-  header.style.fontFamily = 'PixelMplus12';
+  header.style.fontFamily = FontManager.createDefault().getCSSFontFamily();
   header.style.fontWeight = '600';
   header.style.marginBottom = '8px';
   header.style.textShadow = '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000';
@@ -90,7 +93,7 @@ export function openChoiceModal(params: {
   options.forEach(opt => {
     const item = document.createElement('div');
     item.textContent = opt.label;
-    item.style.fontFamily = 'PixelMplus12';
+    item.style.fontFamily = FontManager.createDefault().getCSSFontFamily();
     item.style.padding = '8px 12px';
     item.style.borderRadius = '8px';
     item.style.width = '100%';
@@ -100,7 +103,7 @@ export function openChoiceModal(params: {
 
   const hint = document.createElement('div');
   hint.textContent = '上下キーで選択 / Z:決定 / X:キャンセル';
-  hint.style.fontFamily = 'PixelMplus12';
+  hint.style.fontFamily = FontManager.createDefault().getCSSFontFamily();
   hint.style.opacity = '0.8';
   hint.style.fontSize = '12px';
   hint.style.marginTop = '8px';

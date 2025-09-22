@@ -19,6 +19,7 @@ import { MonsterSpriteManager } from './MonsterSpriteManager.js';
 import { WebConfigLoader } from './WebConfigLoader.js';
 import { UIManager } from './ui/UIManager.js';
 import { DamageDisplayManager } from './DamageDisplayManager.js';
+import { FontManager } from '../core/FontManager.js';
 import type { Position } from '../types/core.js';
 
 // ECS統合のためのインポート - 削除済み
@@ -91,6 +92,13 @@ export class GameInitializer {
   private async createUI(config: any): Promise<UIManager> {
     const app = document.querySelector('#app') as HTMLElement;
     if (!app) throw new Error('Element not found: #app');
+    
+    // FontManagerを初期化
+    if (config.ui?.fonts) {
+      FontManager.getInstance(config.ui.fonts);
+    } else {
+      FontManager.createDefault();
+    }
     
     const uiManager = new UIManager(config, app);
     uiManager.createLayout();
