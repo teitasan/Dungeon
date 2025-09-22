@@ -652,7 +652,7 @@
   },
   "ui": {
     "fonts": {
-      "primary": "PixelMplus",
+      "primary": "PixelMplus12",
       "secondary": "PixelMplus12",
       "fallback": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
     },

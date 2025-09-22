@@ -412,56 +412,56 @@ export class GameInitializer {
   }
 
   private async addTestItems(systems: GameSystems, player: PlayerEntity, spawn: Position): Promise<void> {
-    // テスト用アイテムを初期インベントリに追加（レミーラ5個 + 透視3個 + 千里眼2個）
+    // テスト用アイテムを初期インベントリに追加（地形感知5個 + 敵感知3個 + アイテム感知2個）
     const testItems = [
       {
         id: 'scroll-remilla-1',
-        name: 'レミーラの巻物',
+        name: '地形感知の巻物',
         effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
       },
       {
         id: 'scroll-remilla-2',
-        name: 'レミーラの巻物',
+        name: '地形感知の巻物',
         effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
       },
       {
         id: 'scroll-remilla-3',
-        name: 'レミーラの巻物',
+        name: '地形感知の巻物',
         effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
       },
       {
         id: 'scroll-remilla-4',
-        name: 'レミーラの巻物',
+        name: '地形感知の巻物',
         effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
       },
       {
         id: 'scroll-remilla-5',
-        name: 'レミーラの巻物',
+        name: '地形感知の巻物',
         effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
       },
       {
         id: 'scroll-monster-vision-1',
-        name: '透視の巻物',
+        name: '敵感知の巻物',
         effect: { type: 'reveal-monsters', value: 1, description: 'フロア全体のモンスターの位置を表示' }
       },
       {
         id: 'scroll-monster-vision-2',
-        name: '透視の巻物',
+        name: '敵感知の巻物',
         effect: { type: 'reveal-monsters', value: 1, description: 'フロア全体のモンスターの位置を表示' }
       },
       {
         id: 'scroll-monster-vision-3',
-        name: '透視の巻物',
+        name: '敵感知の巻物',
         effect: { type: 'reveal-monsters', value: 1, description: 'フロア全体のモンスターの位置を表示' }
       },
       {
         id: 'scroll-clairvoyance-1',
-        name: '千里眼の巻物',
+        name: 'アイテム感知の巻物',
         effect: { type: 'reveal-items', value: 1, description: 'フロア全体のアイテムの位置を表示' }
       },
       {
         id: 'scroll-clairvoyance-2',
-        name: '千里眼の巻物',
+        name: 'アイテム感知の巻物',
         effect: { type: 'reveal-items', value: 1, description: 'フロア全体のアイテムの位置を表示' }
       }
     ];
@@ -499,7 +499,7 @@ export class GameInitializer {
     
     const renderer = new CanvasRenderer(canvas, config.ui.viewport.tileSize);
     
-    // DungeonManagerをCanvasRendererに設定（千里眼効果用）
+    // DungeonManagerをCanvasRendererに設定（アイテム感知効果用）
     renderer.setDungeonManager(dungeonManager);
     
     // UISystemにレンダラーを設定

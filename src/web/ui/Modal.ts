@@ -76,7 +76,7 @@ export function openChoiceModal(params: {
 
   const header = document.createElement('div');
   header.textContent = title;
-  header.style.fontFamily = 'PixelMplus';
+  header.style.fontFamily = 'PixelMplus12';
   header.style.fontWeight = '600';
   header.style.marginBottom = '8px';
   header.style.textShadow = '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000';
@@ -90,7 +90,7 @@ export function openChoiceModal(params: {
   options.forEach(opt => {
     const item = document.createElement('div');
     item.textContent = opt.label;
-    item.style.fontFamily = 'PixelMplus';
+    item.style.fontFamily = 'PixelMplus12';
     item.style.padding = '8px 12px';
     item.style.borderRadius = '8px';
     item.style.width = '100%';
@@ -100,7 +100,7 @@ export function openChoiceModal(params: {
 
   const hint = document.createElement('div');
   hint.textContent = '上下キーで選択 / Z:決定 / X:キャンセル';
-  hint.style.fontFamily = 'PixelMplus';
+  hint.style.fontFamily = 'PixelMplus12';
   hint.style.opacity = '0.8';
   hint.style.fontSize = '12px';
   hint.style.marginTop = '8px';

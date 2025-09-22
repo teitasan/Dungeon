@@ -264,14 +264,14 @@ export class ItemSystem implements InventoryManager {
         break;
 
       case 'reveal-items':
-        // 千里眼効果：フロア全体のアイテム位置を表示
+        // アイテム感知効果：フロア全体のアイテム位置を表示
         success = true;
         message = `${target.id} can see all items on this floor`;
         // 注: 実際の効果はCanvasRendererで処理される
         break;
 
       case 'reveal-map':
-        // レミーラ効果：フロア全体の地形を表示
+        // 地形感知効果：フロア全体の地形を表示
         success = true;
         message = `${target.id} can see the entire floor layout`;
         // 注: 実際の効果はCanvasRendererで処理される
@@ -285,7 +285,7 @@ export class ItemSystem implements InventoryManager {
         break;
 
       case 'reveal-monsters':
-        // 透視効果：フロア全体のモンスターの位置を表示
+        // 敵感知効果：フロア全体のモンスターの位置を表示
         success = true;
         message = `${target.id} can see all monsters on this floor`;
         // 注: 実際の効果はCanvasRendererで処理される

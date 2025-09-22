@@ -89,7 +89,7 @@ export class CanvasRenderer {
       const ctx = this.ctx;
       const W = this.canvas.width;
       const H = this.canvas.height;
-      const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
+      const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus12';
       return this.playFloorTransitionOnCanvas(ctx, W, H, fontFamily, dungeonName, floor);
     }
 
@@ -103,7 +103,7 @@ export class CanvasRenderer {
     const ctx = transitionCanvas.getContext('2d')!;
     const W = transitionCanvas.width;
     const H = transitionCanvas.height;
-    const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
+          const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus12';
 
     await this.playFloorTransitionOnCanvas(ctx, W, H, fontFamily, dungeonName, floor);
     
@@ -320,7 +320,7 @@ export class CanvasRenderer {
     this.ctx.fillRect(x + 3, y + 3, this.tileSize - 6, this.tileSize - 6);
     
     // 文字（ふちどり付き）
-    const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
+          const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus12';
     this.ctx.font = `${Math.floor(this.tileSize * 0.7)}px '${fontFamily}', ui-monospace, Menlo, monospace`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
@@ -382,7 +382,7 @@ export class CanvasRenderer {
     this.ctx.fillRect(x + 3, y + 3, this.tileSize - 6, this.tileSize - 6);
     
     // 文字（ふちどり付き）
-    const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
+          const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus12';
     this.ctx.font = `${Math.floor(this.tileSize * 0.7)}px '${fontFamily}', ui-monospace, Menlo, monospace`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
@@ -580,11 +580,14 @@ export class CanvasRenderer {
     const currentRoom = this.findRoomAt(dungeon, playerTileX, playerTileY);
     const inRoom = currentRoom !== null;
 
-    const visible = this.remillaActive
+    const fieldOfView = inRoom
+      ? this.computeRoomVisibilityMap(dungeon, currentRoom!, 1)
+      : this.computeSimpleVisibilityMap(dungeon, playerAnimated, this.simpleOverlayRadiusTiles);
+
+    const visible = fieldOfView;
+    const minimapTiles = this.remillaActive
       ? this.createFullVisibilityMap(dungeon)
-      : (inRoom
-        ? this.computeRoomVisibilityMap(dungeon, currentRoom!, 1)
-        : this.computeSimpleVisibilityMap(dungeon, playerAnimated, this.simpleOverlayRadiusTiles));
+      : fieldOfView;
 
     // explored 更新（ミニマップ用）
     if (this.explored) {
@@ -752,7 +755,7 @@ export class CanvasRenderer {
       ctx.stroke();
     }
 
-    const clipApplied = !inRoom && !this.remillaActive && this.beginVisibilityClip(
+    const clipApplied = !inRoom && this.beginVisibilityClip(
       ctx,
       playerAnimated,
       effectiveCamX,
@@ -786,7 +789,7 @@ export class CanvasRenderer {
           this.ctx.fillRect(gx + 3, gy + 3, tileSize - 6, tileSize - 6);
           
           // 文字（ふちどり付き）
-          const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus';
+          const fontFamily = this.gameConfig?.ui?.fonts?.primary || 'PixelMplus12';
           this.ctx.font = `${Math.floor(tileSize * 0.7)}px '${fontFamily}', ui-monospace, Menlo, monospace`;
           this.ctx.textAlign = 'center';
           this.ctx.textBaseline = 'middle';
@@ -946,9 +949,7 @@ export class CanvasRenderer {
     }
 
     // 暗幕は最後に重ねて視界外の要素を覆う
-    if (this.remillaActive) {
-      // レミーラ中は暗幕を表示しない
-    } else if (inRoom && currentRoom) {
+    if (inRoom && currentRoom) {
       this.applyRoomOverlay(ctx, currentRoom, dungeon, effectiveCamX, effectiveCamY, tileSize, 1);
     } else {
       this.applySimpleOverlay(ctx, playerAnimated, effectiveCamX, effectiveCamY, tileSize);
@@ -957,13 +958,14 @@ export class CanvasRenderer {
     // ミニマップ描画
     this.renderMinimap(
       dungeon,
-      visible,
+      minimapTiles,
       camX,
       camY,
       viewW,
       viewH,
       player,
-      { x: playerTileX, y: playerTileY }
+      { x: playerTileX, y: playerTileY },
+      fieldOfView
     );
   }
 
@@ -1063,8 +1065,6 @@ export class CanvasRenderer {
     effectiveCamY: number,
     tileSize: number
   ): boolean {
-    if (this.remillaActive) return false;
-
     const { centerX, centerY, radiusPixels } = this.computeOverlayCircle(
       playerPosition,
       effectiveCamX,
@@ -1103,12 +1103,15 @@ export class CanvasRenderer {
     viewW: number,
     viewH: number,
     player: PlayerEntity,
-    playerTileOverride?: { x: number; y: number }
+    playerTileOverride?: { x: number; y: number },
+    fovVisibility?: boolean[][]
   ): void {
     if (!this.minimapCtx || !this.minimapCanvas) return;
     const mm = this.minimapCtx;
     const W = this.minimapCanvas.width;
     const H = this.minimapCanvas.height;
+
+    const entityVisibility = fovVisibility ?? visible;
 
     // ミニマップ描画時はスムージングを無効化（ピクセル境界を明確に）
     mm.imageSmoothingEnabled = false;
@@ -1124,7 +1127,7 @@ export class CanvasRenderer {
       const offsetX = Math.floor((W - dungeon.width * mmTile) / 2);
       const offsetY = Math.floor((H - dungeon.height * mmTile) / 2);
       
-    // 描画（探索済みの場所のみ、レミーラ効果が有効な場合は全エリア表示）
+    // 描画（探索済みの場所のみ、地形感知効果が有効な場合は全エリア表示）
     let exploredCount = 0;
     let visibleCount = 0;
     let wallCount = 0;
@@ -1294,7 +1297,7 @@ export class CanvasRenderer {
         const ix = it.position.x;
         const iy = it.position.y;
         if (ix < 0 || ix >= dungeon.width || iy < 0 || iy >= dungeon.height) continue;
-        if (!visible[iy][ix]) continue; // 視界内のみ
+        if (!entityVisibility[iy] || !entityVisibility[iy][ix]) continue; // 視界内のみ
 
         const x = offsetX + ix * mmTile;
         const y = offsetY + iy * mmTile;
@@ -1308,7 +1311,7 @@ export class CanvasRenderer {
         const mx = m.position.x;
         const my = m.position.y;
         if (mx < 0 || mx >= dungeon.width || my < 0 || my >= dungeon.height) continue;
-        if (!visible[my][mx]) continue; // 視界内のみ
+        if (!entityVisibility[my] || !entityVisibility[my][mx]) continue; // 視界内のみ
 
         const x = offsetX + mx * mmTile;
         const y = offsetY + my * mmTile;
@@ -1325,7 +1328,7 @@ export class CanvasRenderer {
     const y = offsetY + playerTileY * mmTile;
     this.drawMinimapIcon(mm, x, y);
 
-      // 特殊効果による表示（千里眼・透視効果）
+      // 特殊効果による表示（アイテム感知・敵感知効果）
       this.renderMinimapItems(mm, dungeon, mmTile, offsetX, offsetY);
       this.renderMinimapMonsters(mm, dungeon, mmTile, offsetX, offsetY);
 
@@ -1378,7 +1381,7 @@ export class CanvasRenderer {
     offsetX: number,
     offsetY: number
   ): void {
-    // 千里眼効果が有効な場合のみアイテムを表示
+    // アイテム感知効果が有効な場合のみアイテムを表示
     if (!this.clairvoyanceActive) return;
 
     // DungeonManagerが設定されていない場合は表示しない
@@ -1414,7 +1417,7 @@ export class CanvasRenderer {
     offsetX: number,
     offsetY: number
   ): void {
-    // 透視効果が有効な場合のみモンスターを表示
+    // 敵感知効果が有効な場合のみモンスターを表示
     if (!this.monsterVisionActive) return;
 
     // DungeonManagerが設定されていない場合は表示しない
@@ -1441,7 +1444,7 @@ export class CanvasRenderer {
   }
 
   /**
-   * 千里眼効果を有効化
+   * アイテム感知効果を有効化
    */
   public activateClairvoyance(floor: number): void {
     this.clairvoyanceActive = true;
@@ -1452,7 +1455,7 @@ export class CanvasRenderer {
   }
 
   /**
-   * 千里眼効果を無効化
+   * アイテム感知効果を無効化
    */
   public deactivateClairvoyance(): void {
     this.clairvoyanceActive = false;
@@ -1466,7 +1469,7 @@ export class CanvasRenderer {
   }
 
   /**
-   * レミーラ効果を有効化（今のフロアをすべて探索済みにする）
+   * 地形感知効果を有効化（今のフロアをすべて探索済みにする）
    */
   public activateRemilla(floor: number): void {
     this.remillaActive = true;
@@ -1492,7 +1495,7 @@ export class CanvasRenderer {
   }
 
   /**
-   * レミーラ効果を無効化
+   * 地形感知効果を無効化
    */
   public deactivateRemilla(): void {
     this.remillaActive = false;
@@ -1517,7 +1520,7 @@ export class CanvasRenderer {
   }
 
   /**
-   * 透視効果を有効化
+   * 敵感知効果を有効化
    */
   public activateMonsterVision(floor: number): void {
     this.monsterVisionActive = true;
@@ -1528,7 +1531,7 @@ export class CanvasRenderer {
   }
 
   /**
-   * 透視効果を無効化
+   * 敵感知効果を無効化
    */
   public deactivateMonsterVision(): void {
     this.monsterVisionActive = false;
@@ -1563,13 +1566,16 @@ export class CanvasRenderer {
     const playerTileY = Math.max(0, Math.min(currentDungeon.height - 1, Math.round(player.position.y)));
     const room = this.findRoomAt(currentDungeon, playerTileX, playerTileY);
 
-    const visible = this.remillaActive
+    const fieldOfView = room
+      ? this.computeRoomVisibilityMap(currentDungeon, room, 1)
+      : this.computeSimpleVisibilityMap(currentDungeon, playerPos, this.simpleOverlayRadiusTiles);
+
+    const minimapTiles = this.remillaActive
       ? this.createFullVisibilityMap(currentDungeon)
-      : (room
-        ? this.computeRoomVisibilityMap(currentDungeon, room, 1)
-        : this.computeSimpleVisibilityMap(currentDungeon, playerPos, this.simpleOverlayRadiusTiles));
+      : fieldOfView;
+    const visible = fieldOfView;
     const [camX, camY, viewW, viewH] = this.computeCamera(currentDungeon, player);
-    this.renderMinimap(currentDungeon, visible, camX, camY, viewW, viewH, player);
+    this.renderMinimap(currentDungeon, minimapTiles, camX, camY, viewW, viewH, player, undefined, fieldOfView);
   }
 
   /**
@@ -1597,8 +1603,6 @@ export class CanvasRenderer {
     effectiveCamY: number,
     tileSize: number
   ): void {
-    if (this.remillaActive) return;
-
     const { centerX, centerY, radiusPixels } = this.computeOverlayCircle(
       playerPosition,
       effectiveCamX,
@@ -1630,8 +1634,6 @@ export class CanvasRenderer {
     tileSize: number,
     padding: number
   ): void {
-    if (this.remillaActive) return;
-
     const pad = Math.max(0, Math.floor(padding));
     const left = Math.max(0, room.x - pad);
     const top = Math.max(0, room.y - pad);
