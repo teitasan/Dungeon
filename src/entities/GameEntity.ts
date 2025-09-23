@@ -13,6 +13,7 @@ import type { CharacterStats } from '../types/character-info';
 export class BaseGameEntity implements GameEntity {
   public id: string;
   public position: Position;
+  public entityType: 'player' | 'monster' | 'item' | 'companion' | 'misc' = 'misc';
   public visualPosition: Position;
   public isMoving: boolean;
   public components: Component[];

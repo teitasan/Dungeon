@@ -33,6 +33,7 @@ export class ItemRegistry {
         itemType: tpl.itemType ?? tpl.type ?? 'consumable',
         identified: !!tpl.identified,
         cursed: !!tpl.cursed,
+        spriteId: tpl.spriteId,
         effects: Array.isArray(tpl.effects) ? tpl.effects.map((e: any) => ({ ...e })) : undefined,
         equipmentStats: tpl.equipmentStats ? { ...tpl.equipmentStats } : undefined,
         attributes: tpl.attributes ? { ...tpl.attributes } : undefined,

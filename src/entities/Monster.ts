@@ -47,6 +47,7 @@ export class MonsterEntity extends BaseGameEntity implements Monster {
     const characterStats = CharacterCalculator.calculateAllStats(characterInfo, level || 1);
     
     super(id, position, components, flags);
+    this.entityType = 'monster';
     
     this.characterInfo = characterInfo;
     this.monsterType = monsterType;

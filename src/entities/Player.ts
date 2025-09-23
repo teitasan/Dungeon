@@ -35,6 +35,7 @@ export class PlayerEntity extends BaseGameEntity implements Player {
     const characterStats = CharacterCalculator.calculateAllStats(characterInfo, 1);
     
     super(id, position, components, flags);
+    this.entityType = 'player';
     
     this.characterInfo = characterInfo;
     this.direction = 'south'; // 初期向きは南

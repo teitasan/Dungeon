@@ -33,6 +33,7 @@ export class ItemEntity extends BaseGameEntity implements Item {
     flags: EntityFlags = {}
   ) {
     super(id, position, components, flags);
+    this.entityType = 'item';
     
     this.name = name;
     this.itemType = itemType;
@@ -268,14 +269,15 @@ export class ItemEntity extends BaseGameEntity implements Item {
   // ===== 汎用ファクトリメソッド =====
 
   /**
-   * Create item from template ID using ItemRegistry
+   * Create item from template ID using ItemSystem
    */
-  static createFromTemplate(templateId: string, position: Position): ItemEntity | null {
+  static createFromTemplate(templateId: string, position: Position, itemSystem?: any): ItemEntity | null {
     try {
-      // ItemRegistryからテンプレートを取得
-      const { ItemRegistry } = require('../../core/ItemRegistry.js');
-      const registry = ItemRegistry.getInstance();
-      const template = registry.getTemplate(templateId);
+      // ItemSystemからテンプレートを取得
+      let template = null;
+      if (itemSystem && typeof itemSystem.getItemTemplate === 'function') {
+        template = itemSystem.getItemTemplate(templateId);
+      }
       
       if (!template) {
         console.warn(`Item template not found: ${templateId}`);

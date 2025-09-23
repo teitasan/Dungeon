@@ -775,13 +775,11 @@ export class ItemSystem implements InventoryManager {
   /**
    * ItemRegistry が読み込まれていれば、そちらのテンプレートを優先して再ロードする
    */
-  reloadTemplatesFromRegistry(): void {
+  async reloadTemplatesFromRegistry(): Promise<void> {
     try {
       // 動的import（ブラウザ環境）
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      // @ts-ignore
-      const mod = require('../core/ItemRegistry.js');
-      const reg = mod?.ItemRegistry?.getInstance?.();
+      const { ItemRegistry } = await import('../core/ItemRegistry.js');
+      const reg = ItemRegistry.getInstance();
       if (!reg || !reg.hasTemplates()) return;
       this.itemTemplates.clear();
       for (const tpl of reg.getAll()) {
@@ -875,6 +873,57 @@ export class ItemSystem implements InventoryManager {
         {
           type: 'teleport',
           description: 'Teleports to random location'
+        }
+      ]
+    });
+
+    // Scroll of Remilla (Map Reveal)
+    this.registerItemTemplate({
+      id: 'scroll-remilla',
+      name: '地形感知の巻物',
+      itemType: 'consumable',
+      identified: false,
+      cursed: false,
+      spriteId: 'consumable',
+      effects: [
+        {
+          type: 'reveal-map',
+          value: 1,
+          description: 'フロア全体の地形と罠の位置を表示'
+        }
+      ]
+    });
+
+    // Scroll of Monster Vision
+    this.registerItemTemplate({
+      id: 'scroll-monster-vision',
+      name: '敵感知の巻物',
+      itemType: 'consumable',
+      identified: false,
+      cursed: false,
+      spriteId: 'consumable',
+      effects: [
+        {
+          type: 'reveal-monsters',
+          value: 1,
+          description: 'フロア全体のモンスターの位置を表示'
+        }
+      ]
+    });
+
+    // Scroll of Clairvoyance
+    this.registerItemTemplate({
+      id: 'scroll-clairvoyance',
+      name: 'アイテム感知の巻物',
+      itemType: 'consumable',
+      identified: false,
+      cursed: false,
+      spriteId: 'consumable',
+      effects: [
+        {
+          type: 'reveal-items',
+          value: 1,
+          description: 'フロア全体のアイテムの位置を表示'
         }
       ]
     });

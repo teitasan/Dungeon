@@ -39,6 +39,7 @@ export class CompanionEntity extends BaseGameEntity implements Companion {
     const characterStats = CharacterCalculator.calculateAllStats(characterInfo, 1);
     
     super(id, position, components, flags);
+    this.entityType = 'companion';
     
     this.characterInfo = characterInfo;
     this.companionType = companionType;

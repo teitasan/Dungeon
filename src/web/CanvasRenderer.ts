@@ -1291,7 +1291,7 @@ export class CanvasRenderer {
     // アイテムを表示（視界内のみ、水色）
     if (this.dungeonManager) {
       const all = this.dungeonManager.getAllEntities();
-      const items = all.filter(e => (e as any).constructor?.name === 'ItemEntity');
+      const items = all.filter(e => e.entityType === 'item');
       mm.fillStyle = '#0ad4e1'; // 水色
       for (const it of items) {
         const ix = it.position.x;
@@ -1305,7 +1305,7 @@ export class CanvasRenderer {
       }
       
       // 敵を表示（視界内のみ、赤色）
-      const monsters = all.filter(e => (e as any).constructor?.name === 'MonsterEntity');
+      const monsters = all.filter(e => e.entityType === 'monster');
       mm.fillStyle = '#da1809'; // 赤
       for (const m of monsters) {
         const mx = m.position.x;
@@ -1389,12 +1389,7 @@ export class CanvasRenderer {
 
     // ダンジョン内の全エンティティを取得し、アイテムをフィルタリング
     const allEntities = this.dungeonManager.getAllEntities();
-    const items = allEntities.filter(entity => {
-      // アイテムかどうかを判定（クラス名、ID、名前で判定）
-      return (entity as any).constructor?.name === 'ItemEntity' ||
-             entity.id.includes('scroll') || entity.id.includes('item') || 
-             (entity as any).name?.includes('巻物') || (entity as any).name?.includes('アイテム');
-    });
+    const items = allEntities.filter(entity => entity.entityType === 'item');
 
     // アイテムを表示（6x6ピクセル）
     mm.fillStyle = '#0ad4e1'; // 水色
@@ -1425,12 +1420,7 @@ export class CanvasRenderer {
 
     // ダンジョン内の全エンティティを取得し、モンスターをフィルタリング
     const allEntities = this.dungeonManager.getAllEntities();
-    const monsters = allEntities.filter(entity => {
-      // モンスターかどうかを判定（クラス名、ID、名前で判定）
-      return (entity as any).constructor?.name === 'MonsterEntity' ||
-             entity.id.includes('monster') || entity.id.includes('enemy') || 
-             (entity as any).name?.includes('モンスター') || (entity as any).name?.includes('敵');
-    });
+    const monsters = allEntities.filter(entity => entity.entityType === 'monster');
 
     // モンスターを表示（6x6ピクセル）
     mm.fillStyle = '#da1809'; // 赤色

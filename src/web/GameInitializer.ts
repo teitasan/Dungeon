@@ -12,6 +12,7 @@ import { InputSystem } from '../systems/InputSystem.js';
 import { MovementSystem } from '../systems/MovementSystem.js';
 import { TurnSystem } from '../systems/TurnSystem.js';
 import { HungerSystem } from '../systems/HungerSystem.js';
+import { DropSystem } from '../systems/DropSystem.js';
 import { CanvasRenderer } from './CanvasRenderer.js';
 import { TilesetManager } from './TilesetManager.js';
 import { ItemSpriteManager } from './ItemSpriteManager.js';
@@ -33,6 +34,7 @@ export interface GameSystems {
   movementSystem: MovementSystem;
   turnSystem: TurnSystem;
   itemSystem: ItemSystem;
+  dropSystem: DropSystem;
   renderer: CanvasRenderer;
   tilesetManager: TilesetManager | null;
   damageDisplayManager: DamageDisplayManager;
@@ -123,7 +125,7 @@ export class GameInitializer {
     const itemSystem = new ItemSystem(dungeonManager);
     // レジストリ優先でテンプレートを反映（レジストリが空の場合はItemSystem内デフォルトのまま）
     try {
-      itemSystem.reloadTemplatesFromRegistry?.();
+      await itemSystem.reloadTemplatesFromRegistry?.();
     } catch {}
     const movementSystem = new MovementSystem(dungeonManager, itemSystem);
     
@@ -178,6 +180,7 @@ export class GameInitializer {
       movementSystem,
       turnSystem,
       itemSystem,
+      dropSystem,
       renderer: null as any, // 後で設定
       tilesetManager: null,
       damageDisplayManager,
@@ -216,7 +219,7 @@ export class GameInitializer {
     player: PlayerEntity,
     config: any
   ): Promise<void> {
-    const { dungeonManager, multipleDungeonSystem, uiSystem } = systems;
+    const { dungeonManager, multipleDungeonSystem, uiSystem, dropSystem } = systems;
 
     const select = multipleDungeonSystem.selectDungeon('beginner-cave', player);
     if (!select.success) {
@@ -231,6 +234,14 @@ export class GameInitializer {
     const spawn: Position = dungeon.playerSpawn;
     player.setPosition(spawn);
     dungeonManager.addEntity(player as any, spawn);
+
+    // 初期フロアにアイテムをスポーン
+    if (dropSystem) {
+      const template = dungeonManager.getTemplate('beginner-cave');
+      if (template) {
+        dropSystem.spawnFloorItems(template, 1);
+      }
+    }
 
     // UISystemにUIManagerを設定（後で行う）
   }
@@ -421,76 +432,22 @@ export class GameInitializer {
 
   private async addTestItems(systems: GameSystems, player: PlayerEntity, spawn: Position): Promise<void> {
     // テスト用アイテムを初期インベントリに追加（地形感知5個 + 敵感知3個 + アイテム感知2個）
-    const testItems = [
-      {
-        id: 'scroll-remilla-1',
-        name: '地形感知の巻物',
-        effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
-      },
-      {
-        id: 'scroll-remilla-2',
-        name: '地形感知の巻物',
-        effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
-      },
-      {
-        id: 'scroll-remilla-3',
-        name: '地形感知の巻物',
-        effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
-      },
-      {
-        id: 'scroll-remilla-4',
-        name: '地形感知の巻物',
-        effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
-      },
-      {
-        id: 'scroll-remilla-5',
-        name: '地形感知の巻物',
-        effect: { type: 'reveal-map', value: 1, description: 'フロア全体の地形と罠の位置を表示' }
-      },
-      {
-        id: 'scroll-monster-vision-1',
-        name: '敵感知の巻物',
-        effect: { type: 'reveal-monsters', value: 1, description: 'フロア全体のモンスターの位置を表示' }
-      },
-      {
-        id: 'scroll-monster-vision-2',
-        name: '敵感知の巻物',
-        effect: { type: 'reveal-monsters', value: 1, description: 'フロア全体のモンスターの位置を表示' }
-      },
-      {
-        id: 'scroll-monster-vision-3',
-        name: '敵感知の巻物',
-        effect: { type: 'reveal-monsters', value: 1, description: 'フロア全体のモンスターの位置を表示' }
-      },
-      {
-        id: 'scroll-clairvoyance-1',
-        name: 'アイテム感知の巻物',
-        effect: { type: 'reveal-items', value: 1, description: 'フロア全体のアイテムの位置を表示' }
-      },
-      {
-        id: 'scroll-clairvoyance-2',
-        name: 'アイテム感知の巻物',
-        effect: { type: 'reveal-items', value: 1, description: 'フロア全体のアイテムの位置を表示' }
-      }
+    const testItemTemplates = [
+      { id: 'scroll-remilla', count: 5 },
+      { id: 'scroll-monster-vision', count: 3 },
+      { id: 'scroll-clairvoyance', count: 2 }
     ];
 
-    for (const itemData of testItems) {
-      // テンプレートからアイテムを作成
-      const item = ItemEntity.createFromTemplateObject({
-        id: itemData.id,
-        name: itemData.name,
-        itemType: 'consumable',
-        identified: true,
-        cursed: false,
-        effects: [itemData.effect]
-      }, { x: 0, y: 0 });
-      
-      if (item) {
-        player.addToInventory(item);
+    for (const template of testItemTemplates) {
+      for (let i = 0; i < template.count; i++) {
+        const item = ItemEntity.createFromTemplate(template.id, { x: 0, y: 0 }, systems.itemSystem);
+        if (item) {
+          // テスト用なので識別済みにする
+          item.identify();
+          player.addToInventory(item);
+        }
       }
     }
-
-    // テスト用アイテムは削除済み（既存のデフォルトアイテムでスプライト表示をテスト）
   }
 
   private async setupRenderer(

@@ -51,8 +51,11 @@
       { "itemId": "bread", "weight": 6, "minFloor": 1, "maxFloor": 99 },
       { "itemId": "health-potion", "weight": 5, "minFloor": 1, "maxFloor": 99 },
       { "itemId": "antidote", "weight": 3, "minFloor": 2, "maxFloor": 99 },
-      { "itemId": "scroll-identify", "weight": 2, "minFloor": 2, "maxFloor": 99 },
-      { "itemId": "scroll-teleport", "weight": 1, "minFloor": 3, "maxFloor": 99 }
+      { "itemId": "scroll-identify", "weight": 4, "minFloor": 1, "maxFloor": 99 },
+      { "itemId": "scroll-teleport", "weight": 4, "minFloor": 1, "maxFloor": 99 },
+      { "itemId": "scroll-remilla", "weight": 4, "minFloor": 1, "maxFloor": 99 },
+      { "itemId": "scroll-monster-vision", "weight": 4, "minFloor": 1, "maxFloor": 99 },
+      { "itemId": "scroll-clairvoyance", "weight": 4, "minFloor": 1, "maxFloor": 99 }
     ],
     "itemSpawnDefault": { "min": 3, "max": 5 },
     "itemSpawnRanges": [
@@ -103,8 +106,11 @@
       { "itemId": "bread", "weight": 4, "minFloor": 1, "maxFloor": 99 },
       { "itemId": "health-potion", "weight": 6, "minFloor": 1, "maxFloor": 99 },
       { "itemId": "antidote", "weight": 3, "minFloor": 1, "maxFloor": 99 },
-      { "itemId": "scroll-identify", "weight": 3, "minFloor": 2, "maxFloor": 99 },
-      { "itemId": "scroll-teleport", "weight": 2, "minFloor": 3, "maxFloor": 99 }
+      { "itemId": "scroll-identify", "weight": 5, "minFloor": 1, "maxFloor": 99 },
+      { "itemId": "scroll-teleport", "weight": 5, "minFloor": 1, "maxFloor": 99 },
+      { "itemId": "scroll-remilla", "weight": 5, "minFloor": 1, "maxFloor": 99 },
+      { "itemId": "scroll-monster-vision", "weight": 5, "minFloor": 1, "maxFloor": 99 },
+      { "itemId": "scroll-clairvoyance", "weight": 5, "minFloor": 1, "maxFloor": 99 }
     ],
     "itemSpawnDefault": { "min": 4, "max": 7 },
     "itemSpawnRanges": [
@@ -169,7 +175,12 @@
     "itemTable": [
       { "itemId": "bread", "weight": 8, "minFloor": 1, "maxFloor": 99 },
       { "itemId": "health-potion", "weight": 5, "minFloor": 1, "maxFloor": 99 },
-      { "itemId": "antidote", "weight": 2, "minFloor": 2, "maxFloor": 99 }
+      { "itemId": "antidote", "weight": 2, "minFloor": 2, "maxFloor": 99 },
+      { "itemId": "scroll-identify", "weight": 3, "minFloor": 1, "maxFloor": 99 },
+      { "itemId": "scroll-teleport", "weight": 3, "minFloor": 1, "maxFloor": 99 },
+      { "itemId": "scroll-remilla", "weight": 3, "minFloor": 1, "maxFloor": 99 },
+      { "itemId": "scroll-monster-vision", "weight": 3, "minFloor": 1, "maxFloor": 99 },
+      { "itemId": "scroll-clairvoyance", "weight": 3, "minFloor": 1, "maxFloor": 99 }
     ],
     "itemSpawnDefault": { "min": 3, "max": 4 },
     "itemSpawnRanges": [
