@@ -463,9 +463,8 @@
         "frameDuration": 200
       }
     },
-    "templates": [
-      {
-        "id": "simple-enemy",
+    "templates": {
+      "1": {
         "name": "Simple Enemy",
         "monsterType": "basic",
         "spritesheet": "basic",
@@ -484,8 +483,7 @@
         "level": 1,
         "description": "基本的な敵。弱いが数が多い。"
       },
-      {
-        "id": "strong-enemy",
+      "2": {
         "name": "Strong Enemy",
         "monsterType": "elite",
         "spritesheet": "elite",
@@ -505,8 +503,7 @@
         "level": 3,
         "description": "中程度の強さの敵。慎重に対処が必要。"
       },
-      {
-        "id": "boss-enemy",
+      "3": {
         "name": "Boss Enemy",
         "monsterType": "boss",
         "spritesheet": "boss",
@@ -526,7 +523,7 @@
         "level": 5,
         "description": "強力なボス級の敵。最大限の準備が必要。"
       }
-    ],
+    },
     "dropTables": {
       "basic-dungeon-drops": [
         {

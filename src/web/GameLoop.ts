@@ -89,7 +89,7 @@ export class GameLoop {
     );
   }
 
-  public handlePlayerAction(action: 'move' | 'attack' | 'item', success: boolean, data?: any): void {
+  public async handlePlayerAction(action: 'move' | 'attack' | 'item', success: boolean, data?: any): Promise<void> {
     // console.log(`[DEBUG] handlePlayerAction呼び出し: action=${action}, success=${success}`);
     
     if (success || action === 'attack') { // 攻撃は常にターン消費
@@ -98,7 +98,7 @@ export class GameLoop {
       // console.log(`[DEBUG] プレイヤー行動完了: ${action}, ターン実行開始`);
       
       // 完全同期処理：即座にターンシステムを実行
-      this.systems.turnSystem.executeTurn();
+      await this.systems.turnSystem.executeTurn();
       // console.log(`[DEBUG] ターンシステム実行完了: 次のターン ${this.systems.turnSystem.getCurrentTurn()}`);
       
       // ターンシステム実行後にUIを更新（ターン数表示を更新）

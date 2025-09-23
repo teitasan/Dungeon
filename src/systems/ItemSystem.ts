@@ -706,6 +706,8 @@ export class ItemSystem implements InventoryManager {
   createItem(templateId: string, position: Position): ItemEntity | null {
     const template = this.itemTemplates.get(templateId);
     if (!template) {
+      console.warn(`ItemSystem: Template not found for ID: ${templateId}`);
+      console.log(`ItemSystem: Available templates:`, Array.from(this.itemTemplates.keys()));
       return null;
     }
 
@@ -780,13 +782,18 @@ export class ItemSystem implements InventoryManager {
       // 動的import（ブラウザ環境）
       const { ItemRegistry } = await import('../core/ItemRegistry.js');
       const reg = ItemRegistry.getInstance();
-      if (!reg || !reg.hasTemplates()) return;
+      if (!reg || !reg.hasTemplates()) {
+        console.log('ItemRegistry: No templates available, using defaults');
+        return;
+      }
+      console.log('ItemRegistry: Loading templates from registry');
       this.itemTemplates.clear();
       for (const tpl of reg.getAll()) {
         this.registerItemTemplate(tpl);
+        console.log(`ItemRegistry: Loaded template ${tpl.id}: ${tpl.name}`);
       }
-    } catch {
-      // ignore
+    } catch (error) {
+      console.warn('ItemRegistry: Failed to load templates:', error);
     }
   }
 
@@ -796,7 +803,7 @@ export class ItemSystem implements InventoryManager {
   private initializeDefaultItems(): void {
     // Health Potion
     this.registerItemTemplate({
-      id: 'health-potion',
+      id: '1',
       name: 'Health Potion',
       itemType: 'consumable',
       identified: false,
@@ -813,7 +820,7 @@ export class ItemSystem implements InventoryManager {
 
     // Bread
     this.registerItemTemplate({
-      id: 'bread',
+      id: '2',
       name: 'Bread',
       itemType: 'consumable',
       identified: true,
@@ -830,7 +837,7 @@ export class ItemSystem implements InventoryManager {
 
     // Antidote
     this.registerItemTemplate({
-      id: 'antidote',
+      id: '3',
       name: 'Antidote',
       itemType: 'consumable',
       identified: false,
@@ -847,7 +854,7 @@ export class ItemSystem implements InventoryManager {
 
     // Scroll of Identify
     this.registerItemTemplate({
-      id: 'scroll-identify',
+      id: '4',
       name: 'Scroll of Identify',
       itemType: 'consumable',
       identified: false,
@@ -863,7 +870,7 @@ export class ItemSystem implements InventoryManager {
 
     // Teleport Scroll
     this.registerItemTemplate({
-      id: 'scroll-teleport',
+      id: '5',
       name: 'Scroll of Teleport',
       itemType: 'consumable',
       identified: false,
@@ -879,7 +886,7 @@ export class ItemSystem implements InventoryManager {
 
     // Scroll of Remilla (Map Reveal)
     this.registerItemTemplate({
-      id: 'scroll-remilla',
+      id: '6',
       name: '地形感知の巻物',
       itemType: 'consumable',
       identified: false,
@@ -896,7 +903,7 @@ export class ItemSystem implements InventoryManager {
 
     // Scroll of Monster Vision
     this.registerItemTemplate({
-      id: 'scroll-monster-vision',
+      id: '7',
       name: '敵感知の巻物',
       itemType: 'consumable',
       identified: false,
@@ -913,7 +920,7 @@ export class ItemSystem implements InventoryManager {
 
     // Scroll of Clairvoyance
     this.registerItemTemplate({
-      id: 'scroll-clairvoyance',
+      id: '8',
       name: 'アイテム感知の巻物',
       itemType: 'consumable',
       identified: false,

@@ -19,25 +19,27 @@ export class ItemRegistry {
   }
 
   /**
-   * ゲーム設定からテンプレ配列を読み込み、内部Mapに反映
-   * 期待する最小スキーマ: { id, name, itemType, identified, cursed, effects?, equipmentStats? }
+   * ゲーム設定からテンプレートオブジェクトを読み込み、内部Mapに反映
+   * 期待するスキーマ: { "1": { name, itemType, ... }, "2": { ... } }
    */
-  public loadFromConfig(templates: any[] | undefined | null): void {
+  public loadFromConfig(templates: any): void {
     this.templates.clear();
-    if (!templates || !Array.isArray(templates)) return;
-    for (const tpl of templates) {
-      if (!tpl || !tpl.id) continue;
+    if (!templates || typeof templates !== 'object') return;
+    
+    for (const [id, tpl] of Object.entries(templates)) {
+      if (!tpl || typeof tpl !== 'object') continue;
+      const template = tpl as any; // 型アサーションでプロパティアクセスを許可
       const casted: ItemTemplate = {
-        id: String(tpl.id),
-        name: String(tpl.name ?? tpl.id),
-        itemType: tpl.itemType ?? tpl.type ?? 'consumable',
-        identified: !!tpl.identified,
-        cursed: !!tpl.cursed,
-        spriteId: tpl.spriteId,
-        effects: Array.isArray(tpl.effects) ? tpl.effects.map((e: any) => ({ ...e })) : undefined,
-        equipmentStats: tpl.equipmentStats ? { ...tpl.equipmentStats } : undefined,
-        attributes: tpl.attributes ? { ...tpl.attributes } : undefined,
-        durability: typeof tpl.durability === 'number' ? tpl.durability : undefined,
+        id: String(id),
+        name: String(template.name ?? id),
+        itemType: template.itemType ?? template.type ?? 'consumable',
+        identified: !!template.identified,
+        cursed: !!template.cursed,
+        spriteId: template.spriteId,
+        effects: Array.isArray(template.effects) ? template.effects.map((e: any) => ({ ...e })) : undefined,
+        equipmentStats: template.equipmentStats ? { ...template.equipmentStats } : undefined,
+        attributes: template.attributes ? { ...template.attributes } : undefined,
+        durability: typeof template.durability === 'number' ? template.durability : undefined,
       } as ItemTemplate;
       this.templates.set(casted.id, casted);
     }

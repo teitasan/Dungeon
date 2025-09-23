@@ -85,6 +85,30 @@ export interface Monster extends GameEntity {
   spriteId?: string;
 }
 
+// Monster template interface
+export interface MonsterTemplate {
+  id: string;
+  name: string;
+  monsterType: string;
+  spriteId?: string;
+  spritesheet?: string;
+  stats?: {
+    hp: number;
+    maxHp: number;
+    attack: number;
+    defense: number;
+    evasionRate: number;
+  };
+  movementPattern?: MovementPattern;
+  movementConfig?: MovementPatternConfig;
+  experienceValue?: number;
+  dropRate?: number;
+  dropTableId?: string;
+  level?: number;
+  description?: string;
+  characterStats?: CharacterStats;
+}
+
 // Companion model
 export interface Companion extends GameEntity {
   characterInfo: CharacterInfo;

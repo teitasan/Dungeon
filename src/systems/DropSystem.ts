@@ -82,8 +82,11 @@ export class DropSystem {
         if (cell && cell.walkable && cell.type === 'room' && cell.entities.length === 0) {
           const item = this.itemSystem.createItem(entry.itemId, pos);
           if (item && this.dungeonManager.addEntity(item, pos)) {
+            console.log(`DropSystem: Spawned item ${entry.itemId} at (${pos.x}, ${pos.y})`);
             spawned.push(item);
             placed = true;
+          } else {
+            console.warn(`DropSystem: Failed to create/spawn item ${entry.itemId}`);
           }
         }
         attempts++;

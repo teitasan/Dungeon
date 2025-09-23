@@ -11,9 +11,8 @@
       "consumable": { "x": 2, "y": 157.5, "width": 1, "height": 1 }
     }
   },
-  "templates": [
-    {
-      "id": "health-potion",
+  "templates": {
+    "1": {
       "name": "Health Potion",
       "itemType": "consumable",
       "identified": false,
@@ -21,8 +20,7 @@
       "spriteId": "consumable",
       "effects": [ { "type": "heal", "value": 20, "description": "Restores 20 HP" } ]
     },
-    {
-      "id": "bread",
+    "2": {
       "name": "Bread",
       "itemType": "consumable",
       "identified": true,
@@ -30,8 +28,7 @@
       "spriteId": "consumable",
       "effects": [ { "type": "restore-hunger", "value": 30, "description": "Restores 30 hunger" } ]
     },
-    {
-      "id": "antidote",
+    "3": {
       "name": "Antidote",
       "itemType": "consumable",
       "identified": false,
@@ -39,8 +36,7 @@
       "spriteId": "consumable",
       "effects": [ { "type": "cure-status", "statusType": "poison", "description": "Cures poison" } ]
     },
-    {
-      "id": "scroll-identify",
+    "4": {
       "name": "Scroll of Identify",
       "itemType": "consumable",
       "identified": false,
@@ -48,8 +44,7 @@
       "spriteId": "consumable",
       "effects": [ { "type": "identify", "description": "Identifies all items in inventory" } ]
     },
-    {
-      "id": "scroll-teleport",
+    "5": {
       "name": "Scroll of Teleport",
       "itemType": "consumable",
       "identified": false,
@@ -57,8 +52,7 @@
       "spriteId": "consumable",
       "effects": [ { "type": "teleport", "description": "Teleports to random location" } ]
     },
-    {
-      "id": "scroll-remilla",
+    "6": {
       "name": "地形感知の巻物",
       "itemType": "consumable",
       "identified": false,
@@ -66,8 +60,7 @@
       "spriteId": "consumable",
       "effects": [ { "type": "reveal-map", "value": 1, "description": "フロア全体の地形と罠の位置を表示" } ]
     },
-    {
-      "id": "scroll-monster-vision",
+    "7": {
       "name": "敵感知の巻物",
       "itemType": "consumable",
       "identified": false,
@@ -75,8 +68,7 @@
       "spriteId": "consumable",
       "effects": [ { "type": "reveal-monsters", "value": 1, "description": "フロア全体のモンスターの位置を表示" } ]
     },
-    {
-      "id": "scroll-clairvoyance",
+    "8": {
       "name": "アイテム感知の巻物",
       "itemType": "consumable",
       "identified": false,
@@ -84,5 +76,5 @@
       "spriteId": "consumable",
       "effects": [ { "type": "reveal-items", "value": 1, "description": "フロア全体のアイテムの位置を表示" } ]
     }
-  ]
+  }
 }

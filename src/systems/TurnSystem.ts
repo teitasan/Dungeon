@@ -225,7 +225,7 @@ export class TurnSystem {
    * メインのターン実行メソッド - 完全同期処理
    * ドキュメントに従った順序でターンを進行
    */
-  executeTurn(): void {
+  async executeTurn(): Promise<void> {
     // ターンオーダーが初期化されていない場合は初期化
     if (this.turnManager.turnOrder.length === 0 && this.dungeonManager) {
       const entities = this.dungeonManager.getAllEntities();
@@ -249,7 +249,7 @@ export class TurnSystem {
     this.executeEndTurnProcessing();
     
     // 自然スポーンの判定（30ターンおき）
-    this.checkNaturalSpawn();
+    await this.checkNaturalSpawn();
     
     // 次のターンの準備
     this.prepareNextTurn();
@@ -1184,7 +1184,7 @@ export class TurnSystem {
   /**
    * 自然スポーンの判定（30ターンおき）
    */
-  private checkNaturalSpawn(): void {
+  private async checkNaturalSpawn(): Promise<void> {
     // 30ターンおきに判定
     if (this.turnManager.currentTurn % 30 !== 0) {
       return;
@@ -1195,7 +1195,7 @@ export class TurnSystem {
 
     // 敵の数が20未満の場合、自然スポーンを実行
     if (enemyCount < 20) {
-      this.executeNaturalSpawn();
+      await this.executeNaturalSpawn();
     }
   }
 
@@ -1212,7 +1212,7 @@ export class TurnSystem {
   /**
    * 自然スポーンを実行
    */
-  private executeNaturalSpawn(): void {
+  private async executeNaturalSpawn(): Promise<void> {
     if (!this.dungeonManager) return;
 
     // プレイヤーが居る部屋を取得（通路に居る場合はnull）
@@ -1231,7 +1231,7 @@ export class TurnSystem {
       const spawnPosition = this.getRandomPositionInRoom(randomRoom);
       
       if (spawnPosition) {
-        this.spawnMonsterAtPosition(spawnPosition);
+        await this.spawnMonsterAtPosition(spawnPosition);
       }
     }
   }
@@ -1356,11 +1356,11 @@ export class TurnSystem {
   /**
    * 指定位置にモンスターをスポーン
    */
-  private spawnMonsterAtPosition(position: Position): void {
+  private async spawnMonsterAtPosition(position: Position): Promise<void> {
     if (!this.dungeonManager) return;
     
     // モンスターテンプレートを取得（設定から）
-    const monsterTemplate = this.getMonsterTemplate();
+    const monsterTemplate = await this.getMonsterTemplate();
     if (!monsterTemplate) return;
     
     // モンスターを作成
@@ -1412,11 +1412,36 @@ export class TurnSystem {
   /**
    * モンスターテンプレートを取得
    */
-  private getMonsterTemplate(): any {
-    // 設定からモンスターテンプレートを取得
-    // 現在はハードコード、後で設定ローダーから取得するように改善
+  private async getMonsterTemplate(): Promise<any> {
+    try {
+      // MonsterRegistryからテンプレートを取得
+      const { MonsterRegistry } = await import('../core/MonsterRegistry.js');
+      const reg = MonsterRegistry.getInstance();
+      if (!reg || !reg.hasTemplates()) {
+        console.warn('MonsterRegistry: No templates available, using fallback');
+        return this.getFallbackMonsterTemplate();
+      }
+      
+      // デフォルトでID "1" (Simple Enemy) を使用
+      const template = reg.getTemplate('1');
+      if (!template) {
+        console.warn('MonsterRegistry: Template "1" not found, using fallback');
+        return this.getFallbackMonsterTemplate();
+      }
+      
+      return template;
+    } catch (error) {
+      console.warn('MonsterRegistry: Failed to load template:', error);
+      return this.getFallbackMonsterTemplate();
+    }
+  }
+
+  /**
+   * フォールバック用のモンスターテンプレート
+   */
+  private getFallbackMonsterTemplate(): any {
     return {
-      id: 'simple-enemy',
+      id: '1',
       name: 'Simple Enemy',
       monsterType: 'basic',
       spriteId: 'enemy-1-0',
