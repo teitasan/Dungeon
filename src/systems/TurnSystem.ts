@@ -30,6 +30,8 @@ export class TurnSystem {
   // 敵の再試行用（一時キュー; フェーズ内限定）
   private enemyRetryQueue: GameEntity[] = [];
   private enemyRetriedThisPhase: Set<string> = new Set();
+  // フロアごとのターン数管理
+  private currentFloorTurn: number = 1;
   
 
   constructor(
@@ -69,6 +71,21 @@ export class TurnSystem {
    */
   setPlayerEntity(playerEntity: any): void {
     this.playerEntity = playerEntity;
+  }
+
+  /**
+   * Reset floor turn counter (called when changing floors)
+   */
+  resetFloorTurnCounter(): void {
+    console.log(`[TurnSystem] フロアターン数をリセット: ${this.currentFloorTurn} → 1`);
+    this.currentFloorTurn = 1;
+  }
+
+  /**
+   * Get current floor turn number
+   */
+  getCurrentFloorTurn(): number {
+    return this.currentFloorTurn;
   }
 
   /**
@@ -940,6 +957,9 @@ export class TurnSystem {
     // ターン番号を増加
     this.turnManager.currentTurn++;
     
+    // フロアターン数を増加
+    this.currentFloorTurn++;
+    
     // 速度状態を更新
     this.updateEntitySpeedStates();
     
@@ -1182,20 +1202,25 @@ export class TurnSystem {
   }
 
   /**
-   * 自然スポーンの判定（30ターンおき）
+   * 自然スポーンの判定（フロア内30ターンおき）
    */
   private async checkNaturalSpawn(): Promise<void> {
-    // 30ターンおきに判定
-    if (this.turnManager.currentTurn % 30 !== 0) {
+    // フロア内30ターンおきに判定
+    if (this.currentFloorTurn % 30 !== 0) {
       return;
     }
+
+    console.log(`[TurnSystem] フロア内${this.currentFloorTurn}ターン目: 自然スポーン判定実行`);
 
     // フロア内の敵の数をカウント
     const enemyCount = this.countEnemiesOnFloor();
 
     // 敵の数が20未満の場合、自然スポーンを実行
     if (enemyCount < 20) {
+      console.log(`[TurnSystem] 敵数${enemyCount}体 < 20体のため自然スポーン実行`);
       await this.executeNaturalSpawn();
+    } else {
+      console.log(`[TurnSystem] 敵数${enemyCount}体 >= 20体のため自然スポーンスキップ`);
     }
   }
 

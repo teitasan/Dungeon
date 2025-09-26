@@ -29,6 +29,7 @@ export class CombatSystem {
   private combatState: CombatState;
   private attributeSystem: AttributeSystem;
   private dungeonManager?: DungeonManager;
+  private turnSystem?: any; // TurnSystemの参照
   private messageSink?: (message: string) => void;
   private damageDisplayManager?: DamageDisplayManager;
 
@@ -96,6 +97,13 @@ export class CombatSystem {
    */
   setDungeonManager(dm: DungeonManager): void {
     this.dungeonManager = dm;
+  }
+
+  /**
+   * TurnSystem を設定（撃破時の取り除きなど副作用用）
+   */
+  setTurnSystem(turnSystem: any): void {
+    this.turnSystem = turnSystem;
   }
 
   /**
@@ -749,6 +757,15 @@ export class CombatSystem {
       console.log(`[CombatSystem] 警告: dungeonManagerが設定されていません`);
     }
 
+    // エンティティをターンシステムからも削除
+    if (this.turnSystem) {
+      console.log(`[CombatSystem] 敵${enemy.id}をターンシステムから削除開始`);
+      this.turnSystem.removeEntity(enemy);
+      console.log(`[CombatSystem] 敵${enemy.id}をターンシステムから削除完了`);
+    } else {
+      console.log(`[CombatSystem] 警告: turnSystemが設定されていません`);
+    }
+
     // メッセージはexecuteAttackで統一的に管理される
   }
 
@@ -767,16 +784,16 @@ export class CombatSystem {
    * Check if entity is an enemy
    */
   private isEnemy(entity: GameEntity): boolean {
-    // MonsterEntityの判定（暫定的な実装）
-    return entity.id.includes('enemy') || entity.id.includes('monster');
+    // entityTypeによる確実な判定
+    return entity.entityType === 'monster';
   }
 
   /**
    * Check if entity is a player
    */
   private isPlayer(entity: GameEntity): boolean {
-    // PlayerEntityの判定（暫定的な実装）
-    return entity.id.includes('player') || entity.id === 'player-1';
+    // entityTypeによる確実な判定
+    return entity.entityType === 'player';
   }
 
   /**

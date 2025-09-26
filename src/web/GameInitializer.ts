@@ -72,8 +72,6 @@ export class GameInitializer {
     // ダンジョンの初期化
     await this.initializeDungeon(systems, player, config);
 
-    // テスト用モンスターの追加
-    await this.addTestMonsters(systems, player, config);
 
     // テスト用アイテムの追加
     const spawn = player.position;
@@ -167,6 +165,7 @@ export class GameInitializer {
     itemSystem.setMessageSink((msg: string) => uiSystem.pushMessage(msg));
     // 戦闘結果のメッセージや撃破時の取り除きに必要な参照を設定
     combatSystem.setDungeonManager(dungeonManager);
+    combatSystem.setTurnSystem(turnSystem);
     combatSystem.setMessageSink((msg: string) => uiSystem.pushMessage(msg));
     // ダメージ表示マネージャーを設定
     this.damageDisplayManager = damageDisplayManager;
@@ -179,6 +178,9 @@ export class GameInitializer {
     const { DropSystem } = await import('../systems/DropSystem.js');
     const dropSystem = new DropSystem(dungeonManager, itemSystem);
     multipleDungeonSystem.setDropSystem(dropSystem);
+    
+    // TurnSystem を MultipleDungeonSystem に登録（フロア移動時のターン数リセット用）
+    multipleDungeonSystem.setTurnSystem(turnSystem);
 
     return {
       dungeonManager,
@@ -255,189 +257,8 @@ export class GameInitializer {
     // UISystemにUIManagerを設定（後で行う）
   }
 
-  private async addTestMonsters(
-    systems: GameSystems,
-    player: PlayerEntity,
-    config: any
-  ): Promise<void> {
-    const { dungeonManager } = systems;
-    const spawn = player.position;
 
-    // 設定ファイルのモンスターテンプレートを使用
-    if (config.monsters?.templates) {
-      
-      // スポーン数を計算
-      const spawnCount = this.calculateMonsterSpawnCount(dungeonManager, config);
-      
-      // 各テンプレートから指定された数だけ作成
-      for (const template of config.monsters.templates) {
-        
-        for (let i = 0; i < spawnCount; i++) {
-          // フロア全体のランダムな位置を取得
-          const randomPosition = this.getRandomFloorPosition(dungeonManager, player);
-          if (!randomPosition) {
-            break; // 位置が見つからない場合は終了
-          }
-          
-          // テンプレートからモンスターを作成
-          const characterInfo = {
-            name: template.name,
-            gender: 'other' as const,
-            age: 0,
-            height: 150,
-            weight: 50,
-            race: 'human' as const,
-            class: 'unemployed' as const,
-            stats: {
-              STR: template.characterStats?.STR || 5,
-              DEX: template.characterStats?.DEX || 10,
-              INT: template.characterStats?.INT || 5,
-              CON: template.characterStats?.CON || 2,
-              POW: template.characterStats?.POW || 5,
-              APP: template.characterStats?.APP || 5,
-              LUK: template.characterStats?.LUK || 5
-            },
-            features: []
-          };
-          
-          const monster = new MonsterEntity(
-            `${template.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            characterInfo,
-            template.monsterType,
-            randomPosition,
-            undefined, // attributes
-            template.movementPattern || 'approach',
-            template.movementConfig,
-            template.spriteId,
-            template.experienceValue,
-            template.dropRate,
-            template.dropTableId,
-            template.level,
-            template.description,
-            template.spritesheet
-          );
 
-          // ドロップテーブルを設定ファイルから取得して設定
-          // まずダンジョンテンプレートのマッピングを確認
-          const currentDungeonId = dungeonManager.getCurrentDungeon()?.id;
-          if (currentDungeonId) {
-            const dungeonTemplate = dungeonManager.getTemplate(currentDungeonId);
-            if (template.dropTableId && dungeonTemplate?.dropTableMapping?.[template.dropTableId]) {
-              const actualDropTableId = dungeonTemplate.dropTableMapping[template.dropTableId];
-              if (config.monsters?.dropTables?.[actualDropTableId]) {
-                monster.dropTable = config.monsters.dropTables[actualDropTableId];
-              }
-            }
-          }
-          
-          // 初期方向を設定
-          monster.currentDirection = 'front';
-          
-          
-          // モンスターをダンジョンに追加
-          dungeonManager.addEntity(monster as any, randomPosition);
-          console.log(`Added test monster: ${monster.characterInfo.name} at (${randomPosition.x}, ${randomPosition.y})`);
-        }
-      }
-    } else {
-    }
-    
-  }
-
-  /**
-   * モンスターのスポーン数を計算
-   */
-  private calculateMonsterSpawnCount(dungeonManager: any, config: any): number {
-    // 部屋の数を取得
-    const roomCount = dungeonManager.currentDungeon?.rooms?.length || 0;
-    
-    // 基本スポーン数（部屋の数）
-    const baseSpawnCount = roomCount;
-    
-    // ランダム変動（-2〜+2）
-    const randomVariation = config.monsters?.spawnLimits?.randomVariation || 2;
-    const variation = Math.floor(Math.random() * (randomVariation * 2 + 1)) - randomVariation;
-    
-    // 最終スポーン数
-    let finalSpawnCount = baseSpawnCount + variation;
-    
-    // 上限チェック
-    const maxPerFloor = config.monsters?.spawnLimits?.maxPerFloor || 50;
-    finalSpawnCount = Math.min(finalSpawnCount, maxPerFloor);
-    
-    // 最小値チェック（最低1体）
-    finalSpawnCount = Math.max(finalSpawnCount, 1);
-    
-    
-    return finalSpawnCount;
-  }
-
-  /**
-   * 部屋内のランダムな位置を取得（プレイヤー、敵、味方と重ならない位置）
-   */
-  private getRandomFloorPosition(dungeonManager: any, player: PlayerEntity): Position | null {
-    // 部屋内の位置のリストを取得
-    const roomPositions: Position[] = [];
-    
-    // フロア全体をスキャンして部屋内の位置を収集
-    for (let x = 0; x < 45; x++) {
-      for (let y = 0; y < 45; y++) {
-        const position = { x, y };
-        const cell = dungeonManager.getCellAt(position);
-        
-        // 部屋内で歩行可能な位置のみ
-        if (cell && cell.type === 'room' && cell.walkable) {
-          roomPositions.push(position);
-        }
-      }
-    }
-    
-    // 部屋内の位置がない場合
-    if (roomPositions.length === 0) {
-      return null;
-    }
-    
-    // プレイヤー、敵、味方がいる位置を除外
-    const availablePositions = roomPositions.filter(position => 
-      this.isValidMonsterPosition(dungeonManager, position, player)
-    );
-    
-    if (availablePositions.length === 0) {
-      return null;
-    }
-    
-    // 利用可能な部屋位置からランダムで選択
-    const randomIndex = Math.floor(Math.random() * availablePositions.length);
-    return availablePositions[randomIndex];
-  }
-
-  /**
-   * モンスターの位置が有効かチェック
-   */
-  private isValidMonsterPosition(dungeonManager: any, position: Position, player: PlayerEntity): boolean {
-    // 歩行可能な位置かチェック
-    if (!dungeonManager.isWalkable(position)) {
-      return false;
-    }
-    
-    // プレイヤーと重ならないかチェック
-    if (position.x === player.position.x && position.y === player.position.y) {
-      return false;
-    }
-    
-    // 他の敵や味方と重ならないかチェック
-    const entitiesAtPosition = dungeonManager.getEntitiesAt(position);
-    const hasEnemyOrAlly = entitiesAtPosition.some((entity: GameEntity) => 
-      entity instanceof MonsterEntity || 
-      entity instanceof CompanionEntity
-    );
-    
-    if (hasEnemyOrAlly) {
-      return false;
-    }
-    
-    return true;
-  }
 
   private async addTestItems(systems: GameSystems, player: PlayerEntity, spawn: Position): Promise<void> {
     // テスト用アイテムを初期インベントリに追加（地形感知5個 + 敵感知3個 + アイテム感知2個）

@@ -470,7 +470,7 @@ a {
 .minimap-overlay {
   position: absolute;
   top: 50px;
-  left: 20px;
+  left: 35px;
   width: 360px; /* 60×45タイル × 6px */
   height: 270px; /* 60×45タイル × 6px */
   background: transparent; /* 背景を透明に */

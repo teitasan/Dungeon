@@ -85,6 +85,7 @@ export class MultipleDungeonSystem {
   private currentFloor: number = 1;
   private renderer?: CanvasRenderer;
   private dropSystem?: DropSystem;
+  private turnSystem?: any;
 
   constructor(dungeonManager: DungeonManager) {
     this.dungeonManager = dungeonManager;
@@ -103,6 +104,13 @@ export class MultipleDungeonSystem {
    */
   setDropSystem(dropSystem: DropSystem): void {
     this.dropSystem = dropSystem;
+  }
+
+  /**
+   * TurnSystem を設定（フロア移動時のターン数リセットに利用）
+   */
+  setTurnSystem(turnSystem: any): void {
+    this.turnSystem = turnSystem;
   }
 
   /**
@@ -327,6 +335,23 @@ export class MultipleDungeonSystem {
         // 新しいダンジョンにプレイヤーを追加
         this.dungeonManager.addEntity(player, newSpawn);
         console.log('[DEBUG] プレイヤーを新しいダンジョンに追加完了');
+        
+        // フロア移動時にターンシステムのフロアターン数をリセット
+        if (this.turnSystem) {
+          this.turnSystem.resetFloorTurnCounter();
+          console.log('[DEBUG] フロアターン数リセット完了');
+          
+          // ターン順序を完全にリセット（古いフロアの敵を削除）
+          this.turnSystem.resetTurnOrder();
+          console.log('[DEBUG] ターン順序を完全リセット完了');
+          
+          // 新しいフロアのエンティティでターン順序を再初期化
+          const entities = this.dungeonManager.getAllEntities();
+          this.turnSystem.initializeTurnOrder(entities);
+          console.log(`[DEBUG] ターン順序を新しいフロアのエンティティ（${entities.length}体）で再初期化完了`);
+        } else {
+          console.log('[DEBUG] 警告: turnSystemが設定されていません');
+        }
         
         // フロア変更時に効果をチェック（レンダラーが設定されている場合）
         if (this.renderer) {
