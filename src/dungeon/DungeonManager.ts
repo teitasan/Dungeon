@@ -221,6 +221,13 @@ export class DungeonManager {
         throw new Error(`Dungeon template not found: ${templateId}`);
       }
 
+      // 古いダンジョンのエンティティをクリア
+      if (this.currentDungeon) {
+        console.log(`[DungeonManager] 古いダンジョン（${this.currentDungeon.id}）のエンティティをクリア中...`);
+        this.clearAllEntities();
+        console.log('[DungeonManager] 古いダンジョンのエンティティクリア完了');
+      }
+
       this.currentTemplateId = templateId;
 
       if (seed !== undefined) {
@@ -241,6 +248,7 @@ export class DungeonManager {
       // 残り香グリッド初期化
       this.initScentGrid(dungeon.width, dungeon.height);
 
+      console.log(`[DungeonManager] 新しいダンジョン（${dungeon.id}）生成完了`);
       return dungeon;
     } catch (error) {
       console.error('[ERROR] generateDungeonでエラーが発生:', error);
@@ -254,6 +262,27 @@ export class DungeonManager {
    */
   getCurrentDungeon(): Dungeon | null {
     return this.currentDungeon;
+  }
+
+  /**
+   * Clear all entities from current dungeon
+   */
+  private clearAllEntities(): void {
+    if (!this.currentDungeon) return;
+
+    let clearedCount = 0;
+    // 全セルからエンティティを削除
+    for (let y = 0; y < this.currentDungeon.height; y++) {
+      for (let x = 0; x < this.currentDungeon.width; x++) {
+        const cell = this.currentDungeon.cells[y]?.[x];
+        if (cell && cell.entities) {
+          clearedCount += cell.entities.length;
+          cell.entities = [];
+        }
+      }
+    }
+    
+    console.log(`[DungeonManager] ${clearedCount}体のエンティティをクリアしました`);
   }
 
   /**

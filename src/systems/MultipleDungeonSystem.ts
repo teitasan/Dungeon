@@ -349,6 +349,15 @@ export class MultipleDungeonSystem {
           const entities = this.dungeonManager.getAllEntities();
           this.turnSystem.initializeTurnOrder(entities);
           console.log(`[DEBUG] ターン順序を新しいフロアのエンティティ（${entities.length}体）で再初期化完了`);
+          
+          // フロア初期スポーンを実行
+          await this.turnSystem.executeFloorInitialSpawn();
+          console.log('[DEBUG] フロア初期スポーン実行完了');
+          
+          // 初期スポーン後のエンティティでターン順序を再初期化
+          const entitiesAfterSpawn = this.dungeonManager.getAllEntities();
+          this.turnSystem.initializeTurnOrder(entitiesAfterSpawn);
+          console.log(`[DEBUG] 初期スポーン後のターン順序再初期化完了（${entitiesAfterSpawn.length}体）`);
         } else {
           console.log('[DEBUG] 警告: turnSystemが設定されていません');
         }

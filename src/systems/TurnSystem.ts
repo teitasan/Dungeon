@@ -89,6 +89,78 @@ export class TurnSystem {
   }
 
   /**
+   * Execute floor initial spawn (called when entering a new floor)
+   */
+  async executeFloorInitialSpawn(): Promise<void> {
+    if (!this.dungeonManager) {
+      console.log('[TurnSystem] フロア初期スポーン: dungeonManagerが設定されていません');
+      return;
+    }
+
+    console.log('[TurnSystem] フロア初期スポーン開始');
+
+    // 現在のダンジョンとフロア情報を取得
+    const currentDungeon = this.dungeonManager.getCurrentDungeon();
+    if (!currentDungeon) {
+      console.log('[TurnSystem] フロア初期スポーン: 現在のダンジョンが取得できません');
+      return;
+    }
+
+    // フロア初期スポーンの数を計算
+    const spawnCount = this.calculateFloorInitialSpawnCount(currentDungeon.floor);
+    if (spawnCount <= 0) {
+      console.log(`[TurnSystem] フロア初期スポーン: スポーン数${spawnCount}のためスキップ`);
+      return;
+    }
+
+    console.log(`[TurnSystem] フロア初期スポーン: ${spawnCount}体の敵をスポーン`);
+
+    // 利用可能な部屋を取得
+    const availableRooms = this.getAvailableRoomsForSpawn(null); // プレイヤー位置は考慮しない
+    if (availableRooms.length === 0) {
+      console.log('[TurnSystem] フロア初期スポーン: 利用可能な部屋がありません');
+      return;
+    }
+
+    // 指定された数の敵をスポーン
+    for (let i = 0; i < spawnCount; i++) {
+      const randomRoom = availableRooms[Math.floor(Math.random() * availableRooms.length)];
+      const spawnPosition = this.getRandomPositionInRoom(randomRoom);
+      
+      if (spawnPosition) {
+        await this.spawnMonsterAtPosition(spawnPosition);
+        console.log(`[TurnSystem] フロア初期スポーン: 敵を(${spawnPosition.x}, ${spawnPosition.y})に配置`);
+      }
+    }
+
+    console.log(`[TurnSystem] フロア初期スポーン完了: ${spawnCount}体配置`);
+  }
+
+  /**
+   * Calculate floor initial spawn count based on floor level
+   */
+  private calculateFloorInitialSpawnCount(floor: number): number {
+    // 基本スポーン数（フロアレベルに応じて増加）
+    const baseSpawnCount = Math.floor(floor * 0.5) + 2; // フロア1: 2体, フロア2: 3体, フロア3: 3体, フロア4: 4体...
+    
+    // ランダム変動（-1〜+2）
+    const randomVariation = Math.floor(Math.random() * 4) - 1; // -1, 0, 1, 2
+    
+    // 最終スポーン数
+    let finalSpawnCount = baseSpawnCount + randomVariation;
+    
+    // 上限チェック（最大10体）
+    finalSpawnCount = Math.min(finalSpawnCount, 10);
+    
+    // 最小値チェック（最低1体）
+    finalSpawnCount = Math.max(finalSpawnCount, 1);
+    
+    console.log(`[TurnSystem] フロア初期スポーン計算: フロア${floor}, 基本${baseSpawnCount}体, 変動${randomVariation}, 最終${finalSpawnCount}体`);
+    
+    return finalSpawnCount;
+  }
+
+  /**
    * Reset turn order (call when changing floors or restarting)
    */
   resetTurnOrder(): void {

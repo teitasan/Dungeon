@@ -34,8 +34,10 @@ async function start(): Promise<void> {
     gameLoop.setInputHandler(inputHandler);
 
     // ターンシステムの初期化（ゲーム開始時）
+    // 注意: 初期スポーンは既にGameInitializerで実行済み
     const entities = systems.dungeonManager.getAllEntities();
     systems.turnSystem.initializeTurnOrder(entities);
+    console.log(`[main] ゲーム開始時のターン順序初期化完了（${entities.length}体）`);
     
     // 初期メッセージの表示
     uiManager.addMessageWithAnimation(`Entered ${systems.dungeonManager.getCurrentDungeon()?.name || 'Unknown Dungeon'}`);

@@ -254,6 +254,17 @@ export class GameInitializer {
       }
     }
 
+    // 初期フロアに敵をスポーン
+    if (systems.turnSystem) {
+      await systems.turnSystem.executeFloorInitialSpawn();
+      console.log('[GameInitializer] 初期フロアの敵スポーン完了');
+      
+      // 初期スポーン後のエンティティでターン順序を再初期化
+      const entitiesAfterSpawn = dungeonManager.getAllEntities();
+      systems.turnSystem.initializeTurnOrder(entitiesAfterSpawn);
+      console.log(`[GameInitializer] 初期スポーン後のターン順序再初期化完了（${entitiesAfterSpawn.length}体）`);
+    }
+
     // UISystemにUIManagerを設定（後で行う）
   }
 
