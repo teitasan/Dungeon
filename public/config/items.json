@@ -13,44 +13,44 @@
   },
   "templates": {
     "1": {
-      "name": "Health Potion",
+      "name": "回復薬",
       "itemType": "consumable",
       "identified": false,
       "cursed": false,
       "spriteId": "consumable",
-      "effects": [ { "type": "heal", "value": 20, "description": "Restores 20 HP" } ]
+      "effects": [ { "type": "heal", "value": 20, "description": "HPを20回復する" } ]
     },
     "2": {
-      "name": "Bread",
+      "name": "パン",
       "itemType": "consumable",
       "identified": true,
       "cursed": false,
       "spriteId": "consumable",
-      "effects": [ { "type": "restore-hunger", "value": 30, "description": "Restores 30 hunger" } ]
+      "effects": [ { "type": "restore-hunger", "value": 30, "description": "空腹度を30回復する" } ]
     },
     "3": {
-      "name": "Antidote",
+      "name": "解毒薬",
       "itemType": "consumable",
       "identified": false,
       "cursed": false,
       "spriteId": "consumable",
-      "effects": [ { "type": "cure-status", "statusType": "poison", "description": "Cures poison" } ]
+      "effects": [ { "type": "cure-status", "statusType": "poison", "description": "毒を治す" } ]
     },
     "4": {
-      "name": "Scroll of Identify",
+      "name": "識別の巻物",
       "itemType": "consumable",
       "identified": false,
       "cursed": false,
       "spriteId": "consumable",
-      "effects": [ { "type": "identify", "description": "Identifies all items in inventory" } ]
+      "effects": [ { "type": "identify", "description": "インベントリ内の全アイテムを識別する" } ]
     },
     "5": {
-      "name": "Scroll of Teleport",
+      "name": "テレポートの巻物",
       "itemType": "consumable",
       "identified": false,
       "cursed": false,
       "spriteId": "consumable",
-      "effects": [ { "type": "teleport", "description": "Teleports to random location" } ]
+      "effects": [ { "type": "teleport", "description": "ランダムな場所にテレポートする" } ]
     },
     "6": {
       "name": "地形感知の巻物",

@@ -107,6 +107,7 @@ export interface MonsterTemplate {
   level?: number;
   description?: string;
   characterStats?: CharacterStats;
+  characterInfo?: CharacterInfo;
 }
 
 // Companion model

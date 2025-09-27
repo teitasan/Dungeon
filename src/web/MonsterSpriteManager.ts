@@ -126,6 +126,9 @@ export class MonsterSpriteManager {
     direction: string = 'front',
     monsterType: string = 'basic'
   ): void {
+    // デバッグ用ログ
+    console.log(`[MonsterSpriteManager] Drawing monster: spriteId=${spriteId}, monsterType=${monsterType}, direction=${direction}`);
+    
     // 敵の種類に応じた画像を取得
     const image = this.images.get(monsterType);
     if (!image) {
@@ -139,6 +142,8 @@ export class MonsterSpriteManager {
       console.warn(`Spritesheet not found for type: ${monsterType}`);
       return;
     }
+    
+    console.log(`[MonsterSpriteManager] Using spritesheet: ${spritesheet.imagePath}`);
 
     // 方向に応じたスプライトIDを取得
     const directionSpriteId = this.getDirectionSpriteId(spriteId, direction);
@@ -150,7 +155,7 @@ export class MonsterSpriteManager {
     }
 
     // アニメーション対応
-    const animatedSpriteId = this.getAnimatedSpriteId(directionSpriteId);
+    const animatedSpriteId = this.getAnimatedSpriteId(directionSpriteId, monsterType);
     const finalSpriteDef = spritesheet.sprites[animatedSpriteId] || spriteDef;
 
     this.drawSpriteInternal(ctx, finalSpriteDef, x, y, tileSize, image);
@@ -180,7 +185,7 @@ export class MonsterSpriteManager {
   /**
    * Get animated sprite ID for current frame
    */
-  private getAnimatedSpriteId(spriteId: string): string {
+  private getAnimatedSpriteId(spriteId: string, monsterType: string = 'basic'): string {
     // アニメーション更新は updateAnimation() で行うため、ここでは現在のフレームを取得するのみ
 
     // スプライトIDから座標を抽出（例: "enemy-1-0" -> enemy, 1, 0）
@@ -209,8 +214,9 @@ export class MonsterSpriteManager {
         
         // console.log(`[MonsterSpriteManager] アニメーション: ${direction}, フレーム${frameIndex}: ${animatedSpriteId}`);
         
-        // アニメーション用スプライトが存在するかチェック（基本的なスプライトシートでチェック）
-        if (this.spritesheets.basic.sprites[animatedSpriteId]) {
+        // 敵の種類に応じたスプライトシートでアニメーション用スプライトが存在するかチェック
+        const spritesheet = this.spritesheets[monsterType];
+        if (spritesheet && spritesheet.sprites[animatedSpriteId]) {
           return animatedSpriteId;
         }
       }

@@ -6,7 +6,7 @@
 
 import { DungeonManager } from '../dungeon/DungeonManager';
 import { PlayerEntity } from '../entities/Player';
-import { GameEntity } from '../types/entities';
+import type { GameEntity, ItemType } from '../types/entities';
 import { UIManager } from '../web/ui/UIManager';
 import { ItemSystem } from './ItemSystem';
 import { CanvasRenderer } from '../web/CanvasRenderer';
@@ -15,7 +15,14 @@ export interface ECSDataProvider {
   getPlayerHealth(): { current: number; max: number } | null;
   getPlayerHunger(): { current: number; max: number } | null;
   getPlayerPosition(): { x: number; y: number } | null;
-  getPlayerInventory(): Array<{ id: string; name: string; identified: boolean; cursed: boolean }> | null;
+  getPlayerInventory(): Array<{
+    id: string;
+    name: string;
+    identified: boolean;
+    cursed: boolean;
+    itemType?: ItemType;
+    getDisplayName?: () => string;
+  }> | null;
   getMonstersAtPosition(position: { x: number; y: number }): Array<{ id: string; health: number; maxHealth: number }> | null;
   getItemsAtPosition(position: { x: number; y: number }): Array<{ id: string; name: string; identified: boolean }> | null;
 }

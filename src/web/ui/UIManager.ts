@@ -1,11 +1,17 @@
 import type { GameConfig } from '../../types/core.js';
+import type { Item } from '../../types/entities.js';
 import { DamageDisplayManager } from '../DamageDisplayManager.js';
+
+type InventoryDisplayItem = Pick<Item, 'id' | 'name' | 'identified'> &
+  Partial<Pick<Item, 'itemType'>> & {
+    getDisplayName?: () => string;
+  };
 
 export class UIManager {
   private config: GameConfig;
   private appElement: HTMLElement;
   private selectedInventoryIndex: number = 0;
-  private currentInventoryItems: Array<{ id: string; name?: string }> = [];
+  private currentInventoryItems: InventoryDisplayItem[] = [];
   // メッセージ表示制御用の内部状態
   private messageQueue: string[] = [];
   private isAnimating: boolean = false;
@@ -392,7 +398,7 @@ export class UIManager {
   /**
    * インベントリリストを更新
    */
-  updateInventoryList(items: Array<{ id: string; name?: string }>): void {
+  updateInventoryList(items: InventoryDisplayItem[]): void {
     const list = document.getElementById('inventoryList') as HTMLUListElement;
     if (!list) return;
 
@@ -409,7 +415,7 @@ export class UIManager {
     } else {
       items.forEach((item, index) => {
         const li = document.createElement('li');
-        const label = item.name || item.id;
+        const label = this.getInventoryItemLabel(item);
         li.textContent = `${index === this.selectedInventoryIndex ? '▶ ' : '  '}${label}`;
         li.style.fontFamily = 'var(--font-stack-primary)';
         // 反転ハイライトは行わず、カーソル（▶）のみで選択を示す
@@ -419,9 +425,41 @@ export class UIManager {
   }
 
   /**
+   * インベントリ表示用のラベルを返却（未鑑定アイテムは匿名表示）
+   */
+  getInventoryItemLabel(item: InventoryDisplayItem): string {
+    const displayName = item.getDisplayName?.();
+    if (displayName) {
+      return displayName;
+    }
+
+    if (item.identified === false) {
+      switch (item.itemType) {
+        case 'weapon-melee':
+          return 'Unknown Weapon';
+        case 'weapon-ranged':
+          return 'Unknown Ranged Weapon';
+        case 'armor':
+          return 'Unknown Armor';
+        case 'accessory':
+          return 'Unknown Accessory';
+        case 'consumable':
+        default:
+          return 'Unknown Item';
+      }
+    }
+
+    if (item.name && item.name.length > 0) {
+      return item.name;
+    }
+
+    return item.id;
+  }
+
+  /**
    * 選択されたインベントリアイテムを取得
    */
-  getSelectedInventoryItem(): { id: string; name?: string } | null {
+  getSelectedInventoryItem(): InventoryDisplayItem | null {
     if (this.currentInventoryItems.length === 0 || this.selectedInventoryIndex >= this.currentInventoryItems.length) {
       return null;
     }

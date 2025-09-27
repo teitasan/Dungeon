@@ -352,8 +352,12 @@ export class CanvasRenderer {
     const spriteId = entity.spriteId;
     const monsterType = (entity as any).spritesheet || 'basic';
     
+    // デバッグ用ログ
+    console.log(`[CanvasRenderer] Rendering monster: name=${entity.name}, spriteId=${spriteId}, spritesheet=${monsterType}`);
+    
     if (!spriteId || !this.monsterSpriteManager.hasSprite(spriteId, monsterType)) {
       // スプライトIDがない場合や存在しない場合はフォールバック
+      console.warn(`[CanvasRenderer] Sprite not found: spriteId=${spriteId}, monsterType=${monsterType}`);
       this.renderMonsterFallback(entity, x, y);
       return;
     }

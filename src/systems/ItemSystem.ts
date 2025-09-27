@@ -215,16 +215,27 @@ export class ItemSystem implements InventoryManager {
         break;
 
       case 'teleport':
-        // Random teleportation
+        // Teleport to random room on the floor
         if (this.dungeonManager.getCurrentDungeon()) {
-          // Find random walkable position
           const dungeon = this.dungeonManager.getCurrentDungeon()!;
+          
+          // フロア内の部屋を取得
+          const rooms = dungeon.rooms;
+          if (rooms.length === 0) {
+            message = `テレポート失敗: 部屋がありません`;
+            break;
+          }
+          
+          // ランダムな部屋を選択
+          const randomRoom = rooms[Math.floor(Math.random() * rooms.length)];
+          
+          // 選択した部屋内のランダムな位置を探す
           let attempts = 0;
           let newPos: Position | null = null;
           
           while (attempts < 50 && !newPos) {
-            const x = Math.floor(Math.random() * dungeon.width);
-            const y = Math.floor(Math.random() * dungeon.height);
+            const x = randomRoom.x + Math.floor(Math.random() * randomRoom.width);
+            const y = randomRoom.y + Math.floor(Math.random() * randomRoom.height);
             const testPos = { x, y };
             
             if (this.dungeonManager.isWalkable(testPos)) {
@@ -236,9 +247,9 @@ export class ItemSystem implements InventoryManager {
           if (newPos) {
             this.dungeonManager.moveEntity(target, newPos);
             success = true;
-            message = `${target.id} is teleported`;
+            message = `${target.id} は部屋にテレポートしました`;
           } else {
-            message = `Teleportation failed`;
+            message = `テレポート失敗: 移動可能な場所がありません`;
           }
         }
         break;
@@ -364,7 +375,7 @@ export class ItemSystem implements InventoryManager {
         success: false,
         item,
         entity,
-        message: 'Inventory is full',
+        message: 'これ以上持てない',
         reason: 'inventory-full'
       };
     }

@@ -125,17 +125,15 @@ export class GameInitializer {
       const { MonsterRegistry } = await import('../core/MonsterRegistry.js');
       const reg = MonsterRegistry.getInstance();
       
-      // characters.jsonのtemplates配列をオブジェクト形式に変換
-      const templatesArray = config?.monsters?.templates || [];
-      const templatesObject: any = {};
-      templatesArray.forEach((template: any) => {
-        if (template.id) {
-          templatesObject[template.id] = template;
-        }
-      });
+      // characters.jsonのtemplatesオブジェクトを直接使用
+      const templatesObject = config?.monsters?.templates || {};
       
       console.log('[DEBUG] MonsterRegistry: Loading templates:', templatesObject);
       reg.loadFromConfig(templatesObject);
+      
+      // 読み込み後の確認
+      const allTemplates = reg.getAll();
+      console.log('[DEBUG] MonsterRegistry: Loaded templates:', allTemplates.map(t => ({ id: t.id, name: t.name })));
     } catch (e) {
       console.warn('MonsterRegistry load failed (continuing with defaults):', e);
     }
@@ -145,7 +143,7 @@ export class GameInitializer {
     try {
       await itemSystem.reloadTemplatesFromRegistry?.();
     } catch {}
-    const movementSystem = new MovementSystem(dungeonManager, itemSystem);
+    const movementSystem = new MovementSystem(dungeonManager, itemSystem, uiSystem);
     
     // 満腹度システムの生成
     const hungerSystem = new HungerSystem(config.player?.hungerConfig);
@@ -161,6 +159,20 @@ export class GameInitializer {
       undefined, // statusSystem - 後で設定
       undefined  // playerEntity - 後で設定
     );
+    
+    // 設定ファイルからデフォルトの敵テンプレートIDを設定
+    if (config.monsters?.defaultTemplateId) {
+      turnSystem.setDefaultMonsterTemplateId(config.monsters.defaultTemplateId);
+    }
+    
+    // フロア別スポーンルールを設定
+    console.log('[DEBUG] GameInitializer: config.monsters:', config.monsters);
+    if (config.monsters?.floorSpawnRules) {
+      console.log('[DEBUG] GameInitializer: フロア別スポーンルールを設定:', config.monsters.floorSpawnRules);
+      turnSystem.setFloorSpawnRules(config.monsters.floorSpawnRules);
+    } else {
+      console.warn('[DEBUG] GameInitializer: フロア別スポーンルールが見つかりません');
+    }
     // 自然スポーンはデフォルト設定のまま利用
     
     // AISystemを作成（TurnSystemの参照を渡す）
@@ -241,7 +253,7 @@ export class GameInitializer {
     player: PlayerEntity,
     config: any
   ): Promise<void> {
-    const { dungeonManager, multipleDungeonSystem, uiSystem, dropSystem } = systems;
+    const { dungeonManager, multipleDungeonSystem } = systems;
 
     const select = multipleDungeonSystem.selectDungeon('beginner-cave', player);
     if (!select.success) {
@@ -256,14 +268,6 @@ export class GameInitializer {
     const spawn: Position = dungeon.playerSpawn;
     player.setPosition(spawn);
     dungeonManager.addEntity(player as any, spawn);
-
-    // 初期フロアにアイテムをスポーン
-    if (dropSystem) {
-      const template = dungeonManager.getTemplate('beginner-cave');
-      if (template) {
-        dropSystem.spawnFloorItems(template, 1);
-      }
-    }
 
     // 初期フロアに敵をスポーン
     if (systems.turnSystem) {
@@ -283,11 +287,12 @@ export class GameInitializer {
 
 
   private async addTestItems(systems: GameSystems, player: PlayerEntity, spawn: Position): Promise<void> {
-    // テスト用アイテムを初期インベントリに追加（地形感知5個 + 敵感知3個 + アイテム感知2個）
+    // テスト用アイテムを初期インベントリに追加（地形感知5個 + 敵感知3個 + アイテム感知2個 + テレポート1個）
     const testItemTemplates = [
       { id: '6', count: 5 },  // 地形感知の巻物
       { id: '7', count: 3 },  // 敵感知の巻物
-      { id: '8', count: 2 }   // アイテム感知の巻物
+      { id: '8', count: 2 }, // アイテム感知の巻物
+      { id: '5', count: 1 }   // テレポートの巻物
     ];
 
     for (const template of testItemTemplates) {
@@ -387,6 +392,8 @@ export class GameInitializer {
     try {
       if (config.monsters?.spritesheets) {
         console.log('Monster spritesheets config found');
+        console.log('Spritesheets config:', config.monsters.spritesheets);
+        console.log('Animations config:', config.monsters.animations);
         
         // 複数スプライトシートとアニメーション設定を渡す
         const monsterConfig = {

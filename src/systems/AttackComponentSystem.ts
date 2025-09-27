@@ -491,6 +491,9 @@ export class AttackComponentSystem {
     attackCount: number
   ): string {
     const attackerName = (attacker as any).name || attacker.id;
+    
+    // デバッグログを追加
+    console.log(`[DEBUG] AttackMessage - Attacker: name="${(attacker as any).name}", id="${attacker.id}", final="${attackerName}"`);
     const hitTargets = results.filter(r => r.hit);
     
     if (hitTargets.length === 0) {

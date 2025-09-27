@@ -44,6 +44,7 @@ export class MonsterRegistry {
         level: typeof template.level === 'number' ? template.level : undefined,
         description: template.description,
         characterStats: template.characterStats ? { ...template.characterStats } : undefined,
+        characterInfo: template.characterInfo ? { ...template.characterInfo } : undefined,
       } as MonsterTemplate;
       this.templates.set(casted.id, casted);
     }

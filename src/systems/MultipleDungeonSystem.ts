@@ -197,7 +197,11 @@ export class MultipleDungeonSystem {
     // Enter dungeon
     this.currentDungeon = dungeon;
     this.currentFloor = 1;
-    
+
+    if (this.dropSystem) {
+      this.dropSystem.resetSpawnHistory(dungeonId);
+    }
+
     // Generate first floor
     this.dungeonManager.generateDungeon(dungeonId, 1);
     // Spawn floor items based on template itemTable
@@ -205,7 +209,7 @@ export class MultipleDungeonSystem {
       const tpl = this.dungeonManager.getTemplate(dungeonId);
       if (tpl) this.dropSystem.spawnFloorItems(tpl, 1);
     }
-    
+
     // Update progress
     const progress = this.getPlayerProgress(dungeonId);
     progress.totalAttempts++;

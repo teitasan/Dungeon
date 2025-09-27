@@ -47,7 +47,9 @@
     ],
     "tileSet": "basic",
     "monsterTable": [
-      { "monsterId": "1", "weight": 5, "minFloor": 1, "maxFloor": 99 }
+      { "monsterId": "1", "minFloor": 1, "maxFloor": 5 },
+      { "monsterId": "2", "minFloor": 3, "maxFloor": 10 },
+      { "monsterId": "3", "minFloor": 8, "maxFloor": 99 }
     ],
     "itemTable": [
       { "itemId": "2", "weight": 6, "minFloor": 1, "maxFloor": 99 },
@@ -104,7 +106,9 @@
     ],
     "tileSet": "stone",
     "monsterTable": [
-      { "monsterId": "1", "weight": 5, "minFloor": 1, "maxFloor": 99 }
+      { "monsterId": "1", "minFloor": 1, "maxFloor": 8 },
+      { "monsterId": "2", "minFloor": 5, "maxFloor": 15 },
+      { "monsterId": "3", "minFloor": 10, "maxFloor": 99 }
     ],
     "itemTable": [
       { "itemId": "2", "weight": 4, "minFloor": 1, "maxFloor": 99 },
@@ -176,7 +180,8 @@
     ],
     "tileSet": "beginner-cave",
     "monsterTable": [
-      { "monsterId": "1", "weight": 5, "minFloor": 1, "maxFloor": 99 }
+      { "monsterId": "1", "minFloor": 1, "maxFloor": 3 },
+      { "monsterId": "2", "minFloor": 4, "maxFloor": 5 }
     ],
     "itemTable": [
       { "itemId": "2", "weight": 8, "minFloor": 1, "maxFloor": 99 },

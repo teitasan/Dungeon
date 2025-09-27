@@ -312,8 +312,9 @@ export class InputHandler {
     }
 
     try {
+      const itemLabel = this.uiManager.getInventoryItemLabel(selected);
       const res = await openChoiceModal({
-        title: `${selected.name || selected.id} をどうする？`,
+        title: `${itemLabel} をどうする？`,
         options: [
           { id: 'use', label: '使う' },
           { id: 'throw', label: '投げる' },
@@ -387,11 +388,12 @@ export class InputHandler {
     // 正面のセルを取得
     const frontCell = this.systems.dungeonManager.getCellAt(frontPosition);
     console.log(`[DEBUG] 正面セル情報:`, frontCell);
+
+    const nonItems = frontCell ? frontCell.entities.filter(e => !(e instanceof ItemEntity)) : [];
     
-    if (frontCell && frontCell.entities.length > 0) {
+    if (frontCell && nonItems.length > 0) {
       // 正面に敵がいる場合：通常の攻撃（アイテムは対象外）
       console.log(`[DEBUG] 正面エンティティ数: ${frontCell.entities.length}`);
-      const nonItems = frontCell.entities.filter(e => !(e instanceof ItemEntity));
       const target = nonItems[0];
       console.log(`[DEBUG] ターゲット:`, target);
       

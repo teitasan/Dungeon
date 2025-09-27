@@ -127,9 +127,12 @@ export function calculateLevelUpStats(
 ): CharacterStats {
   const newLevel = currentStats.level + 1;
   const newMaxHp = Math.floor(currentStats.hp.max * growthRates.hp);
+  const newMaxMp = Math.floor(currentStats.mp.max * growthRates.hp);
   const hpIncrease = newMaxHp - currentStats.hp.max;
+  const mpIncrease = newMaxMp - currentStats.mp.max;
   
-  return {
+  // 能力値アップ後のステータスを計算
+  const updatedStats = {
     ...currentStats,
     level: newLevel,
     hp: {
@@ -137,8 +140,8 @@ export function calculateLevelUpStats(
       max: newMaxHp
     },
     mp: {
-      current: currentStats.mp.current,
-      max: Math.floor(currentStats.mp.max * growthRates.hp) // MP also grows with HP rate
+      current: currentStats.mp.current + mpIncrease, // Increase current MP by the same amount
+      max: newMaxMp
     },
     combat: {
       ...currentStats.combat,
@@ -151,6 +154,22 @@ export function calculateLevelUpStats(
         physical: Math.floor(currentStats.combat.resistance.physical * growthRates.defense),
         magic: Math.floor(currentStats.combat.resistance.magic * growthRates.defense)
       }
+    }
+  };
+
+  // 増えた分のHPとMPを回復
+  const hpHeal = hpIncrease; // HPの増加分を回復
+  const mpHeal = mpIncrease; // MPの増加分を回復
+  
+  return {
+    ...updatedStats,
+    hp: {
+      ...updatedStats.hp,
+      current: Math.min(updatedStats.hp.current + hpHeal, updatedStats.hp.max)
+    },
+    mp: {
+      ...updatedStats.mp,
+      current: Math.min(updatedStats.mp.current + mpHeal, updatedStats.mp.max)
     }
   };
 }

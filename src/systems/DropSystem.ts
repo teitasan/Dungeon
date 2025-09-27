@@ -15,10 +15,17 @@ export class DropSystem {
   private itemSystem: ItemSystem;
   private rng: () => number;
 
+  private spawnHistory: Map<string, Set<number>> = new Map();
+
   constructor(dungeonManager: DungeonManager, itemSystem: ItemSystem, rng?: () => number) {
     this.dungeonManager = dungeonManager;
     this.itemSystem = itemSystem;
     this.rng = rng || Math.random;
+  }
+
+  /** 指定ダンジョンのスポーン履歴をリセット */
+  resetSpawnHistory(dungeonId: string): void {
+    this.spawnHistory.delete(dungeonId);
   }
 
   /**
@@ -56,9 +63,14 @@ export class DropSystem {
     const dungeon = this.dungeonManager.getCurrentDungeon();
     if (!dungeon || template.itemTable.length === 0) return [];
 
-    // 個数はテンプレートの itemSpawnRanges / itemSpawnDefault から決定（なければ 3-5）
-    const [minItems, maxItems] = this.resolveSpawnCount(template, floor);
-    const numItems = this.randomInt(minItems, maxItems);
+    const dungeonId = template.id || dungeon.id;
+    if (dungeonId && this.hasSpawned(dungeonId, floor)) {
+      console.warn(`DropSystem: Floor ${floor} in dungeon ${dungeonId} already spawned items`);
+      return [];
+    }
+
+    // 個数は全ダンジョン共通の固定分布で決定
+    const numItems = this.resolveSpawnCount(template, floor);
     const spawned: ItemEntity[] = [];
 
     for (let i = 0; i < numItems; i++) {
@@ -93,7 +105,34 @@ export class DropSystem {
       }
     }
 
+    if (dungeonId) {
+      this.markSpawned(dungeonId, floor);
+    }
+
     return spawned;
+  }
+
+  private determineSpawnCount(): number {
+    const roll = this.rng();
+    if (roll < 0.05) return 2;
+    if (roll < 0.25) return 3;
+    if (roll < 0.75) return 4;
+    if (roll < 0.95) return 5;
+    return 6;
+  }
+
+  private hasSpawned(dungeonId: string, floor: number): boolean {
+    const floors = this.spawnHistory.get(dungeonId);
+    return floors ? floors.has(floor) : false;
+  }
+
+  private markSpawned(dungeonId: string, floor: number): void {
+    let floors = this.spawnHistory.get(dungeonId);
+    if (!floors) {
+      floors = new Set<number>();
+      this.spawnHistory.set(dungeonId, floors);
+    }
+    floors.add(floor);
   }
 
   private pickWeighted<T extends { weight: number }>(entries: T[]): T | null {
@@ -111,29 +150,8 @@ export class DropSystem {
     return Math.floor(this.rng() * (max - min + 1)) + min;
   }
 
-  /** テンプレートの設定からスポーン個数(min,max)を解決 */
-  private resolveSpawnCount(template: DungeonTemplate, floor: number): [number, number] {
-    // 範囲設定があれば優先
-    if (template.itemSpawnRanges && template.itemSpawnRanges.length > 0) {
-      const found = template.itemSpawnRanges.find(r => this.isInRange(floor, r.floorRange));
-      if (found) return [Math.max(0, found.min), Math.max(found.min, found.max)];
-    }
-    // デフォルト
-    if (template.itemSpawnDefault) {
-      const d = template.itemSpawnDefault;
-      return [Math.max(0, d.min), Math.max(d.min, d.max)];
-    }
-    // フォールバック
-    return [3, 5];
-  }
-
-  private isInRange(floor: number, range: string): boolean {
-    const m = range.match(/^(\d+)-(\d+)$/);
-    if (!m) return false;
-    const a = parseInt(m[1], 10);
-    const b = parseInt(m[2], 10);
-    const min = Math.min(a, b);
-    const max = Math.max(a, b);
-    return floor >= min && floor <= max;
+  /** 固定確率分布からスポーン個数を決定 */
+  private resolveSpawnCount(_template: DungeonTemplate, _floor: number): number {
+    return this.determineSpawnCount();
   }
 }

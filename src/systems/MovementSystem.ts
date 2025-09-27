@@ -20,10 +20,12 @@ export class MovementSystem {
   private dungeonManager: DungeonManager;
   private defaultConstraints: MovementConstraints;
   private itemSystem?: ItemSystem;
+  private uiSystem?: any; // UISystemへの参照
 
-  constructor(dungeonManager: DungeonManager, itemSystem?: ItemSystem) {
+  constructor(dungeonManager: DungeonManager, itemSystem?: ItemSystem, uiSystem?: any) {
     this.dungeonManager = dungeonManager;
     this.itemSystem = itemSystem;
+    this.uiSystem = uiSystem;
     this.defaultConstraints = {
       canMoveDiagonally: true,
       canMoveIntoOccupiedSpace: false,
@@ -132,7 +134,13 @@ export class MovementSystem {
           .filter(e => e instanceof ItemEntity);
         if (itemsHere.length === 0) break;
         const picked = this.itemSystem.pickupItem(entity, newPosition);
-        if (!picked.success) break; // 満杯など
+        if (!picked.success) {
+          // インベントリ満杯などのメッセージを表示
+          if (picked.message && this.uiSystem) {
+            this.uiSystem.pushMessage(picked.message);
+          }
+          break; // 満杯など
+        }
       }
     }
 

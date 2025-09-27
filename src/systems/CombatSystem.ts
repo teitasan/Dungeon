@@ -170,6 +170,9 @@ export class CombatSystem {
         this.damageDisplayManager.addMiss(defender.id, defender.position.x, defender.position.y);
       }
 
+      const attackerName = (attacker as any).name || attacker.id;
+      const defenderName = (defender as any).name || defender.id;
+      
       return {
         success: true,
         damage: 0,
@@ -180,7 +183,7 @@ export class CombatSystem {
         attacker,
         defender,
         effects: [],
-        message: `${defender.id} evaded ${attacker.id}'s attack!`
+        message: `${defenderName} evaded ${attackerName}'s attack!`
       };
     }
 
@@ -207,14 +210,13 @@ export class CombatSystem {
     const defenderHp = this.getEntityHp(defender);
     const isDead = defenderHp <= 0;
 
-    if (isDead) {
-      this.handleEntityDeath(defender);
-    }
-
     // Generate combat effects
     const effects = this.generateCombatEffects(attacker, defender, actualDamage, isCritical);
 
     // Create result
+    const attackerName = (attacker as any).name || attacker.id;
+    const defenderName = (defender as any).name || defender.id;
+    
     const result: CombatResult = {
       success: true,
       damage: damageCalc.finalDamage,
@@ -225,7 +227,7 @@ export class CombatSystem {
       attacker,
       defender,
       effects,
-      message: `${attacker.id}が${defender.id}に${actualDamage}ダメージを与えた！`
+      message: `${attackerName}が${defenderName}に${actualDamage}ダメージを与えた！`
     };
 
     // Log the combat action
@@ -242,14 +244,20 @@ export class CombatSystem {
 
       // 死亡時は追加で死亡メッセージを表示
       if (isDead) {
+        const defenderName = (defender as any).name || defender.id;
         if (this.isEnemy(defender)) {
-          console.log(`[DEBUG] executeAttack: 敵死亡メッセージ表示: "${defender.id}を倒した！"`);
-          this.messageSink(`${defender.id}を倒した！`);
+          console.log(`[DEBUG] executeAttack: 敵死亡メッセージ表示: "${defenderName}を倒した！"`);
+          this.messageSink(`${defenderName}を倒した！`);
         } else {
-          console.log(`[DEBUG] executeAttack: プレイヤー死亡メッセージ表示: "${defender.id}は力尽きた..."`);
-          this.messageSink(`${defender.id}は力尽きた...`);
+          console.log(`[DEBUG] executeAttack: プレイヤー死亡メッセージ表示: "${defenderName}は力尽きた..."`);
+          this.messageSink(`${defenderName}は力尽きた...`);
         }
       }
+    }
+
+    // 死亡処理はメッセージ表示後に実行
+    if (isDead) {
+      this.handleEntityDeath(defender);
     }
 
     return result;
@@ -473,6 +481,10 @@ export class CombatSystem {
   ): string {
     const attackerName = (attacker as any).name || attacker.id;
     const defenderName = (defender as any).name || defender.id;
+    
+    // デバッグログを追加
+    console.log(`[DEBUG] CombatMessage - Attacker: name="${(attacker as any).name}", id="${attacker.id}", final="${attackerName}"`);
+    console.log(`[DEBUG] CombatMessage - Defender: name="${(defender as any).name}", id="${defender.id}", final="${defenderName}"`);
 
     let message = `${attackerName} attacks ${defenderName}`;
 
@@ -524,13 +536,9 @@ export class CombatSystem {
     const currentHp = this.getEntityHp(target);
     this.setEntityHp(target, currentHp - damage.finalDamage);
 
-    // 死亡チェック（メッセージ生成前に）
+    // 死亡チェック
     const targetHp = this.getEntityHp(target);
     const isDead = targetHp <= 0;
-
-    if (isDead) {
-      this.handleEntityDeath(target);
-    }
 
     // ダメージ表示を追加
     if (this.damageDisplayManager && damage.finalDamage > 0) {
@@ -538,6 +546,9 @@ export class CombatSystem {
     }
 
     // 戦闘結果を作成
+    const attackerName = (attacker as any).name || attacker.id;
+    const targetName = (target as any).name || target.id;
+    
     const result: CombatResult = {
       success: true,
       damage: damage.finalDamage,
@@ -548,8 +559,13 @@ export class CombatSystem {
       attacker,
       defender: target,
       effects: [],
-      message: `${attacker.id}が${target.id}に${damage.finalDamage}ダメージを与えた！`
+      message: `${attackerName}が${targetName}に${damage.finalDamage}ダメージを与えた！`
     };
+
+    // 死亡処理はメッセージ表示後に実行
+    if (isDead) {
+      this.handleEntityDeath(target);
+    }
 
     // 戦闘ログに記録
     this.logCombatAction({ type: 'attack' as CombatActionType, attacker, target }, result);
@@ -578,12 +594,13 @@ export class CombatSystem {
       const defenderHp = this.getEntityHp(defender);
       const isDead = defenderHp <= 0;
       if (isDead) {
+        const defenderName = (defender as any).name || defender.id;
         if (this.isEnemy(defender)) {
-          console.log(`[DEBUG] processAttack: 敵死亡メッセージ表示: "${defender.id}を倒した！"`);
-          this.messageSink(`${defender.id}を倒した！`);
+          console.log(`[DEBUG] processAttack: 敵死亡メッセージ表示: "${defenderName}を倒した！"`);
+          this.messageSink(`${defenderName}を倒した！`);
         } else {
-          console.log(`[DEBUG] processAttack: プレイヤー死亡メッセージ表示: "${defender.id}は力尽きた..."`);
-          this.messageSink(`${defender.id}は力尽きた...`);
+          console.log(`[DEBUG] processAttack: プレイヤー死亡メッセージ表示: "${defenderName}は力尽きた..."`);
+          this.messageSink(`${defenderName}は力尽きた...`);
         }
       }
     }

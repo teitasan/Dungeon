@@ -547,7 +547,7 @@ a {
   display: inline-block;
   white-space: nowrap;
   overflow: visible;
-  animation: typing calc(var(--char-count) * 0.03s) steps(var(--char-count)) forwards;
+  animation: typing calc(var(--char-count) * 0.02s) steps(var(--char-count)) forwards;
 }
 
 /* テキスト表示（clip-pathで左から右へ表示）のアニメーション */

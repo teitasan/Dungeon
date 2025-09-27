@@ -32,6 +32,10 @@ export class TurnSystem {
   private enemyRetriedThisPhase: Set<string> = new Set();
   // フロアごとのターン数管理
   private currentFloorTurn: number = 1;
+  // デフォルトの敵テンプレートID
+  private defaultMonsterTemplateId: string = "1";
+  // フロア別スポーンルール
+  private floorSpawnRules: any[] = [];
   
 
   constructor(
@@ -64,6 +68,21 @@ export class TurnSystem {
       }>()
     };
     this.turnListeners = new Map();
+  }
+
+  /**
+   * 設定ファイルからデフォルトの敵テンプレートIDを設定
+   */
+  setDefaultMonsterTemplateId(templateId: string): void {
+    this.defaultMonsterTemplateId = templateId;
+  }
+
+  /**
+   * フロア別スポーンルールを設定
+   */
+  setFloorSpawnRules(rules: any[]): void {
+    this.floorSpawnRules = rules;
+    console.log('[DEBUG] フロア別スポーンルールが設定されました:', rules);
   }
 
   /**
@@ -1460,8 +1479,8 @@ export class TurnSystem {
     const monsterTemplate = await this.getMonsterTemplate();
     if (!monsterTemplate) return;
     
-    // モンスターを作成
-    const characterInfo = {
+    // モンスターを作成（設定ファイルからcharacterInfoを直接使用）
+    const characterInfo = monsterTemplate.characterInfo || {
       name: monsterTemplate.name,
       gender: 'other' as const,
       age: 0,
@@ -1470,22 +1489,23 @@ export class TurnSystem {
       race: 'human' as const,
       class: 'unemployed' as const,
       stats: {
-        STR: monsterTemplate.characterStats?.STR || 5,
-        DEX: monsterTemplate.characterStats?.DEX || 10,
-        INT: monsterTemplate.characterStats?.INT || 5,
-        CON: monsterTemplate.characterStats?.CON || 2,
-        POW: monsterTemplate.characterStats?.POW || 5,
-        APP: monsterTemplate.characterStats?.APP || 5,
-        LUK: monsterTemplate.characterStats?.LUK || 5
+        STR: 5,
+        DEX: 10,
+        INT: 5,
+        CON: 2,
+        POW: 5,
+        APP: 5,
+        LUK: 5
       },
       features: []
     };
     
     // デバッグログを追加
     console.log(`[DEBUG] モンスター作成: ${monsterTemplate.name}`);
-    console.log(`[DEBUG] characterStats:`, monsterTemplate.characterStats);
+    console.log(`[DEBUG] characterInfo:`, characterInfo);
     console.log(`[DEBUG] 最終的なstats:`, characterInfo.stats);
     console.log(`[DEBUG] 使用されるSTR: ${characterInfo.stats.STR}, DEX: ${characterInfo.stats.DEX}`);
+    console.log(`[DEBUG] characterInfo.name: "${characterInfo.name}"`);
     
     const monster = new MonsterEntity(
       `${monsterTemplate.id}-natural-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -1499,11 +1519,16 @@ export class TurnSystem {
       monsterTemplate.experienceValue,
       monsterTemplate.dropRate,
       monsterTemplate.dropTableId,
-      monsterTemplate.level
+      monsterTemplate.level,
+      monsterTemplate.description,
+      monsterTemplate.spritesheet
     );
     
     // 初期方向を設定
     monster.currentDirection = 'front';
+    
+    // デバッグログ: モンスター作成後のnameプロパティを確認
+    console.log(`[DEBUG] モンスター作成後 - ID: "${monster.id}", name: "${monster.name}", spritesheet: "${monster.spritesheet}"`);
     
     // ダンジョンに追加
     this.dungeonManager.addEntity(monster as any, position);
@@ -1513,7 +1538,7 @@ export class TurnSystem {
   }
 
   /**
-   * モンスターテンプレートを取得
+   * モンスターテンプレートを取得（フロアレベルに応じて選択）
    */
   private async getMonsterTemplate(): Promise<any> {
     try {
@@ -1525,10 +1550,22 @@ export class TurnSystem {
         return this.getFallbackMonsterTemplate();
       }
       
-      // デフォルトでID "simple-enemy" (Simple Enemy) を使用
-      const template = reg.getTemplate('simple-enemy');
+      // 現在のフロアレベルを取得
+      const currentFloor = this.dungeonManager?.getCurrentDungeon()?.floor || 1;
+      console.log(`[DEBUG] 現在のフロア: ${currentFloor}`);
+      
+      // フロア別スポーンルールから適切なテンプレートを選択
+      const selectedTemplateId = this.selectTemplateForFloor(currentFloor);
+      console.log(`[DEBUG] 選択されたテンプレートID: ${selectedTemplateId}`);
+      
+      // デバッグ: 利用可能なテンプレートを確認
+      const allTemplates = reg.getAll();
+      console.log('[DEBUG] MonsterRegistry: Available templates:', allTemplates.map(t => t.id));
+      
+      const template = reg.getTemplate(selectedTemplateId);
       if (!template) {
-        console.warn('MonsterRegistry: Template "simple-enemy" not found, using fallback');
+        console.warn(`MonsterRegistry: Template "${selectedTemplateId}" not found, using fallback`);
+        console.log('[DEBUG] MonsterRegistry: Available template IDs:', allTemplates.map(t => t.id));
         return this.getFallbackMonsterTemplate();
       }
       
@@ -1537,6 +1574,61 @@ export class TurnSystem {
       console.warn('MonsterRegistry: Failed to load template:', error);
       return this.getFallbackMonsterTemplate();
     }
+  }
+
+  /**
+   * フロアレベルに応じてテンプレートIDを選択
+   */
+  private selectTemplateForFloor(floor: number): string {
+    console.log(`[DEBUG] フロア ${floor} のテンプレート選択開始`);
+    console.log(`[DEBUG] 設定されたフロア別スポーンルール:`, this.floorSpawnRules);
+    
+    // フロア別スポーンルールがない場合はデフォルトを使用
+    if (!this.floorSpawnRules || this.floorSpawnRules.length === 0) {
+      console.log(`[DEBUG] フロア別スポーンルールが設定されていません。デフォルトテンプレート "${this.defaultMonsterTemplateId}" を使用`);
+      return this.defaultMonsterTemplateId;
+    }
+
+    // 現在のフロアに適用されるルールを探す
+    for (const rule of this.floorSpawnRules) {
+      console.log(`[DEBUG] ルールチェック: フロア ${floor} vs 範囲 ${rule.floorRange}`);
+      if (this.isFloorInRange(floor, rule.floorRange)) {
+        console.log(`[DEBUG] フロア ${floor} に適用されるルール: ${rule.floorRange}, テンプレート:`, rule.templates);
+        return this.selectTemplateFromRule(rule);
+      }
+    }
+
+    // 適用されるルールがない場合はデフォルトを使用
+    console.log(`[DEBUG] フロア ${floor} に適用されるルールがありません。デフォルトテンプレート "${this.defaultMonsterTemplateId}" を使用`);
+    return this.defaultMonsterTemplateId;
+  }
+
+  /**
+   * フロアが範囲内かどうかをチェック
+   */
+  private isFloorInRange(floor: number, floorRange: string): boolean {
+    const match = floorRange.match(/^(\d+)-(\d+)$/);
+    if (!match) return false;
+    
+    const minFloor = parseInt(match[1]);
+    const maxFloor = parseInt(match[2]);
+    return floor >= minFloor && floor <= maxFloor;
+  }
+
+  /**
+   * ルールから均等ランダムでテンプレートを選択
+   */
+  private selectTemplateFromRule(rule: any): string {
+    if (!rule.templates || rule.templates.length === 0) {
+      return this.defaultMonsterTemplateId;
+    }
+
+    // 均等ランダム選択
+    const randomIndex = Math.floor(Math.random() * rule.templates.length);
+    const selectedTemplate = rule.templates[randomIndex];
+    
+    console.log(`[DEBUG] 選択されたテンプレート: ${selectedTemplate} (インデックス: ${randomIndex})`);
+    return selectedTemplate;
   }
 
   /**

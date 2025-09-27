@@ -50,11 +50,26 @@
     }
   },
   "monsters": {
+    "defaultTemplateId": "1",
     "spawnLimits": {
       "maxPerFloor": 30,
       "baseSpawnPerRoom": 1,
       "randomVariation": 2
     },
+    "floorSpawnRules": [
+      {
+        "floorRange": "1-2",
+        "templates": ["1"]
+      },
+      {
+        "floorRange": "3-4",
+        "templates": ["1", "2"]
+      },
+      {
+        "floorRange": "5-10",
+        "templates": ["1", "2", "3"]
+      }
+    ],
     "spritesheets": {
       "basic": {
         "imagePath": "/images/pipo-simpleenemy01a.png",
@@ -185,21 +200,30 @@
         "frameDuration": 200
       }
     },
-    "templates": [
-      {
-        "id": "simple-enemy",
+    "templates": {
+      "1": {
         "name": "Simple Enemy",
         "monsterType": "basic",
         "spritesheet": "basic",
         "spriteId": "enemy-1-0",
-        "characterStats": {
-          "STR": 2,
-          "DEX": 2,
-          "INT": 5,
-          "CON": 2,
-          "POW": 5,
-          "APP": 5,
-          "LUK": 5
+        "characterInfo": {
+          "name": "Simple Enemy",
+          "gender": "other",
+          "age": 0,
+          "height": 150,
+          "weight": 50,
+          "race": "human",
+          "class": "unemployed",
+          "stats": {
+            "STR": 2,
+            "DEX": 2,
+            "INT": 5,
+            "CON": 2,
+            "POW": 5,
+            "APP": 5,
+            "LUK": 5
+          },
+          "features": []
         },
         "movementPattern": "approach",
         "experienceValue": 15,
@@ -208,20 +232,29 @@
         "level": 1,
         "description": "基本的な敵。弱いが数が多い。"
       },
-      {
-        "id": "strong-enemy",
+      "2": {
         "name": "Strong Enemy",
         "monsterType": "elite",
         "spritesheet": "elite",
         "spriteId": "enemy-1-0",
-        "characterStats": {
-          "STR": 12,
-          "DEX": 10,
-          "INT": 8,
-          "CON": 14,
-          "POW": 9,
-          "APP": 6,
-          "LUK": 7
+        "characterInfo": {
+          "name": "Strong Enemy",
+          "gender": "other",
+          "age": 0,
+          "height": 150,
+          "weight": 50,
+          "race": "human",
+          "class": "unemployed",
+          "stats": {
+            "STR": 12,
+            "DEX": 10,
+            "INT": 8,
+            "CON": 14,
+            "POW": 9,
+            "APP": 6,
+            "LUK": 7
+          },
+          "features": []
         },
         "movementPattern": "approach",
         "movementConfig": { "minDistance": 1, "maxDistance": 2 },
@@ -231,20 +264,29 @@
         "level": 3,
         "description": "中程度の強さの敵。慎重に対処が必要。"
       },
-      {
-        "id": "boss-enemy",
+      "3": {
         "name": "Boss Enemy",
         "monsterType": "boss",
         "spritesheet": "boss",
-        "spriteId": "enemy-1-0",
-        "characterStats": {
-          "STR": 16,
-          "DEX": 14,
-          "INT": 12,
-          "CON": 18,
-          "POW": 15,
-          "APP": 8,
-          "LUK": 10
+        "spriteId": "enemy-2-0",
+        "characterInfo": {
+          "name": "Boss Enemy",
+          "gender": "other",
+          "age": 0,
+          "height": 150,
+          "weight": 50,
+          "race": "human",
+          "class": "unemployed",
+          "stats": {
+            "STR": 16,
+            "DEX": 14,
+            "INT": 12,
+            "CON": 18,
+            "POW": 15,
+            "APP": 8,
+            "LUK": 10
+          },
+          "features": []
         },
         "movementPattern": "approach",
         "movementConfig": { "minDistance": 1, "maxDistance": 2 },
@@ -254,7 +296,7 @@
         "level": 15,
         "description": "強力なボス級の敵。最大限の準備が必要。"
       }
-    ],
+    },
     "dropTables": {
       "basic-dungeon-drops": [
         {
