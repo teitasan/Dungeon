@@ -124,7 +124,18 @@ export class GameInitializer {
     try {
       const { MonsterRegistry } = await import('../core/MonsterRegistry.js');
       const reg = MonsterRegistry.getInstance();
-      reg.loadFromConfig(config?.monsters?.templates || {});
+      
+      // characters.jsonのtemplates配列をオブジェクト形式に変換
+      const templatesArray = config?.monsters?.templates || [];
+      const templatesObject: any = {};
+      templatesArray.forEach((template: any) => {
+        if (template.id) {
+          templatesObject[template.id] = template;
+        }
+      });
+      
+      console.log('[DEBUG] MonsterRegistry: Loading templates:', templatesObject);
+      reg.loadFromConfig(templatesObject);
     } catch (e) {
       console.warn('MonsterRegistry load failed (continuing with defaults):', e);
     }

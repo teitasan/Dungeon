@@ -463,67 +463,6 @@
         "frameDuration": 200
       }
     },
-    "templates": {
-      "1": {
-        "name": "Simple Enemy",
-        "monsterType": "basic",
-        "spritesheet": "basic",
-        "spriteId": "enemy-1-0",
-        "stats": {
-          "hp": 20,
-          "maxHp": 20,
-          "attack": 5,
-          "defense": 2,
-          "evasionRate": 0.05
-        },
-        "movementPattern": "approach",
-        "experienceValue": 15,
-        "dropRate": 0.3,
-        "dropTableId": "common-drops",
-        "level": 1,
-        "description": "基本的な敵。弱いが数が多い。"
-      },
-      "2": {
-        "name": "Strong Enemy",
-        "monsterType": "elite",
-        "spritesheet": "elite",
-        "spriteId": "enemy-1-0",
-        "stats": {
-          "hp": 35,
-          "maxHp": 35,
-          "attack": 8,
-          "defense": 4,
-          "evasionRate": 0.08
-        },
-        "movementPattern": "approach",
-        "movementConfig": { "minDistance": 1, "maxDistance": 2 },
-        "experienceValue": 35,
-        "dropRate": 0.6,
-        "dropTableId": "common-drops",
-        "level": 3,
-        "description": "中程度の強さの敵。慎重に対処が必要。"
-      },
-      "3": {
-        "name": "Boss Enemy",
-        "monsterType": "boss",
-        "spritesheet": "boss",
-        "spriteId": "enemy-1-0",
-        "stats": {
-          "hp": 80,
-          "maxHp": 80,
-          "attack": 15,
-          "defense": 8,
-          "evasionRate": 0.12
-        },
-        "movementPattern": "approach",
-        "movementConfig": { "minDistance": 1, "maxDistance": 2 },
-        "experienceValue": 100,
-        "dropRate": 1.0,
-        "dropTableId": "common-drops",
-        "level": 5,
-        "description": "強力なボス級の敵。最大限の準備が必要。"
-      }
-    },
     "dropTables": {
       "basic-dungeon-drops": [
         {

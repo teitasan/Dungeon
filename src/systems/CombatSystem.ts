@@ -312,6 +312,7 @@ export class CombatSystem {
     if ('characterInfo' in attacker) {
       const stats = (attacker as any).characterInfo.stats;
       unarmedAttack = CharacterCalculator.unarmedAttackPower(stats.STR, stats.DEX);
+      console.log(`[DEBUG] ダメージ計算 - 攻撃者: ${attacker.id}, STR: ${stats.STR}, DEX: ${stats.DEX}, unarmedAttack: ${unarmedAttack}`);
     }
 
     // Get equipment damage bonus
@@ -348,6 +349,9 @@ export class CombatSystem {
 
     // Ensure minimum damage
     const finalDamage = Math.max(Math.round(criticalDamage), this.config.minimumDamage);
+
+    console.log(`[DEBUG] 最終ダメージ計算 - 攻撃者: ${attacker.id}, 防御者: ${defender.id}`);
+    console.log(`[DEBUG] baseAttack: ${baseAttack}, defense: ${defense}, finalDamage: ${finalDamage}`);
 
     return {
       baseAttack,

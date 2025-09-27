@@ -193,13 +193,13 @@
         "spritesheet": "basic",
         "spriteId": "enemy-1-0",
         "characterStats": {
-          "STR": 8,
-          "DEX": 12,
-          "INT": 6,
-          "CON": 10,
-          "POW": 7,
+          "STR": 2,
+          "DEX": 2,
+          "INT": 5,
+          "CON": 2,
+          "POW": 5,
           "APP": 5,
-          "LUK": 8
+          "LUK": 5
         },
         "movementPattern": "approach",
         "experienceValue": 15,

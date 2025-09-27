@@ -1481,6 +1481,12 @@ export class TurnSystem {
       features: []
     };
     
+    // デバッグログを追加
+    console.log(`[DEBUG] モンスター作成: ${monsterTemplate.name}`);
+    console.log(`[DEBUG] characterStats:`, monsterTemplate.characterStats);
+    console.log(`[DEBUG] 最終的なstats:`, characterInfo.stats);
+    console.log(`[DEBUG] 使用されるSTR: ${characterInfo.stats.STR}, DEX: ${characterInfo.stats.DEX}`);
+    
     const monster = new MonsterEntity(
       `${monsterTemplate.id}-natural-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       characterInfo,
@@ -1519,10 +1525,10 @@ export class TurnSystem {
         return this.getFallbackMonsterTemplate();
       }
       
-      // デフォルトでID "1" (Simple Enemy) を使用
-      const template = reg.getTemplate('1');
+      // デフォルトでID "simple-enemy" (Simple Enemy) を使用
+      const template = reg.getTemplate('simple-enemy');
       if (!template) {
-        console.warn('MonsterRegistry: Template "1" not found, using fallback');
+        console.warn('MonsterRegistry: Template "simple-enemy" not found, using fallback');
         return this.getFallbackMonsterTemplate();
       }
       
