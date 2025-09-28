@@ -3,7 +3,7 @@
  */
 
 import { Position, Component, EntityFlags } from '../types/core';
-import { Item, ItemType, ItemEffect, EquipmentStats, ItemFlags } from '../types/entities';
+import { Item, ItemType, ItemEffect, EquipmentStats, ItemFlags, ItemIdentificationInfo } from '../types/entities';
 import { BaseGameEntity } from './GameEntity.js';
 
 export class ItemEntity extends BaseGameEntity implements Item {
@@ -19,7 +19,11 @@ export class ItemEntity extends BaseGameEntity implements Item {
   };
   public equipmentStats?: EquipmentStats;
   public spriteId?: string;
+  public identificationGroupId?: string;
+  public unidentifiedName?: string;
+  public alwaysIdentified: boolean;
   public itemFlags: ItemFlags;
+  private identifyHandler?: (item: ItemEntity) => void;
 
   constructor(
     id: string,
@@ -41,6 +45,10 @@ export class ItemEntity extends BaseGameEntity implements Item {
     this.cursed = cursed;
     this.spriteId = spriteId;
     this.effects = [];
+    this.identificationGroupId = undefined;
+    this.unidentifiedName = undefined;
+    this.alwaysIdentified = false;
+    this.identifyHandler = undefined;
     // 既定のフラグ（効果の有無によりデフォルトを決定、初期は効果なし想定）
     this.itemFlags = { onThrow: 'damage-then-disappear' };
   }
@@ -98,6 +106,30 @@ export class ItemEntity extends BaseGameEntity implements Item {
     this.durability = durability;
   }
 
+  setIdentificationInfo(info: ItemIdentificationInfo = {}): void {
+    this.identificationGroupId = info.groupId;
+    this.unidentifiedName = info.unidentifiedName;
+    this.alwaysIdentified = !!info.alwaysIdentified;
+    if (this.alwaysIdentified) {
+      this.identified = true;
+    }
+  }
+
+  setIdentifyHandler(handler?: (item: ItemEntity) => void): void {
+    this.identifyHandler = handler;
+  }
+
+  setIdentified(isIdentified: boolean): void {
+    this.identified = isIdentified;
+  }
+
+  private copyIdentificationState(target: ItemEntity): void {
+    target.identificationGroupId = this.identificationGroupId;
+    target.unidentifiedName = this.unidentifiedName;
+    target.alwaysIdentified = this.alwaysIdentified;
+    target.identifyHandler = this.identifyHandler;
+  }
+
   /**
    * Reduce durability (returns true if item breaks)
    */
@@ -114,7 +146,12 @@ export class ItemEntity extends BaseGameEntity implements Item {
    * Identify the item
    */
   identify(): void {
-    this.identified = true;
+    if (!this.identified) {
+      this.identified = true;
+    }
+    if (this.identifyHandler) {
+      this.identifyHandler(this);
+    }
   }
 
   /**
@@ -156,25 +193,29 @@ export class ItemEntity extends BaseGameEntity implements Item {
    * Get display name (may be different if unidentified)
    */
   getDisplayName(): string {
-    if (!this.identified) {
-      // Return generic name for unidentified items
-      switch (this.itemType) {
-        case 'weapon-melee':
-          return 'Unknown Weapon';
-        case 'weapon-ranged':
-          return 'Unknown Ranged Weapon';
-        case 'armor':
-          return 'Unknown Armor';
-        case 'accessory':
-          return 'Unknown Accessory';
-        case 'consumable':
-          return 'Unknown Item';
-        default:
-          return 'Unknown Item';
-      }
+    if (this.identified || this.alwaysIdentified) {
+      return this.name;
     }
-    
-    return this.name;
+
+    if (this.unidentifiedName) {
+      return this.unidentifiedName;
+    }
+
+    // Return generic name for unidentified items as fallback
+    switch (this.itemType) {
+      case 'weapon-melee':
+        return 'Unknown Weapon';
+      case 'weapon-ranged':
+        return 'Unknown Ranged Weapon';
+      case 'armor':
+        return 'Unknown Armor';
+      case 'accessory':
+        return 'Unknown Accessory';
+      case 'consumable':
+        return 'Unknown Item';
+      default:
+        return 'Unknown Item';
+    }
   }
 
   /**
@@ -225,6 +266,7 @@ export class ItemEntity extends BaseGameEntity implements Item {
     newItem.equipmentStats = this.equipmentStats ? { ...this.equipmentStats } : undefined;
     newItem.attributes = this.attributes ? { ...this.attributes } : undefined;
     newItem.durability = this.durability;
+    this.copyIdentificationState(newItem);
     return newItem;
   }
 
@@ -247,6 +289,7 @@ export class ItemEntity extends BaseGameEntity implements Item {
     newItem.equipmentStats = this.equipmentStats ? { ...this.equipmentStats } : undefined;
     newItem.attributes = this.attributes ? { ...this.attributes } : undefined;
     newItem.durability = this.durability;
+    this.copyIdentificationState(newItem);
     return newItem;
   }
 
@@ -273,7 +316,11 @@ export class ItemEntity extends BaseGameEntity implements Item {
    */
   static createFromTemplate(templateId: string, position: Position, itemSystem?: any): ItemEntity | null {
     try {
-      // ItemSystemからテンプレートを取得
+      if (itemSystem && typeof itemSystem.createItem === 'function') {
+        return itemSystem.createItem(templateId, position);
+      }
+
+      // ItemSystemが未提供の場合はテンプレート取得のみ行う
       let template = null;
       if (itemSystem && typeof itemSystem.getItemTemplate === 'function') {
         template = itemSystem.getItemTemplate(templateId);
@@ -285,15 +332,32 @@ export class ItemEntity extends BaseGameEntity implements Item {
       }
 
       // テンプレートからアイテムを作成
+      const templateIdentification = (template as any).identification as ItemIdentificationInfo | undefined;
+      const startIdentified = templateIdentification?.alwaysIdentified ? true : !!template.identified;
+
       const item = new ItemEntity(
         `${templateId}-${Date.now()}`,
         template.name,
         template.itemType,
         position,
-        template.identified,
+        startIdentified,
         template.cursed,
         (template as any).spriteId
       );
+
+      if (templateIdentification) {
+        const candidateNames = templateIdentification.unidentifiedNames;
+        let unidentifiedName = templateIdentification.unidentifiedName;
+        if (!unidentifiedName && Array.isArray(candidateNames) && candidateNames.length > 0) {
+          const index = Math.floor(Math.random() * candidateNames.length);
+          unidentifiedName = candidateNames[index];
+        }
+
+        item.setIdentificationInfo({
+          ...templateIdentification,
+          unidentifiedName,
+        });
+      }
 
       // エフェクトを追加
       if (template.effects) {
@@ -321,7 +385,6 @@ export class ItemEntity extends BaseGameEntity implements Item {
       return null;
     }
   }
-
   /**
    * Create item from template object
    */
@@ -335,6 +398,15 @@ export class ItemEntity extends BaseGameEntity implements Item {
       template.cursed || false,
       (template as any).spriteId
     );
+
+    if ((template as any).identification) {
+      const identification = { ...((template as any).identification as ItemIdentificationInfo) };
+      if (!identification.unidentifiedName && Array.isArray(identification.unidentifiedNames) && identification.unidentifiedNames.length > 0) {
+        const index = Math.floor(Math.random() * identification.unidentifiedNames.length);
+        identification.unidentifiedName = identification.unidentifiedNames[index];
+      }
+      item.setIdentificationInfo(identification);
+    }
 
     // エフェクトを追加
     if (template.effects) {

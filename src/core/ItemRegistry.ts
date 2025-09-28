@@ -8,6 +8,7 @@ import type { ItemTemplate } from '../systems/ItemSystem.js';
 export class ItemRegistry {
   private static instance: ItemRegistry | null = null;
   private templates: Map<string, ItemTemplate> = new Map();
+  private unidentifiedPrefixPools: Record<string, string[]> = {};
 
   private constructor() {}
 
@@ -19,18 +20,49 @@ export class ItemRegistry {
   }
 
   /**
-   * ゲーム設定からテンプレートオブジェクトを読み込み、内部Mapに反映
-   * 期待するスキーマ: { "1": { name, itemType, ... }, "2": { ... } }
+   * ゲーム設定からテンプレートオブジェクトと関連情報を読み込み、内部に反映
+   * 期待するスキーマ: { templates: { "1": {...} }, unidentifiedPrefixPools?: { category: [] } }
    */
-  public loadFromConfig(templates: any): void {
+  public loadFromConfig(config: any): void {
     this.templates.clear();
-    if (!templates || typeof templates !== 'object') return;
-    
+    this.unidentifiedPrefixPools = {};
+    if (!config || typeof config !== 'object') {
+      return;
+    }
+
+    const templates: any = config.templates ?? config;
+
+    const pools = config.unidentifiedPrefixPools;
+    if (pools && typeof pools === 'object') {
+      const sanitized: Record<string, string[]> = {};
+      for (const [key, value] of Object.entries(pools)) {
+        if (!Array.isArray(value)) continue;
+        const filtered = Array.from(new Set(
+          value.filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+        ));
+        if (filtered.length > 0) {
+          sanitized[key] = filtered;
+        }
+      }
+      this.unidentifiedPrefixPools = sanitized;
+    } else if (Array.isArray(config.unidentifiedPrefixes)) {
+      const filtered = Array.from(new Set(
+        config.unidentifiedPrefixes.filter((name: unknown): name is string => typeof name === 'string' && name.trim().length > 0)
+      ));
+      if (filtered.length > 0) {
+        this.unidentifiedPrefixPools = { default: filtered as string[] };
+      }
+    }
+
+    if (!templates || typeof templates !== 'object') {
+      return;
+    }
+
     for (const [id, tpl] of Object.entries(templates)) {
       if (!tpl || typeof tpl !== 'object') continue;
       const template = tpl as any; // 型アサーションでプロパティアクセスを許可
       const casted: ItemTemplate = {
-        id: String(id),
+        id: String(template.id ?? id),
         name: String(template.name ?? id),
         itemType: template.itemType ?? template.type ?? 'consumable',
         identified: !!template.identified,
@@ -40,6 +72,7 @@ export class ItemRegistry {
         equipmentStats: template.equipmentStats ? { ...template.equipmentStats } : undefined,
         attributes: template.attributes ? { ...template.attributes } : undefined,
         durability: typeof template.durability === 'number' ? template.durability : undefined,
+        identification: template.identification ? { ...template.identification } : undefined,
       } as ItemTemplate;
       this.templates.set(casted.id, casted);
     }
@@ -55,6 +88,14 @@ export class ItemRegistry {
 
   public getAll(): ItemTemplate[] {
     return Array.from(this.templates.values());
+  }
+
+  public getUnidentifiedPrefixPools(): Record<string, string[]> {
+    const copy: Record<string, string[]> = {};
+    for (const [key, value] of Object.entries(this.unidentifiedPrefixPools)) {
+      copy[key] = [...value];
+    }
+    return copy;
   }
 }
 

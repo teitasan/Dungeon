@@ -141,11 +141,22 @@ export interface Item extends GameEntity {
   };
   equipmentStats?: EquipmentStats;
   spriteId?: string;
+  identificationGroupId?: string;
+  unidentifiedName?: string;
+  alwaysIdentified?: boolean;
   /**
    * アイテム固有のフラグ（全アイテムに付与）
    * onThrow: 投擲時の基本挙動
    */
   itemFlags: ItemFlags;
+}
+
+export interface ItemIdentificationInfo {
+  groupId?: string;
+  category?: string;
+  unidentifiedName?: string;
+  unidentifiedNames?: string[];
+  alwaysIdentified?: boolean;
 }
 
 // Supporting types

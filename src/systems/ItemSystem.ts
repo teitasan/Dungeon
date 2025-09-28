@@ -2,7 +2,7 @@
  * Item system for managing items, inventory, and item usage
  */
 
-import { GameEntity } from '../types/entities';
+import { GameEntity, ItemIdentificationInfo } from '../types/entities';
 import { ItemEntity } from '../entities/Item';
 import { PlayerEntity } from '../entities/Player';
 import { Position } from '../types/core';
@@ -72,10 +72,55 @@ export interface InventoryManager {
 export class ItemSystem implements InventoryManager {
   private dungeonManager: DungeonManager;
   private itemTemplates: Map<string, ItemTemplate> = new Map();
+  private identifiedGroups: Set<string> = new Set();
+  private groupUnidentifiedNames: Map<string, string> = new Map();
+  private usedUnidentifiedNames: Map<string, Set<string>> = new Map();
+  private unidentifiedNamePools: Map<string, string[]> = new Map();
+  private readonly defaultUnidentifiedNamePools: Record<string, string[]> = {
+    potion: ['緑の薬', '黄緑の薬', 'エメラルドの薬'],
+    scroll: [
+      '白い巻物',
+      '銀色の巻物',
+      '灰色の巻物',
+      '赤い巻物',
+      '朱色の巻物',
+      '深紅の巻物',
+      '青い巻物',
+      '藍色の巻物',
+      '群青の巻物',
+      '紫の巻物',
+      '薄紫の巻物',
+      '濃紫の巻物',
+      '金色の巻物',
+      '黄色の巻物',
+      '琥珀の巻物'
+    ],
+    default: [
+      '緑の薬',
+      '黄緑の薬',
+      'エメラルドの薬',
+      '白い巻物',
+      '銀色の巻物',
+      '灰色の巻物',
+      '赤い巻物',
+      '朱色の巻物',
+      '深紅の巻物',
+      '青い巻物',
+      '藍色の巻物',
+      '群青の巻物',
+      '紫の巻物',
+      '薄紫の巻物',
+      '濃紫の巻物',
+      '金色の巻物',
+      '黄色の巻物',
+      '琥珀の巻物'
+    ]
+  };
   private messageSink?: (message: string) => void;
 
   constructor(dungeonManager: DungeonManager) {
     this.dungeonManager = dungeonManager;
+    this.setUnidentifiedNamePools(this.defaultUnidentifiedNamePools);
     this.initializeDefaultItems();
   }
 
@@ -84,6 +129,218 @@ export class ItemSystem implements InventoryManager {
    */
   setMessageSink(sink: (message: string) => void): void {
     this.messageSink = sink;
+  }
+
+  setUnidentifiedNamePools(pools?: Record<string, string[]>): void {
+    const source = pools && Object.keys(pools).length > 0 ? pools : this.defaultUnidentifiedNamePools;
+
+    const sanitized = new Map<string, string[]>();
+    for (const [category, list] of Object.entries(source)) {
+      if (!Array.isArray(list) || list.length === 0) continue;
+      const unique = Array.from(new Set(list.filter((name): name is string => typeof name === 'string' && name.trim().length > 0)));
+      if (unique.length > 0) {
+        sanitized.set(category, unique);
+      }
+    }
+
+    if (!sanitized.has('default')) {
+      const union = Array.from(new Set(Array.from(sanitized.values()).flat()));
+      if (union.length > 0) {
+        sanitized.set('default', union);
+      } else {
+        sanitized.set('default', [...this.defaultUnidentifiedNamePools.potion, ...this.defaultUnidentifiedNamePools.scroll]);
+      }
+    }
+
+    this.unidentifiedNamePools = sanitized;
+    this.groupUnidentifiedNames.clear();
+    this.usedUnidentifiedNames.clear();
+  }
+
+  private resolveUnidentifiedName(info: ItemIdentificationInfo | undefined, template: ItemTemplate | undefined): string | undefined {
+    if (!info || info.alwaysIdentified) {
+      return undefined;
+    }
+
+    const category = this.resolveIdentificationCategory(info, template);
+
+    if (info.groupId) {
+      const existing = this.groupUnidentifiedNames.get(info.groupId);
+      if (existing) {
+        return existing;
+      }
+    }
+
+    if (info.unidentifiedName) {
+      if (info.groupId) {
+        this.groupUnidentifiedNames.set(info.groupId, info.unidentifiedName);
+      }
+      this.markNameAsUsed(category, info.unidentifiedName);
+      return info.unidentifiedName;
+    }
+
+    const poolSource = info.unidentifiedNames && info.unidentifiedNames.length > 0
+      ? info.unidentifiedNames
+      : this.getPoolForCategory(category);
+
+    if (!poolSource || poolSource.length === 0) {
+      return undefined;
+    }
+
+    let candidates = poolSource;
+    const available = poolSource.filter(name => !this.isNameUsed(category, name));
+    if (available.length > 0) {
+      candidates = available;
+    }
+
+    const selected = candidates[Math.floor(Math.random() * candidates.length)];
+    if (!selected) {
+      return undefined;
+    }
+
+    if (info.groupId) {
+      this.groupUnidentifiedNames.set(info.groupId, selected);
+    }
+    this.markNameAsUsed(category, selected);
+    return selected;
+  }
+
+  private resolveIdentificationCategory(info: ItemIdentificationInfo | undefined, template: ItemTemplate | undefined): string {
+    if (info?.category) {
+      return info.category;
+    }
+    if (info?.groupId) {
+      const groupId = info.groupId.toLowerCase();
+      if (groupId.startsWith('potion')) return 'potion';
+      if (groupId.startsWith('scroll')) return 'scroll';
+    }
+    if (template?.identification?.category) {
+      return template.identification.category;
+    }
+    return 'default';
+  }
+
+  private getPoolForCategory(category: string): string[] {
+    const pool = this.unidentifiedNamePools.get(category) || this.unidentifiedNamePools.get('default');
+    if (pool && pool.length > 0) {
+      return pool;
+    }
+    const fallback = [
+      ...this.defaultUnidentifiedNamePools.potion,
+      ...this.defaultUnidentifiedNamePools.scroll
+    ];
+    return Array.from(new Set(fallback));
+  }
+
+  private getUsedSet(category: string): Set<string> {
+    let set = this.usedUnidentifiedNames.get(category);
+    if (!set) {
+      set = new Set<string>();
+      this.usedUnidentifiedNames.set(category, set);
+    }
+    return set;
+  }
+
+  private markNameAsUsed(category: string, name: string): void {
+    this.getUsedSet(category).add(name);
+  }
+
+  private isNameUsed(category: string, name: string): boolean {
+    return this.getUsedSet(category).has(name);
+  }
+
+  private configureItemIdentification(
+    item: ItemEntity,
+    template: ItemTemplate,
+    identification?: ItemIdentificationInfo,
+    startIdentified?: boolean
+  ): void {
+    const info =
+      identification !== undefined
+        ? identification
+        : ((template as any).identification as ItemIdentificationInfo | undefined);
+
+    item.setIdentifyHandler(identifiedItem => this.handleItemIdentified(identifiedItem));
+
+    const resolvedInfo: ItemIdentificationInfo = { ...(info || {}) };
+    const category = this.resolveIdentificationCategory(info, template);
+    if (category && category !== 'default') {
+      resolvedInfo.category = category;
+    } else if (!info?.category) {
+      delete (resolvedInfo as any).category;
+    }
+
+    const resolvedName = this.resolveUnidentifiedName(info, template);
+    if (resolvedName !== undefined) {
+      resolvedInfo.unidentifiedName = resolvedName;
+    } else if (resolvedInfo.unidentifiedName === undefined) {
+      delete (resolvedInfo as any).unidentifiedName;
+    }
+
+    item.setIdentificationInfo(resolvedInfo);
+
+    const initialState =
+      startIdentified !== undefined
+        ? startIdentified
+        : this.isTemplateInitiallyIdentified(template, info);
+
+    item.setIdentified(initialState);
+
+    if (info?.groupId && initialState) {
+      this.identifiedGroups.add(info.groupId);
+    }
+  }
+
+  private isTemplateInitiallyIdentified(
+    template: ItemTemplate,
+    identification?: ItemIdentificationInfo
+  ): boolean {
+    if (identification?.alwaysIdentified) {
+      return true;
+    }
+    if (template.identified) {
+      return true;
+    }
+    if (identification?.groupId) {
+      return this.identifiedGroups.has(identification.groupId);
+    }
+    return false;
+  }
+
+  private handleItemIdentified(item: ItemEntity): void {
+    if (item.alwaysIdentified) {
+      item.setIdentified(true);
+      const groupId = item.identificationGroupId;
+      if (groupId) {
+        this.identifiedGroups.add(groupId);
+      }
+      return;
+    }
+
+    item.setIdentified(true);
+    const groupId = item.identificationGroupId;
+    if (groupId && !this.identifiedGroups.has(groupId)) {
+      this.identifiedGroups.add(groupId);
+      this.propagateGroupIdentification(groupId);
+    }
+  }
+
+  private propagateGroupIdentification(groupId: string): void {
+    const allEntities = this.dungeonManager.getAllEntities();
+    for (const entity of allEntities) {
+      if (entity instanceof ItemEntity && entity.identificationGroupId === groupId) {
+        entity.setIdentified(true);
+      }
+
+      const maybeInventory = (entity as any).inventory as ItemEntity[] | undefined;
+      if (Array.isArray(maybeInventory)) {
+        for (const invItem of maybeInventory) {
+          if (invItem.identificationGroupId === groupId) {
+            invItem.setIdentified(true);
+          }
+        }
+      }
+    }
   }
 
   /**
@@ -722,12 +979,15 @@ export class ItemSystem implements InventoryManager {
       return null;
     }
 
+    const identification = (template as any).identification as ItemIdentificationInfo | undefined;
+    const startIdentified = this.isTemplateInitiallyIdentified(template, identification);
+
     const item = new ItemEntity(
       `${templateId}-${Date.now()}`,
       template.name,
       template.itemType,
       position,
-      template.identified,
+      startIdentified,
       template.cursed,
       (template as any).spriteId
     );
@@ -750,6 +1010,8 @@ export class ItemSystem implements InventoryManager {
     if (template.durability !== undefined) {
       item.setDurability(template.durability);
     }
+
+    this.configureItemIdentification(item, template, identification, startIdentified);
 
     // アイテムフラグの初期化（テンプレ依存。指定がなければ効果有無でデフォルト）
     if ((template as any).throwBehavior) {
@@ -793,12 +1055,21 @@ export class ItemSystem implements InventoryManager {
       // 動的import（ブラウザ環境）
       const { ItemRegistry } = await import('../core/ItemRegistry.js');
       const reg = ItemRegistry.getInstance();
-      if (!reg || !reg.hasTemplates()) {
+      if (!reg) {
+        console.log('ItemRegistry: Instance not available, using defaults');
+        return;
+      }
+
+      this.setUnidentifiedNamePools(reg.getUnidentifiedPrefixPools());
+
+      if (!reg.hasTemplates()) {
         console.log('ItemRegistry: No templates available, using defaults');
         return;
       }
+
       console.log('ItemRegistry: Loading templates from registry');
       this.itemTemplates.clear();
+      this.identifiedGroups.clear();
       for (const tpl of reg.getAll()) {
         this.registerItemTemplate(tpl);
         console.log(`ItemRegistry: Loaded template ${tpl.id}: ${tpl.name}`);
@@ -817,9 +1088,12 @@ export class ItemSystem implements InventoryManager {
       id: '1',
       name: 'Health Potion',
       itemType: 'consumable',
-      identified: false,
+      identified: true,
       cursed: false,
       spriteId: 'consumable',
+      identification: {
+        alwaysIdentified: true
+      },
       effects: [
         {
           type: 'heal',
@@ -837,6 +1111,9 @@ export class ItemSystem implements InventoryManager {
       identified: true,
       cursed: false,
       spriteId: 'consumable',
+      identification: {
+        alwaysIdentified: true
+      },
       effects: [
         {
           type: 'restore-hunger',
@@ -854,6 +1131,10 @@ export class ItemSystem implements InventoryManager {
       identified: false,
       cursed: false,
       spriteId: 'consumable',
+      identification: {
+        groupId: 'potion-antidote',
+        category: 'potion'
+      },
       effects: [
         {
           type: 'cure-status',
@@ -871,6 +1152,10 @@ export class ItemSystem implements InventoryManager {
       identified: false,
       cursed: false,
       spriteId: 'consumable',
+      identification: {
+        groupId: 'scroll-identify',
+        category: 'scroll'
+      },
       effects: [
         {
           type: 'identify',
@@ -887,6 +1172,10 @@ export class ItemSystem implements InventoryManager {
       identified: false,
       cursed: false,
       spriteId: 'consumable',
+      identification: {
+        groupId: 'scroll-teleport',
+        category: 'scroll'
+      },
       effects: [
         {
           type: 'teleport',
@@ -903,6 +1192,10 @@ export class ItemSystem implements InventoryManager {
       identified: false,
       cursed: false,
       spriteId: 'consumable',
+      identification: {
+        groupId: 'scroll-reveal-map',
+        category: 'scroll'
+      },
       effects: [
         {
           type: 'reveal-map',
@@ -920,6 +1213,10 @@ export class ItemSystem implements InventoryManager {
       identified: false,
       cursed: false,
       spriteId: 'consumable',
+      identification: {
+        groupId: 'scroll-reveal-monsters',
+        category: 'scroll'
+      },
       effects: [
         {
           type: 'reveal-monsters',
@@ -937,6 +1234,10 @@ export class ItemSystem implements InventoryManager {
       identified: false,
       cursed: false,
       spriteId: 'consumable',
+      identification: {
+        groupId: 'scroll-reveal-items',
+        category: 'scroll'
+      },
       effects: [
         {
           type: 'reveal-items',
@@ -960,4 +1261,5 @@ export interface ItemTemplate {
   equipmentStats?: any;
   attributes?: any;
   durability?: number;
+  identification?: ItemIdentificationInfo;
 }

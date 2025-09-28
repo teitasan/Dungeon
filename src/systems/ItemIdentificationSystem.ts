@@ -37,7 +37,10 @@ export class ItemIdentificationSystem {
    * Decide if a newly generated item should start unidentified
    */
   shouldStartUnidentified(item: ItemEntity): boolean {
-    return this.config.unidentifiedItemTypes.includes(item.itemType);
+    if (item.alwaysIdentified) {
+      return false;
+    }
+    return this.config.unidentifiedItemTypes.includes(item.itemType) && !item.identified;
   }
 
   /**

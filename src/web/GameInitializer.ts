@@ -73,9 +73,6 @@ export class GameInitializer {
     await this.initializeDungeon(systems, player, config);
 
 
-    // テスト用アイテムの追加
-    const spawn = player.position;
-    await this.addTestItems(systems, player, spawn);
 
     // レンダラーの設定
     await this.setupRenderer(systems, uiManager, config);
@@ -115,7 +112,7 @@ export class GameInitializer {
     try {
       const { ItemRegistry } = await import('../core/ItemRegistry.js');
       const reg = ItemRegistry.getInstance();
-      reg.loadFromConfig(config?.items?.templates || {});
+      reg.loadFromConfig(config?.items || {});
     } catch (e) {
       console.warn('ItemRegistry load failed (continuing with defaults):', e);
     }
@@ -286,26 +283,6 @@ export class GameInitializer {
 
 
 
-  private async addTestItems(systems: GameSystems, player: PlayerEntity, spawn: Position): Promise<void> {
-    // テスト用アイテムを初期インベントリに追加（地形感知5個 + 敵感知3個 + アイテム感知2個 + テレポート1個）
-    const testItemTemplates = [
-      { id: '6', count: 5 },  // 地形感知の巻物
-      { id: '7', count: 3 },  // 敵感知の巻物
-      { id: '8', count: 2 }, // アイテム感知の巻物
-      { id: '5', count: 1 }   // テレポートの巻物
-    ];
-
-    for (const template of testItemTemplates) {
-      for (let i = 0; i < template.count; i++) {
-        const item = ItemEntity.createFromTemplate(template.id, { x: 0, y: 0 }, systems.itemSystem);
-        if (item) {
-          // テスト用なので識別済みにする
-          item.identify();
-          player.addToInventory(item);
-        }
-      }
-    }
-  }
 
   private async setupRenderer(
     systems: GameSystems,
