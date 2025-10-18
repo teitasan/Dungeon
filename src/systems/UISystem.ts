@@ -114,7 +114,7 @@ export class UISystem {
 
     const inventory = this.ecsDataProvider.getPlayerInventory();
     if (inventory) {
-      this.uiManager.updateInventoryList(inventory);
+      this.uiManager.updateInventoryGrid(inventory);
     }
   }
 
@@ -143,7 +143,7 @@ export class UISystem {
   /**
    * インベントリ操作を処理
    */
-  handleInventoryAction(action: 'open' | 'close' | 'use-item' | 'move-selection', direction?: 'up' | 'down'): {
+  handleInventoryAction(action: 'open' | 'close' | 'use-item' | 'move-selection', direction?: 'up' | 'down' | 'left' | 'right'): {
     success: boolean;
     message: string;
     shouldClose?: boolean;

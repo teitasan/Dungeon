@@ -3,8 +3,8 @@
  * Provides common functionality for all game entities
  */
 
-import { GameEntity, Position, Component, EntityFlags } from '../types/core';
-import { Player, Monster, Companion, Item, CharacterAttributes, StatusEffect } from '../types/entities';
+import type { GameEntity, Position, Component, EntityFlags } from '../types/core';
+import type { Player, Monster, Companion, Item, CharacterAttributes, StatusEffect } from '../types/entities';
 import type { CharacterStats } from '../types/character-info';
 
 /**

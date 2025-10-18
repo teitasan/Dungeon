@@ -56,7 +56,12 @@ export class PlayerEntity extends BaseGameEntity implements Player {
    * Add item to inventory
    */
   addToInventory(item: Item): boolean {
-    // TODO: Check inventory limits in future tasks
+    // Check inventory limits (20 items max for grid inventory)
+    if (this.inventory.length >= 20) {
+      return false;
+    }
+    
+    // Grid position will be assigned by ItemSystem when using addItem()
     this.inventory.push(item);
     return true;
   }

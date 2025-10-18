@@ -3,7 +3,7 @@
  */
 
 import { Position, Component, EntityFlags } from '../types/core';
-import { Item, ItemType, ItemEffect, EquipmentStats, ItemFlags, ItemIdentificationInfo } from '../types/entities';
+import { Item, ItemType, ItemEffect, EquipmentStats, ItemFlags, ItemIdentificationInfo, GridPosition } from '../types/entities';
 import { BaseGameEntity } from './GameEntity.js';
 
 export class ItemEntity extends BaseGameEntity implements Item {
@@ -23,6 +23,7 @@ export class ItemEntity extends BaseGameEntity implements Item {
   public unidentifiedName?: string;
   public alwaysIdentified: boolean;
   public itemFlags: ItemFlags;
+  public gridPosition?: GridPosition;
   private identifyHandler?: (item: ItemEntity) => void;
 
   constructor(

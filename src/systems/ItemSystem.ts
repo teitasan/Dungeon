@@ -2,7 +2,7 @@
  * Item system for managing items, inventory, and item usage
  */
 
-import { GameEntity, ItemIdentificationInfo } from '../types/entities';
+import { GameEntity, ItemIdentificationInfo, GridPosition, GRID_WIDTH, GRID_HEIGHT, MAX_INVENTORY_ITEMS } from '../types/entities';
 import { ItemEntity } from '../entities/Item';
 import { PlayerEntity } from '../entities/Player';
 import { Position } from '../types/core';
@@ -886,6 +886,15 @@ export class ItemSystem implements InventoryManager {
       return false;
     }
 
+    // Find empty grid slot and assign to item
+    const emptySlot = this.findEmptyGridSlot(entity);
+    if (!emptySlot) {
+      return false;
+    }
+
+    // Assign grid position to item
+    item.gridPosition = emptySlot;
+
     const inventory = this.getInventory(entity);
     inventory.push(item);
     return true;
@@ -903,7 +912,10 @@ export class ItemSystem implements InventoryManager {
     const index = inventory.findIndex(item => item.id === itemId);
     
     if (index !== -1) {
-      return inventory.splice(index, 1)[0];
+      const removedItem = inventory.splice(index, 1)[0];
+      // Clear grid position when removing
+      removedItem.gridPosition = undefined;
+      return removedItem;
     }
 
     return null;
@@ -939,8 +951,8 @@ export class ItemSystem implements InventoryManager {
    * Get maximum inventory capacity
    */
   getMaxCapacity(entity: GameEntity): number {
-    // Default capacity, could be modified by equipment/stats
-    return 20;
+    // Grid inventory capacity
+    return MAX_INVENTORY_ITEMS;
   }
 
   /**
@@ -966,6 +978,113 @@ export class ItemSystem implements InventoryManager {
     }
     
     return (entity as any).inventory as ItemEntity[];
+  }
+
+  /**
+   * Find empty grid slot in inventory
+   */
+  private findEmptyGridSlot(entity: GameEntity): GridPosition | null {
+    const inventory = this.getInventory(entity);
+    
+    // Check each grid position
+    for (let y = 0; y < GRID_HEIGHT; y++) {
+      for (let x = 0; x < GRID_WIDTH; x++) {
+        if (!this.isGridSlotOccupied(entity, x, y)) {
+          return { x, y };
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check if grid slot is occupied
+   */
+  private isGridSlotOccupied(entity: GameEntity, x: number, y: number): boolean {
+    const inventory = this.getInventory(entity);
+    return inventory.some(item => 
+      item.gridPosition && 
+      item.gridPosition.x === x && 
+      item.gridPosition.y === y
+    );
+  }
+
+  /**
+   * Get item at specific grid position
+   */
+  getItemAtGridPosition(entity: GameEntity, x: number, y: number): ItemEntity | null {
+    const inventory = this.getInventory(entity);
+    return inventory.find(item => 
+      item.gridPosition && 
+      item.gridPosition.x === x && 
+      item.gridPosition.y === y
+    ) || null;
+  }
+
+  /**
+   * Move item to different grid position
+   */
+  moveItemToGridPosition(entity: GameEntity, itemId: string, newX: number, newY: number): boolean {
+    if (!this.hasInventorySupport(entity)) {
+      return false;
+    }
+
+    // Check if new position is valid
+    if (newX < 0 || newX >= GRID_WIDTH || newY < 0 || newY >= GRID_HEIGHT) {
+      return false;
+    }
+
+    // Check if new position is occupied
+    if (this.isGridSlotOccupied(entity, newX, newY)) {
+      return false;
+    }
+
+    const inventory = this.getInventory(entity);
+    const item = inventory.find(item => item.id === itemId);
+    
+    if (!item) {
+      return false;
+    }
+
+    // Update grid position
+    item.gridPosition = { x: newX, y: newY };
+    return true;
+  }
+
+  /**
+   * Initialize grid positions for existing items without positions
+   */
+  initializeGridPositions(entity: GameEntity): void {
+    if (!this.hasInventorySupport(entity)) {
+      return;
+    }
+
+    const inventory = this.getInventory(entity);
+    let currentX = 0;
+    let currentY = 0;
+
+    for (const item of inventory) {
+      if (!item.gridPosition) {
+        // Find next available slot
+        while (currentY < GRID_HEIGHT && this.isGridSlotOccupied(entity, currentX, currentY)) {
+          currentX++;
+          if (currentX >= GRID_WIDTH) {
+            currentX = 0;
+            currentY++;
+          }
+        }
+        
+        if (currentY < GRID_HEIGHT) {
+          item.gridPosition = { x: currentX, y: currentY };
+          currentX++;
+          if (currentX >= GRID_WIDTH) {
+            currentX = 0;
+            currentY++;
+          }
+        }
+      }
+    }
   }
 
   /**

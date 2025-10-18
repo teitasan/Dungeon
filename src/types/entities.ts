@@ -3,14 +3,25 @@
  * Implements basic game entities with stats, level, and experience systems
  */
 
-import { GameEntity, Position, Component, EntityFlags } from './core';
-import { MovementPattern, MovementPatternConfig } from './ai';
-import { CharacterInfo, CharacterStats } from './character-info';
+import type { Position, Component, EntityFlags, GameEntity } from './core';
+import type { MovementPattern, MovementPatternConfig } from './ai';
+import type { CharacterInfo, CharacterStats } from './character-info';
 
 export type { CharacterInfo, CharacterStats } from './character-info';
 
-// Re-export core GameEntity for modules that import from types/entities
-export { GameEntity } from './core';
+// Re-export GameEntity interface from core
+export type { GameEntity } from './core';
+
+// Grid inventory system types
+export interface GridPosition {
+  x: number; // 0-4 (5 columns)
+  y: number; // 0-3 (4 rows)
+}
+
+// Grid inventory constants
+export const GRID_WIDTH = 5;
+export const GRID_HEIGHT = 4;
+export const MAX_INVENTORY_ITEMS = GRID_WIDTH * GRID_HEIGHT; // 20 items
 
 // Status effects that can be applied to characters
 export interface StatusEffect {
@@ -129,6 +140,7 @@ export interface Companion extends GameEntity {
 
 // Item model
 export interface Item extends GameEntity {
+  id: string; // GameEntityから継承されるが、明示的に定義
   name: string;
   itemType: ItemType;
   identified: boolean;
@@ -149,6 +161,10 @@ export interface Item extends GameEntity {
    * onThrow: 投擲時の基本挙動
    */
   itemFlags: ItemFlags;
+  /**
+   * グリッドインベントリでの位置（オプショナル）
+   */
+  gridPosition?: GridPosition;
 }
 
 export interface ItemIdentificationInfo {

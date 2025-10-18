@@ -242,7 +242,29 @@ export class GameInitializer {
       features: []
     };
     
-    return new PlayerEntity('player-1', characterInfo, { x: 0, y: 0 });
+    const player = new PlayerEntity('player-1', characterInfo, { x: 0, y: 0 });
+    
+    // 既存のインベントリアイテムにグリッド座標を初期化
+    // これは既存のセーブデータとの互換性のため
+    if (player.inventory.length > 0) {
+      // ItemSystemのinitializeGridPositionsメソッドを使用
+      // ただし、ここでは直接呼び出せないので、手動で初期化
+      let currentX = 0;
+      let currentY = 0;
+      
+      for (const item of player.inventory) {
+        if (!item.gridPosition) {
+          item.gridPosition = { x: currentX, y: currentY };
+          currentX++;
+          if (currentX >= 5) {
+            currentX = 0;
+            currentY++;
+          }
+        }
+      }
+    }
+    
+    return player;
   }
 
   private async initializeDungeon(
@@ -355,9 +377,13 @@ export class GameInitializer {
           await itemSpriteManager.load();
           console.log('Item spritesheet loaded successfully');
           renderer.setItemSpriteManager(itemSpriteManager);
+          // UIManagerにも設定
+          uiManager.setItemSpriteManager(itemSpriteManager);
         } catch (error) {
           console.warn('Failed to load item spritesheet:', error);
           renderer.setItemSpriteManager(itemSpriteManager);
+          // UIManagerにも設定（エラーでも設定）
+          uiManager.setItemSpriteManager(itemSpriteManager);
         }
       }
     } catch (error) {
@@ -402,6 +428,14 @@ export class GameInitializer {
     if (this.damageDisplayManager) {
       renderer.setDamageDisplayManager(this.damageDisplayManager);
       uiManager.setDamageDisplayManager(this.damageDisplayManager);
+    }
+
+    // 影画像を読み込み
+    try {
+      await renderer.loadShadowImage();
+      console.log('Shadow image loaded successfully');
+    } catch (error) {
+      console.warn('Failed to load shadow image:', error);
     }
 
     // システムにレンダラーを設定

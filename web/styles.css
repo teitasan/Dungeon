@@ -576,7 +576,7 @@ a {
   color: #eee;
   padding: 16px;
   border-radius: 10px;
-  min-width: 280px;
+  min-width: 400px; /* グリッド用に幅を拡大 */
   text-shadow: 
     -0.5px -0.5px 0 #8c7251,
     0.5px -0.5px 0 #8c7251,
@@ -586,28 +586,75 @@ a {
 
 #inventoryModal .title {
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  text-align: center;
+  font-size: 18px;
 }
 
-#inventoryList {
-  list-style: none;
-  padding-left: 0;
-  margin: 0 0 8px 0;
-  max-height: 40vh;
-  overflow: auto;
+/* グリッドインベントリ */
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 2px;
+  width: 100%;
+  height: 300px; /* 固定高さ */
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  border: 2px solid #444;
 }
 
-#inventoryList li {
-  padding: 4px 0;
+.grid-slot {
+  background: #2a2a2a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all 0.2s ease;
+  cursor: pointer;
 }
 
-#inventoryList li.empty {
-  opacity: 0.7;
+.grid-slot:hover {
+  background: #333;
+  border-color: #777;
+}
+
+.grid-slot.selected {
+  background: #4a4a4a;
+  border: 2px solid #ede1c6;
+  box-shadow: 0 0 8px rgba(237, 225, 198, 0.3);
+}
+
+.grid-slot.occupied {
+  background: #3a3a3a;
+  border-color: #666;
+}
+
+.grid-slot.occupied.selected {
+  background: #5a5a5a;
+  border: 2px solid #ede1c6;
+  box-shadow: 0 0 8px rgba(237, 225, 198, 0.4);
+}
+
+.item-sprite {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
 }
 
 #inventoryModal .controls {
   opacity: 0.8;
   font-size: 12px;
+  text-align: center;
 }
 
 /* ゲーム情報オーバーレイ（削除済み） */

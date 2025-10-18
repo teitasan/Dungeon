@@ -8,6 +8,9 @@ import { ItemSpriteManager } from './ItemSpriteManager.js';
 import { MonsterSpriteManager } from './MonsterSpriteManager.js';
 import { DamageDisplayManager } from './DamageDisplayManager.js';
 
+// 影画像のインポート
+import shadowPngUrl from '../assets/images/shadow.png';
+
 type MovementAnimation = {
   startX: number;
   startY: number;
@@ -43,6 +46,7 @@ export class CanvasRenderer {
   private movementAnimations = new Map<string, MovementAnimation>();
   private lastEntityPositions = new Map<string, { x: number; y: number }>();
   private readonly simpleOverlayRadiusTiles = 1.5;
+  private shadowImage: HTMLImageElement | null = null;
 
   constructor(private canvas: HTMLCanvasElement, tileSize: number = 20) {
     const ctx = canvas.getContext('2d');
@@ -260,6 +264,38 @@ export class CanvasRenderer {
   }
 
   /**
+   * 影画像を読み込み
+   */
+  async loadShadowImage(): Promise<void> {
+    if (this.shadowImage) return;
+
+    return new Promise((resolve, reject) => {
+      this.shadowImage = new Image();
+      this.shadowImage.onload = () => resolve();
+      this.shadowImage.onerror = () => {
+        reject(new Error('Failed to load shadow image'));
+      };
+      this.shadowImage.src = shadowPngUrl as string;
+    });
+  }
+
+  /**
+   * 影を描画
+   */
+  private drawShadow(x: number, y: number): void {
+    if (!this.shadowImage) return;
+
+    // 影画像をそのまま32x32で表示
+    this.ctx.drawImage(
+      this.shadowImage,
+      x,
+      y,
+      this.tileSize,
+      this.tileSize
+    );
+  }
+
+  /**
    * Check if entity is an item
    */
   private isItem(entity: any): boolean {
@@ -299,8 +335,8 @@ export class CanvasRenderer {
       return;
     }
 
-    // スプライトで描画
-    this.itemSpriteManager.drawItemSprite(
+    // マップ用スプライトで描画
+    this.itemSpriteManager.drawItemSpriteForMap(
       this.ctx,
       spriteId,
       x,
@@ -780,6 +816,9 @@ export class CanvasRenderer {
       const gy = (animatedPosition.y - effectiveCamY - 0.5) * tileSize;
       
       try {
+        // 影を先に描画
+        this.drawShadow(gx, gy);
+        
         // アイテムの場合はスプライトで描画
         if (this.isItem(entity)) {
           this.renderItem(entity, gx, gy);
@@ -821,6 +860,11 @@ export class CanvasRenderer {
       const px = (playerAnimated.x - effectiveCamX - 0.5) * tileSize + tileSize / 2;
       const py = (playerAnimated.y - effectiveCamY - 0.5) * tileSize + tileSize / 2;
       const playerDirection = (player as any).direction || 'south';
+      
+      // プレイヤーの影を描画
+      const playerTileX = (playerAnimated.x - effectiveCamX - 0.5) * tileSize;
+      const playerTileY = (playerAnimated.y - effectiveCamY - 0.5) * tileSize;
+      this.drawShadow(playerTileX, playerTileY);
     
     // 円形を描画
     ctx.beginPath();

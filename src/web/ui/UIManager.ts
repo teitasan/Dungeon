@@ -1,17 +1,26 @@
 import type { GameConfig } from '../../types/core.js';
 import type { Item } from '../../types/entities.js';
 import { DamageDisplayManager } from '../DamageDisplayManager.js';
+import type { ItemSpriteManager } from '../ItemSpriteManager.js';
 
-type InventoryDisplayItem = Pick<Item, 'id' | 'name' | 'identified'> &
-  Partial<Pick<Item, 'itemType'>> & {
-    getDisplayName?: () => string;
-  };
+type InventoryDisplayItem = {
+  id: string;
+  name: string;
+  identified: boolean;
+  itemType?: Item['itemType'];
+  spriteId?: string;
+  gridPosition?: Item['gridPosition'];
+  getDisplayName?: () => string;
+};
 
 export class UIManager {
   private config: GameConfig;
   private appElement: HTMLElement;
   private selectedInventoryIndex: number = 0;
   private currentInventoryItems: InventoryDisplayItem[] = [];
+  // グリッドインベントリ用の状態
+  private selectedGridX: number = 0;
+  private selectedGridY: number = 0;
   // メッセージ表示制御用の内部状態
   private messageQueue: string[] = [];
   private isAnimating: boolean = false;
@@ -24,6 +33,8 @@ export class UIManager {
   private expAnimationTargetPercent: number | null = null;
   private expAnimationStartTime: number | null = null;
   private isLevelingUp: boolean = false;
+  // アイテムスプライトマネージャー
+  private itemSpriteManager: ItemSpriteManager | null = null;
 
   constructor(config: GameConfig, appElement: HTMLElement) {
     this.config = config;
@@ -158,8 +169,8 @@ export class UIManager {
       <div id="inventoryModal">
         <div class="window-frame">
           <div class="title">Inventory</div>
-          <ul id="inventoryList"></ul>
-          <div class="controls">Z:決定 / X:閉じる</div>
+          <div id="inventoryGrid" class="inventory-grid"></div>
+          <div class="controls">矢印:移動 / Z:決定 / X:閉じる</div>
         </div>
       </div>
     `;
@@ -396,32 +407,114 @@ export class UIManager {
   }
 
   /**
-   * インベントリリストを更新
+   * インベントリグリッドを更新
    */
-  updateInventoryList(items: InventoryDisplayItem[]): void {
-    const list = document.getElementById('inventoryList') as HTMLUListElement;
-    if (!list) return;
+  updateInventoryGrid(items: InventoryDisplayItem[]): void {
+    const grid = document.getElementById('inventoryGrid') as HTMLElement;
+    if (!grid) return;
 
     // 現在のインベントリアイテムを保存
     this.currentInventoryItems = items;
-    this.selectedInventoryIndex = Math.min(this.selectedInventoryIndex, Math.max(0, items.length - 1));
 
-    list.innerHTML = '';
-    if (items.length === 0) {
-      const li = document.createElement('li');
-      li.textContent = '（空）';
-      li.className = 'empty';
-      list.appendChild(li);
-    } else {
-      items.forEach((item, index) => {
-        const li = document.createElement('li');
-        const label = this.getInventoryItemLabel(item);
-        li.textContent = `${index === this.selectedInventoryIndex ? '▶ ' : '  '}${label}`;
-        li.style.fontFamily = 'var(--font-stack-primary)';
-        // 反転ハイライトは行わず、カーソル（▶）のみで選択を示す
-        list.appendChild(li);
-      });
+    // グリッドをクリア
+    grid.innerHTML = '';
+
+    // 5x4のグリッドを作成
+    for (let y = 0; y < 4; y++) {
+      for (let x = 0; x < 5; x++) {
+        const slot = document.createElement('div');
+        slot.className = 'grid-slot';
+        slot.dataset.x = x.toString();
+        slot.dataset.y = y.toString();
+
+        // 選択中のスロットをハイライト
+        if (x === this.selectedGridX && y === this.selectedGridY) {
+          slot.classList.add('selected');
+        }
+
+        // この位置にあるアイテムを探す
+        const item = this.findItemAtGridPosition(items, x, y);
+        if (item) {
+          slot.classList.add('occupied');
+          
+          // アイテムスプライトを表示（床アイテムと同じ方法）
+          const sprite = document.createElement('canvas');
+          sprite.className = 'item-sprite';
+          sprite.width = 32; // インベントリ用のサイズ
+          sprite.height = 32;
+          
+          // スプライトマネージャーを使って描画
+          if (this.itemSpriteManager && this.itemSpriteManager.isLoaded() && item.spriteId) {
+            const ctx = sprite.getContext('2d');
+            if (ctx) {
+              this.itemSpriteManager.drawItemSprite(ctx, item.spriteId, 0, 0, 32);
+            }
+          } else {
+            // フォールバック: 文字で表示
+            const ctx = sprite.getContext('2d');
+            if (ctx) {
+              this.renderItemFallback(ctx, item, 0, 0, 32);
+            }
+          }
+          
+          slot.appendChild(sprite);
+        }
+
+        grid.appendChild(slot);
+      }
     }
+  }
+
+  /**
+   * 指定座標にあるアイテムを検索
+   */
+  private findItemAtGridPosition(items: InventoryDisplayItem[], x: number, y: number): InventoryDisplayItem | null {
+    return items.find(item => 
+      (item as any).gridPosition && 
+      (item as any).gridPosition.x === x && 
+      (item as any).gridPosition.y === y
+    ) || null;
+  }
+
+  /**
+   * アイテムの表示文字を取得
+   */
+  private getItemDisplayChar(item: InventoryDisplayItem): string {
+    if (!item.identified) {
+      return '?';
+    }
+
+    switch (item.itemType) {
+      case 'weapon-melee':
+        return '⚔';
+      case 'weapon-ranged':
+        return '🏹';
+      case 'armor':
+        return '🛡';
+      case 'accessory':
+        return '💍';
+      case 'consumable':
+        return '🧪';
+      default:
+        return '📦';
+    }
+  }
+
+  /**
+   * フォールバック描画（床アイテムと同じ方法）
+   */
+  private renderItemFallback(ctx: CanvasRenderingContext2D, item: InventoryDisplayItem, x: number, y: number, tileSize: number): void {
+    const glyph = item.name ? item.name.charAt(0).toUpperCase() : 'I';
+    
+    // 背景をクリア
+    ctx.clearRect(x, y, tileSize, tileSize);
+    
+    // 文字を描画
+    ctx.fillStyle = '#ede1c6';
+    ctx.font = `${tileSize * 0.8}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(glyph, x + tileSize / 2, y + tileSize / 2);
   }
 
   /**
@@ -453,33 +546,42 @@ export class UIManager {
       return item.name;
     }
 
-    return item.id;
+    return item.id || 'Unknown Item';
   }
 
   /**
    * 選択されたインベントリアイテムを取得
    */
   getSelectedInventoryItem(): InventoryDisplayItem | null {
-    if (this.currentInventoryItems.length === 0 || this.selectedInventoryIndex >= this.currentInventoryItems.length) {
-      return null;
-    }
-    return this.currentInventoryItems[this.selectedInventoryIndex];
+    return this.findItemAtGridPosition(this.currentInventoryItems, this.selectedGridX, this.selectedGridY);
   }
 
   /**
-   * インベントリ選択を移動
+   * インベントリ選択を移動（グリッド版）
    */
-  moveInventorySelection(direction: 'up' | 'down'): void {
-    if (this.currentInventoryItems.length === 0) return;
+  moveInventorySelection(direction: 'up' | 'down' | 'left' | 'right'): void {
+    const oldX = this.selectedGridX;
+    const oldY = this.selectedGridY;
     
-    if (direction === 'up') {
-      this.selectedInventoryIndex = (this.selectedInventoryIndex - 1 + this.currentInventoryItems.length) % this.currentInventoryItems.length;
-    } else {
-      this.selectedInventoryIndex = (this.selectedInventoryIndex + 1) % this.currentInventoryItems.length;
+    switch (direction) {
+      case 'up':
+        this.selectedGridY = Math.max(0, this.selectedGridY - 1);
+        break;
+      case 'down':
+        this.selectedGridY = Math.min(3, this.selectedGridY + 1);
+        break;
+      case 'left':
+        this.selectedGridX = Math.max(0, this.selectedGridX - 1);
+        break;
+      case 'right':
+        this.selectedGridX = Math.min(4, this.selectedGridX + 1);
+        break;
     }
     
-    // 選択状態を更新
-    this.updateInventoryList(this.currentInventoryItems);
+    // 位置が変更された場合のみ更新
+    if (oldX !== this.selectedGridX || oldY !== this.selectedGridY) {
+      this.updateInventoryGrid(this.currentInventoryItems);
+    }
   }
 
   /**
@@ -779,6 +881,13 @@ export class UIManager {
    */
   setDamageDisplayManager(manager: DamageDisplayManager): void {
     this.damageDisplayManager = manager;
+  }
+
+  /**
+   * アイテムスプライトマネージャーを設定
+   */
+  setItemSpriteManager(manager: ItemSpriteManager): void {
+    this.itemSpriteManager = manager;
   }
 
   /**

@@ -38,6 +38,30 @@
         "y": 157.5,
         "width": 1,
         "height": 1
+      },
+      "orange": {
+        "imagePath": "/images/orange.png",
+        "mapImagePath": "/images/orange_map.png",
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "potion": {
+        "imagePath": "/images/potion.png",
+        "mapImagePath": "/images/potion_map.png",
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "scroll": {
+        "imagePath": "/images/unkwon_scroll.png",
+        "mapImagePath": "/images/scroll_map.png",
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
       }
     }
   },
@@ -47,7 +71,7 @@
       "itemType": "consumable",
       "identified": true,
       "cursed": false,
-      "spriteId": "consumable",
+      "spriteId": "potion",
       "effects": [
         {
           "type": "heal",
@@ -60,11 +84,11 @@
       }
     },
     "2": {
-      "name": "パン",
+      "name": "オレンジ",
       "itemType": "consumable",
       "identified": true,
       "cursed": false,
-      "spriteId": "consumable",
+      "spriteId": "orange",
       "effects": [
         {
           "type": "restore-hunger",
@@ -81,7 +105,7 @@
       "itemType": "consumable",
       "identified": false,
       "cursed": false,
-      "spriteId": "consumable",
+      "spriteId": "potion",
       "effects": [
         {
           "type": "cure-status",
@@ -99,7 +123,7 @@
       "itemType": "consumable",
       "identified": false,
       "cursed": false,
-      "spriteId": "consumable",
+      "spriteId": "scroll",
       "effects": [
         {
           "type": "identify",
@@ -116,7 +140,7 @@
       "itemType": "consumable",
       "identified": false,
       "cursed": false,
-      "spriteId": "consumable",
+      "spriteId": "scroll",
       "effects": [
         {
           "type": "teleport",
@@ -133,7 +157,7 @@
       "itemType": "consumable",
       "identified": false,
       "cursed": false,
-      "spriteId": "consumable",
+      "spriteId": "scroll",
       "effects": [
         {
           "type": "reveal-map",
@@ -151,7 +175,7 @@
       "itemType": "consumable",
       "identified": false,
       "cursed": false,
-      "spriteId": "consumable",
+      "spriteId": "scroll",
       "effects": [
         {
           "type": "reveal-monsters",
@@ -169,7 +193,7 @@
       "itemType": "consumable",
       "identified": false,
       "cursed": false,
-      "spriteId": "consumable",
+      "spriteId": "scroll",
       "effects": [
         {
           "type": "reveal-items",

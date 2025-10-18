@@ -252,7 +252,7 @@ export class InputHandler {
 
     // プレイヤーの向きから方向を取得
     const dir = this.player.direction || 'south';
-    const result = this.systems.itemSystem.throwItem(this.player, targetItem.id, dir as any);
+    const result = this.systems.itemSystem.throwItem(this.player, (targetItem as any).id, dir as any);
     
     if (result.success) {
       // 行動時は方向転換モードを解除
@@ -278,16 +278,31 @@ export class InputHandler {
       this.uiManager.addMessageWithAnimation('インベントリをID昇順でソートしました');
       return;
     }
-    // インベントリ内での移動処理（keydownのみ）
-    if ((key === 'ArrowUp' || key === 'ArrowDown') && type === 'keydown') {
-      const direction = key === 'ArrowUp' ? 'up' : 'down';
-      const result = this.systems.uiSystem.handleInventoryAction('move-selection', direction);
-      if (result.success) {
-        this.renderInventory();
+    
+    // グリッドインベントリ内での移動処理（keydownのみ）
+    if (type === 'keydown') {
+      let direction: 'up' | 'down' | 'left' | 'right' | null = null;
+      
+      switch (key) {
+        case 'ArrowUp':
+          direction = 'up';
+          break;
+        case 'ArrowDown':
+          direction = 'down';
+          break;
+        case 'ArrowLeft':
+          direction = 'left';
+          break;
+        case 'ArrowRight':
+          direction = 'right';
+          break;
       }
-      // インベントリ内での矢印キー処理が完了したことを明示
-      console.log(`[DEBUG] インベントリ内で矢印キー処理: ${direction}`);
-      return;
+      
+      if (direction) {
+        this.uiManager.moveInventorySelection(direction);
+        console.log(`[DEBUG] グリッドインベントリ内で移動: ${direction}`);
+        return;
+      }
     }
     
     if ((key === 'Enter' || key === 'z' || key === 'Z') && type === 'keydown') {
@@ -343,7 +358,7 @@ export class InputHandler {
       } else if (choice === 'throw') {
         // 投擲: 選択中アイテムをプレイヤーの向きに投げる
         const dir = this.player.direction || 'south';
-        const throwResult = this.systems.itemSystem.throwItem(this.player, selected.id, dir as any);
+        const throwResult = this.systems.itemSystem.throwItem(this.player, (selected as any).id, dir as any);
         if (throwResult.message) this.uiManager.addMessageWithAnimation(throwResult.message);
         this.onRender();
         if (throwResult.success) {
@@ -355,7 +370,7 @@ export class InputHandler {
         }
       } else if (choice === 'drop') {
         // 捨てる: 足元に落とす
-        const dropResult = this.systems.itemSystem.dropItem(this.player, selected.id, { ...this.player.position });
+        const dropResult = this.systems.itemSystem.dropItem(this.player, (selected as any).id, { ...this.player.position });
         if (dropResult.message) this.uiManager.addMessageWithAnimation(dropResult.message);
         this.onRender();
         if (dropResult.success) {
@@ -668,7 +683,7 @@ export class InputHandler {
   }
 
   private renderInventory(): void {
-    this.uiManager.updateInventoryList(this.player.inventory);
+    this.uiManager.updateInventoryGrid(this.player.inventory as any);
   }
 
   public resetKeyState(): void {
@@ -772,12 +787,42 @@ export class InputHandler {
 
     // インベントリをID昇順でソート
     this.player.inventory.sort((a, b) => {
-      const idA = String(a.id || a.name || '');
-      const idB = String(b.id || b.name || '');
+      const idA = String((a as any).id || a.name || '');
+      const idB = String((b as any).id || b.name || '');
       return idA.localeCompare(idB);
     });
 
+    // ソート後にグリッド座標を再割り当て
+    this.reassignGridPositions();
+
     console.log('[DEBUG] Inventory sorted by ID ascending');
+  }
+
+  /**
+   * グリッド座標を再割り当てする
+   */
+  private reassignGridPositions(): void {
+    if (!this.player.inventory || !Array.isArray(this.player.inventory)) {
+      return;
+    }
+
+    // 既存のグリッド座標をクリア
+    this.player.inventory.forEach(item => {
+      (item as any).gridPosition = undefined;
+    });
+
+    // 左上から順番にグリッド座標を割り当て
+    let currentX = 0;
+    let currentY = 0;
+
+    for (const item of this.player.inventory) {
+      (item as any).gridPosition = { x: currentX, y: currentY };
+      currentX++;
+      if (currentX >= 5) {
+        currentX = 0;
+        currentY++;
+      }
+    }
   }
 
   /**
