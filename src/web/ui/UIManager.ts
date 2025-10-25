@@ -170,7 +170,11 @@ export class UIManager {
         <div class="window-frame">
           <div class="title">Inventory</div>
           <div id="inventoryGrid" class="inventory-grid"></div>
-          <div class="controls">矢印:移動 / Z:決定 / X:閉じる</div>
+          <div id="inventoryItemInfo" class="inventory-item-info">
+            <div id="inventoryItemName" class="inventory-item-name">--</div>
+            <div id="inventoryItemDescription" class="inventory-item-description">--</div>
+          </div>
+          <div class="controls"></div>
         </div>
       </div>
     `;
@@ -463,6 +467,8 @@ export class UIManager {
         grid.appendChild(slot);
       }
     }
+
+    this.updateSelectedInventoryItemName();
   }
 
   /**
@@ -550,6 +556,79 @@ export class UIManager {
   }
 
   /**
+   * アイテムの説明文を取得
+   */
+  getInventoryItemDescription(item: InventoryDisplayItem): string {
+    if (item.identified === false) {
+      return '未鑑定のアイテムです';
+    }
+
+    // アイテムタイプに応じた説明文を返す
+    switch (item.itemType) {
+      case 'weapon-melee':
+        return '近接武器です';
+      case 'weapon-ranged':
+        return '遠距離武器です';
+      case 'armor':
+        return '防具です';
+      case 'accessory':
+        return 'アクセサリーです';
+      case 'consumable':
+        return this.getConsumableDescription(item);
+      default:
+        return '謎のアイテムです';
+    }
+  }
+
+  /**
+   * 消費アイテムの説明文を取得
+   */
+  private getConsumableDescription(item: InventoryDisplayItem): string {
+    const name = item.name?.toLowerCase() || '';
+    
+    if (name.includes('オレンジ') || name.includes('orange')) {
+      return '満腹度を30回復する';
+    } else if (name.includes('ポーション') || name.includes('potion')) {
+      return 'HPを回復する';
+    } else if (name.includes('スクロール') || name.includes('scroll')) {
+      return '魔法の巻物です';
+    } else if (name.includes('薬') || name.includes('薬草')) {
+      return '回復アイテムです';
+    } else {
+      return '消費アイテムです';
+    }
+  }
+
+  /**
+   * 選択中のアイテム名表示を更新
+   */
+  private updateSelectedInventoryItemName(): void {
+    const nameElement = document.getElementById('inventoryItemName');
+    const descriptionElement = document.getElementById('inventoryItemDescription');
+    if (!nameElement || !descriptionElement) return;
+
+    const selected = this.getSelectedInventoryItem();
+    if (selected) {
+      nameElement.textContent = this.getInventoryItemLabel(selected);
+      descriptionElement.textContent = this.getInventoryItemDescription(selected);
+    } else {
+      nameElement.textContent = '空のスロット';
+      descriptionElement.textContent = '--';
+    }
+  }
+
+  /**
+   * アイテム名表示を初期状態に戻す
+   */
+  private resetInventoryItemName(): void {
+    const nameElement = document.getElementById('inventoryItemName');
+    const descriptionElement = document.getElementById('inventoryItemDescription');
+    if (!nameElement || !descriptionElement) return;
+    nameElement.textContent = '--';
+    descriptionElement.textContent = '--';
+  }
+
+  /**
    * 選択されたインベントリアイテムを取得
    */
   getSelectedInventoryItem(): InventoryDisplayItem | null {
@@ -581,6 +660,7 @@ export class UIManager {
     // 位置が変更された場合のみ更新
     if (oldX !== this.selectedGridX || oldY !== this.selectedGridY) {
       this.updateInventoryGrid(this.currentInventoryItems);
+      this.updateSelectedInventoryItemName();
     }
   }
 

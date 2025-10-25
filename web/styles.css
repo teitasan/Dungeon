@@ -591,6 +591,30 @@ a {
   font-size: 18px;
 }
 
+.inventory-item-info {
+  padding: 8px;
+  background: #1a1a1a;
+  border-radius: 6px;
+  border: 2px solid #444;
+  text-align: center;
+}
+
+.inventory-item-name {
+  font-size: 18px;
+  text-align: center;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  color: #ede1c6;
+}
+
+.inventory-item-description {
+  font-size: 14px;
+  text-align: center;
+  letter-spacing: 1px;
+  color: #ccc;
+  line-height: 1.4;
+}
+
 /* グリッドインベントリ */
 .inventory-grid {
   display: grid;
